@@ -14,6 +14,8 @@
 
 AiCode 是一个**基于claude code开源代码的，C++ 开发的智能编码助手 CLI 工具**，采用"思考 - 行动 - 观察"闭环的 Agent 架构，通过 MCP 工具集直接操作终端与文件系统，调用 Claude/Qwen/Ollama API 完成自主代码开发与调试。
 
+![展示图](docs/demo.png)
+
 ### 核心定位
 
 | 特性 | 说明 |
