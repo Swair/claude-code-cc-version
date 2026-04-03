@@ -5,10 +5,16 @@
 
 #include <iostream>
 #include <sstream>
-#include <termios.h>
-#include <unistd.h>
 
 #include "common/log_wrapper.h"
+#include "common/string_utils.h"
+
+#ifdef _WIN32
+#include <conio.h>
+#else
+#include <termios.h>
+#include <unistd.h>
+#endif
 
 namespace aicode {
 
@@ -132,6 +138,9 @@ std::string AskUserQuestionTool::FormatQuestions(const std::vector<Question>& qu
 }
 
 char AskUserQuestionTool::ReadChar() const {
+#ifdef _WIN32
+    return _getch();
+#else
     struct termios oldt, newt;
     char ch;
     tcgetattr(STDIN_FILENO, &oldt);
@@ -141,12 +150,11 @@ char AskUserQuestionTool::ReadChar() const {
     ch = getchar();
     tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
     return ch;
+#endif
 }
 
 std::string AskUserQuestionTool::ReadLine() const {
-    std::string line;
-    std::getline(std::cin, line);
-    return line;
+    return aicode::ReadLine();
 }
 
 AskUserQuestionResult AskUserQuestionTool::Ask(const std::vector<Question>& questions) {

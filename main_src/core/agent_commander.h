@@ -4,22 +4,19 @@
 #pragma once
 
 #include <atomic>
+#include <condition_variable>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
 #include "common/noncopyable.h"
 #include "common/config.h"
-#include "providers/llm_provider.h"
-#include "cli/input_handler.h"
 #include "core/system_prompt.h"
+#include "core/messages_schema.h"
 
 namespace aicode {
-
-#ifndef WIN32
-#include <condition_variable>
-#endif
 
 // Forward declarations
 class MemoryManager;
@@ -27,6 +24,7 @@ class SkillLoader;
 class ToolRegistry;
 class AgentCore;
 class CommandRegistry;
+class LLMProvider;
 
 /// AgentCommander: orchestrates user interaction, command handling, and agent execution
 /// Singleton pattern - use AgentCommander::GetInstance() to access
@@ -62,9 +60,6 @@ class AgentCommander : public Noncopyable {
     /// Build system prompt from skills and identity files
     std::vector<SystemSchema> BuildSystemPrompt();
 
-    /// Read a line from stdin with tab completion
-    std::string ReadLine(const std::string& prompt = "> ");
-
     /// Print help message
     void PrintHelp();
 
@@ -79,8 +74,8 @@ class AgentCommander : public Noncopyable {
     std::shared_ptr<MemoryManager> memory_manager_;
     std::shared_ptr<SkillLoader> skill_loader_;
     std::shared_ptr<ToolRegistry> tool_registry_;
-    std::shared_ptr<LLMProvider> llm_provider_;
     std::shared_ptr<AgentCore> agent_core_;
+    std::shared_ptr<LLMProvider> llm_provider_;
     CommandRegistry* command_registry_ = nullptr;  // Non-owned pointer
 
     // State

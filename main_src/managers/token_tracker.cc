@@ -3,12 +3,12 @@
 
 #include "managers/token_tracker.h"
 
-#include <fstream>
 #include <numeric>
 #include <sstream>
 #include <iomanip>
 
 #include "common/log_wrapper.h"
+#include "common/file_utils.h"
 #include "providers/llm_provider.h"
 
 namespace aicode {
@@ -252,27 +252,18 @@ void TokenTracker::FromJson(const nlohmann::json& json) {
 }
 
 void TokenTracker::SaveToFile(const std::string& filepath) {
-    std::ofstream file(filepath);
-    if (file.is_open()) {
-        file << ToJson().dump(2);
-        file.close();
-        LOG_INFO("Token tracker stats saved to {}", filepath);
-    } else {
-        LOG_ERROR("Failed to save token stats to {}", filepath);
-    }
+    WriteJson(filepath, ToJson(), 2);
+    LOG_INFO("Token tracker stats saved to {}", filepath);
 }
 
 void TokenTracker::LoadFromFile(const std::string& filepath) {
-    std::ifstream file(filepath);
-    if (file.is_open()) {
+    auto json_opt = ReadJson(filepath);
+    if (json_opt) {
         try {
-            nlohmann::json json;
-            file >> json;
-            FromJson(json);
+            FromJson(*json_opt);
         } catch (const std::exception& e) {
             LOG_ERROR("Failed to parse token stats file: {}", e.what());
         }
-        file.close();
     }
 }
 

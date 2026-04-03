@@ -112,9 +112,6 @@ private:
     /// Generate unique task ID
     std::string GenerateTaskId() const;
 
-    /// Get current timestamp
-    std::string GetTimestamp() const;
-
     std::unordered_map<std::string, ScheduledTask> tasks_;
     ExecuteCallback execute_callback_;
     std::thread scheduler_thread_;

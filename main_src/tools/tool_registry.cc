@@ -699,7 +699,20 @@ void ToolRegistry::RegisterTool(
     ToolsSchema schema;
     schema.name = name;
     schema.description = description;
-    schema.input_schema = std::move(parameters);
+
+    // Wrap parameters in OpenAI-compatible function schema format
+    nlohmann::json wrapped_schema = nlohmann::json::object();
+    wrapped_schema["type"] = "object";
+    wrapped_schema["properties"] = std::move(parameters);
+
+    // Extract required fields (all defined properties are required by default)
+    nlohmann::json required = nlohmann::json::array();
+    for (const auto& [key, value] : wrapped_schema["properties"].items()) {
+        required.push_back(key);
+    }
+    wrapped_schema["required"] = required;
+
+    schema.input_schema = std::move(wrapped_schema);
     tool_schemas_.push_back(schema);
 
     LOG_DEBUG("Registered tool: {}", name);

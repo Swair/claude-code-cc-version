@@ -135,9 +135,6 @@ private:
 
     /// Generate unique task ID
     std::string GenerateTaskId();
-
-    /// Get current timestamp
-    int64_t GetTimestamp() const;
 };
 
 }  // namespace aicode

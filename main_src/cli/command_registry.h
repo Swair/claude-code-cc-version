@@ -10,11 +10,14 @@
 
 namespace aicode {
 
+class AgentCore;  // Forward declaration
+
 /// Command execution context
 struct CommandContext {
     std::string workspace;
     std::string session_id;
     void* user_data = nullptr;  // For custom context data
+    class AgentCore* agent_core = nullptr;  // For accessing agent at runtime
 };
 
 /// Command result
@@ -125,6 +128,9 @@ private:
     CommandResult CmdAutoCommit(const CommandContext&, const std::vector<std::string>& args);
     CommandResult CmdMemory(const CommandContext&, const std::vector<std::string>& args);
     CommandResult CmdSummary(const CommandContext&, const std::vector<std::string>& args);
+    CommandResult CmdModel(const CommandContext&, const std::vector<std::string>& args);
+    CommandResult CmdPermissions(const CommandContext&, const std::vector<std::string>& args);
+    CommandResult CmdHistory(const CommandContext&, const std::vector<std::string>& args);
 };
 
 }  // namespace aicode

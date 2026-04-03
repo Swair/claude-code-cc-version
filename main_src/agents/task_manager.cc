@@ -5,11 +5,12 @@
 
 #include <fstream>
 #include <sstream>
-#include <chrono>
 #include <algorithm>
 
 #include "common/log_wrapper.h"
 #include "common/constants.h"
+#include "common/time_wrapper.h"
+#include "common/file_utils.h"
 
 namespace aicode {
 
@@ -28,12 +29,6 @@ std::string TaskManager::GenerateTaskId() {
     return "task_" + std::to_string(next_task_id_++);
 }
 
-int64_t TaskManager::GetTimestamp() const {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    ).count();
-}
-
 std::string TaskManager::CreateTask(const std::string& subject,
                                      const std::string& description,
                                      const std::string& active_form) {
@@ -43,7 +38,7 @@ std::string TaskManager::CreateTask(const std::string& subject,
     task.description = description;
     task.active_form = active_form.empty() ? subject : active_form;
     task.status = TaskStatus::Pending;
-    task.created_at = GetTimestamp();
+    task.created_at = GetCurrentTimeMillis();
     task.updated_at = task.created_at;
 
     tasks_[task.id] = task;
@@ -94,7 +89,7 @@ bool TaskManager::UpdateTaskStatus(const std::string& task_id, TaskStatus status
     }
 
     it->second.status = status;
-    it->second.updated_at = GetTimestamp();
+    it->second.updated_at = GetCurrentTimeMillis();
 
     if (status == TaskStatus::Completed || status == TaskStatus::Failed ||
         status == TaskStatus::Cancelled) {
@@ -113,7 +108,7 @@ bool TaskManager::UpdateTaskOwner(const std::string& task_id, const std::string&
     }
 
     it->second.owner = owner;
-    it->second.updated_at = GetTimestamp();
+    it->second.updated_at = GetCurrentTimeMillis();
     SaveToFile();
     LOG_INFO("Updated task {} owner to {}", task_id, owner);
     return true;
@@ -126,7 +121,7 @@ bool TaskManager::UpdateTaskDescription(const std::string& task_id, const std::s
     }
 
     it->second.description = description;
-    it->second.updated_at = GetTimestamp();
+    it->second.updated_at = GetCurrentTimeMillis();
     SaveToFile();
     LOG_INFO("Updated task {} description", task_id);
     return true;
@@ -142,7 +137,7 @@ bool TaskManager::SetTaskDependencies(const std::string& task_id,
 
     it->second.blocks = blocks;
     it->second.blocked_by = blocked_by;
-    it->second.updated_at = GetTimestamp();
+    it->second.updated_at = GetCurrentTimeMillis();
 
     // Update reverse dependencies
     for (const auto& blocked_id : blocked_by) {
@@ -293,27 +288,18 @@ void TaskManager::FromJson(const nlohmann::json& json) {
 }
 
 void TaskManager::SaveToFile() {
-    std::ofstream file(storage_path_);
-    if (file.is_open()) {
-        file << ToJson().dump(2);
-        file.close();
-        LOG_DEBUG("Tasks saved to {}", storage_path_);
-    } else {
-        LOG_ERROR("Failed to save tasks to {}", storage_path_);
-    }
+    WriteJson(storage_path_, ToJson(), 2);
+    LOG_DEBUG("Tasks saved to {}", storage_path_);
 }
 
 void TaskManager::LoadFromFile() {
-    std::ifstream file(storage_path_);
-    if (file.is_open()) {
+    auto json_opt = ReadJson(storage_path_);
+    if (json_opt) {
         try {
-            nlohmann::json json;
-            file >> json;
-            FromJson(json);
+            FromJson(*json_opt);
         } catch (const std::exception& e) {
             LOG_ERROR("Failed to parse tasks file: {}", e.what());
         }
-        file.close();
     }
 }
 

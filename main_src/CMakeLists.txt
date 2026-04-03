@@ -1,13 +1,19 @@
 cmake_minimum_required(VERSION 3.20)
 project(aicode_core VERSION 1.0.0 LANGUAGES CXX)
 
-# Required dependencies
-find_package(spdlog REQUIRED)
-find_package(CURL REQUIRED)
-find_package(OpenSSL REQUIRED)
 
-# nlohmann_json
 include(FetchContent)
+
+# 使用 FetchContent 自动下载 spdlog
+FetchContent_Declare(
+    spdlog
+    GIT_REPOSITORY https://github.com/gabime/spdlog.git
+    GIT_TAG v1.15.0
+    GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(spdlog)
+
+# 使用 FetchContent 自动下载 nlohmann_json
 FetchContent_Declare(
     nlohmann_json
     GIT_REPOSITORY https://github.com/nlohmann/json.git
@@ -16,8 +22,38 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(nlohmann_json)
 
+# Required dependencies
+find_package(CURL REQUIRED)
+find_package(OpenSSL REQUIRED)
 
-file(GLOB_RECURSE CC_FILES_LIST ${CMAKE_CURRENT_LIST_DIR}/*.cc)
+# Collect source files excluding platform-specific ones
+file(GLOB_RECURSE CC_FILES_LIST
+    ${CMAKE_CURRENT_LIST_DIR}/agents/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/cli/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/common/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/core/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/managers/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/mcp/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/providers/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/services/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/tools/*.cc
+)
+
+# Exclude platform-specific implementation files
+list(FILTER CC_FILES_LIST EXCLUDE REGEX ".*/cli/input_handler\\.cc$")
+list(FILTER CC_FILES_LIST EXCLUDE REGEX ".*/cli/input_handler_posix\\.cc$")
+list(FILTER CC_FILES_LIST EXCLUDE REGEX ".*/cli/input_handler_win32\\.cc$")
+
+# Add platform-specific input_handler based on the target platform
+if(WIN32)
+    list(APPEND CC_FILES_LIST
+        ${CMAKE_CURRENT_LIST_DIR}/cli/input_handler_win32.cc
+    )
+else()
+    list(APPEND CC_FILES_LIST
+        ${CMAKE_CURRENT_LIST_DIR}/cli/input_handler_posix.cc
+    )
+endif()
 
 add_library(aicode_core STATIC ${CC_FILES_LIST})
 

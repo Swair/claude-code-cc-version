@@ -10,6 +10,7 @@
 #include <set>
 
 #include "common/log_wrapper.h"
+#include "core/agent_core.h"
 #include "managers/token_tracker.h"
 #include "agents/task_manager.h"
 #include "managers/session_manager.h"
@@ -327,6 +328,65 @@ void CommandRegistry::Initialize() {
             for (const auto& opt : opts) {
                 if (opt.find(partial) == 0) {
                     completions.push_back(opt);
+                }
+            }
+            return completions;
+        };
+        RegisterCommand(cmd);
+    }
+
+    // /model - Show/change current model
+    {
+        Command cmd;
+        cmd.name = "model";
+        cmd.description = "Show or change the current model";
+        cmd.usage = "/model [model_name]";
+        cmd.aliases = {"mdl"};
+        cmd.handler = [this](const CommandContext& ctx, const std::vector<std::string>& args) {
+            return CmdModel(ctx, args);
+        };
+        RegisterCommand(cmd);
+    }
+
+    // /permissions - Show and manage permission rules
+    {
+        Command cmd;
+        cmd.name = "permissions";
+        cmd.description = "Show or clear permission rules";
+        cmd.usage = "/permissions [clear]";
+        cmd.aliases = {"perms", "perm"};
+        cmd.handler = [this](const CommandContext& ctx, const std::vector<std::string>& args) {
+            return CmdPermissions(ctx, args);
+        };
+        cmd.completer = [](const std::string& partial) {
+            std::vector<std::string> subcommands = {"clear"};
+            std::vector<std::string> completions;
+            for (const auto& subcmd : subcommands) {
+                if (subcmd.find(partial) == 0) {
+                    completions.push_back(subcmd);
+                }
+            }
+            return completions;
+        };
+        RegisterCommand(cmd);
+    }
+
+    // /history - Show conversation history
+    {
+        Command cmd;
+        cmd.name = "history";
+        cmd.description = "Show conversation history";
+        cmd.usage = "/history [count]";
+        cmd.aliases = {"hist"};
+        cmd.handler = [this](const CommandContext& ctx, const std::vector<std::string>& args) {
+            return CmdHistory(ctx, args);
+        };
+        cmd.completer = [](const std::string& partial) {
+            std::vector<std::string> counts = {"10", "20", "50", "100"};
+            std::vector<std::string> completions;
+            for (const auto& count : counts) {
+                if (count.find(partial) == 0) {
+                    completions.push_back(count);
                 }
             }
             return completions;
@@ -1880,6 +1940,161 @@ CommandResult CommandRegistry::CmdSummary(const CommandContext& ctx, const std::
 
     if (brief) {
         oss << "\n[Brief mode: use --detailed for more info]\n";
+    }
+
+    return CommandResult::Ok(oss.str());
+}
+
+// ==================== Additional Command Handlers ====================
+
+CommandResult CommandRegistry::CmdModel(const CommandContext& ctx, const std::vector<std::string>& args) {
+    auto& config = AiCodeConfig::GetInstance();
+
+    if (args.empty()) {
+        // Show current model
+        std::ostringstream oss;
+        oss << "Current model configuration:\n";
+        oss << "  Default provider: " << config.default_provider << "\n";
+        oss << "  Default agent: " << config.default_agent << "\n";
+
+        auto provider_it = config.providers.find(config.default_provider);
+        if (provider_it != config.providers.end()) {
+            auto default_agent = provider_it->second.GetDefaultAgent();
+            oss << "  Current model: " << default_agent.model << "\n";
+            oss << "  Temperature: " << default_agent.temperature << "\n";
+            oss << "  Max tokens: " << default_agent.max_tokens << "\n";
+        }
+
+        return CommandResult::Ok(oss.str());
+    }
+
+    // Change model at runtime
+    std::string new_model = args[0];
+
+    // Update AgentCore if available (for immediate effect)
+    if (ctx.agent_core) {
+        ctx.agent_core->SetModel(new_model);
+    }
+
+    // Also update config for persistence
+    auto provider_it = config.providers.find(config.default_provider);
+    if (provider_it != config.providers.end()) {
+        auto& agents = const_cast<std::unordered_map<std::string, AgentConfig>&>(provider_it->second.agents);
+        auto agent_it = agents.find("default");
+        if (agent_it != agents.end()) {
+            agent_it->second.model = new_model;
+        }
+    }
+
+    // Save config to file
+    config.SaveToFile();
+
+    std::ostringstream oss;
+    oss << "Model changed to: " << new_model << "\n";
+    if (ctx.agent_core) {
+        oss << "Applied to current session.\n";
+    } else {
+        oss << "Change will take effect in next session.\n";
+    }
+    oss << "Configuration saved.\n";
+    return CommandResult::Ok(oss.str());
+}
+
+CommandResult CommandRegistry::CmdPermissions(const CommandContext&, const std::vector<std::string>& args) {
+    auto& perm_mgr = PermissionManager::GetInstance();
+
+    if (args.empty() || args[0] == "list") {
+        // Show current permission rules
+        std::ostringstream oss;
+        oss << "=== Permission Rules ===\n\n";
+        oss << "Current mode: " << perm_mgr.GetMode() << "\n\n";
+
+        auto allow_rules = perm_mgr.GetAllowRules();
+        auto deny_rules = perm_mgr.GetDenyRules();
+        auto ask_rules = perm_mgr.GetAskRules();
+
+        if (allow_rules.empty() && deny_rules.empty() && ask_rules.empty()) {
+            oss << "No custom permission rules configured.\n";
+            oss << "Default behavior: Ask for confirmation on potentially dangerous operations.\n";
+        } else {
+            if (!allow_rules.empty()) {
+                oss << "Always Allow (" << allow_rules.size() << " rules):\n";
+                for (const auto& rule : allow_rules) {
+                    oss << "  - " << rule.tool_name;
+                    if (!rule.command_pattern.empty()) oss << " (cmd: " << rule.command_pattern << ")";
+                    if (!rule.path_pattern.empty()) oss << " (path: " << rule.path_pattern << ")";
+                    oss << "\n";
+                }
+                oss << "\n";
+            }
+
+            if (!deny_rules.empty()) {
+                oss << "Always Deny (" << deny_rules.size() << " rules):\n";
+                for (const auto& rule : deny_rules) {
+                    oss << "  - " << rule.tool_name;
+                    if (!rule.command_pattern.empty()) oss << " (cmd: " << rule.command_pattern << ")";
+                    if (!rule.path_pattern.empty()) oss << " (path: " << rule.path_pattern << ")";
+                    oss << "\n";
+                }
+                oss << "\n";
+            }
+
+            if (!ask_rules.empty()) {
+                oss << "Always Ask (" << ask_rules.size() << " rules):\n";
+                for (const auto& rule : ask_rules) {
+                    oss << "  - " << rule.tool_name;
+                    if (!rule.command_pattern.empty()) oss << " (cmd: " << rule.command_pattern << ")";
+                    if (!rule.path_pattern.empty()) oss << " (path: " << rule.path_pattern << ")";
+                    oss << "\n";
+                }
+                oss << "\n";
+            }
+        }
+
+        oss << "\nUse /permissions clear to reset all rules.\n";
+        return CommandResult::Ok(oss.str());
+    }
+
+    if (args[0] == "clear") {
+        perm_mgr.ClearRules();
+        return CommandResult::Ok("All permission rules have been cleared.\n");
+    }
+
+    return CommandResult::Fail("Unknown permissions subcommand. Use: list, clear");
+}
+
+CommandResult CommandRegistry::CmdHistory(const CommandContext&, const std::vector<std::string>& args) {
+    auto& session_mgr = SessionManager::GetInstance();
+
+    int count = 10;  // Default to last 10 messages
+    if (!args.empty()) {
+        try {
+            count = std::stoi(args[0]);
+            if (count < 1) count = 10;
+            if (count > 100) count = 100;
+        } catch (...) {
+            return CommandResult::Fail("Invalid count value. Use a number between 1 and 100.");
+        }
+    }
+
+    std::ostringstream oss;
+    oss << "=== Recent Commands History ===\n\n";
+
+    // For now, show a simple message since we don't have persistent command history
+    oss << "Command history is maintained by your shell.\n";
+    oss << "Use shell history commands:\n";
+    oss << "  - Up/Down arrows to navigate\n";
+    oss << "  - Ctrl+R to search history\n";
+    oss << "  - 'history' command (on POSIX shells)\n\n";
+
+    oss << "Recent sessions:\n";
+    auto sessions = session_mgr.ListSessions();
+    int display_count = std::min(static_cast<int>(sessions.size()), count);
+    for (int i = 0; i < display_count; ++i) {
+        const auto& session = sessions[i];
+        oss << "  " << (i + 1) << ". " << session.session_id;
+        oss << " - " << session.workspace;
+        oss << " (" << session.message_count << " messages)\n";
     }
 
     return CommandResult::Ok(oss.str());

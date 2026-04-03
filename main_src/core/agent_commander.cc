@@ -7,40 +7,28 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include <sys/ioctl.h>
-#include <termios.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/select.h>
+#include <thread>
 
 #include "common/log_wrapper.h"
 #include "common/banner.h"
 #include "common/input_queue.h"
+#include "common/string_utils.h"
 #include "core/agent_core.h"
 #include "managers/memory_manager.h"
 #include "core/skill_loader.h"
 #include "core/system_prompt.h"
 #include "managers/buddy_manager.h"
+#include "managers/session_manager.h"
 #include "cli/command_registry.h"
 #include "providers/qwen_provider.h"
 #include "providers/anthropic_provider.h"
 #include "tools/tool_registry.h"
-#include <thread>
-#include <atomic>
 
 namespace aicode {
 
 namespace {
 AgentCommander* g_commander_ptr = nullptr;
 }  // namespace
-
-void SignalHandler(int /* signum */) {
-    if (g_commander_ptr) {
-        g_commander_ptr->Stop();
-    }
-    std::cout << "\nCtrl+C received, exiting...\n";
-    std::exit(0);
-}
 
 AgentCommander& AgentCommander::GetInstance() {
     static AgentCommander instance;
@@ -111,6 +99,7 @@ void AgentCommander::InitializeComponents() {
     tool_registry_->SetWorkspace(workspace_path_.string());
 
     // Set up permission confirmation callback for interactive mode
+    std::cout << "[InitializeComponents] Setting up permission manager..." << std::endl;
     auto& perm_manager = PermissionManager::GetInstance();
     perm_manager.SetConfirmCallback(
         [this, &perm_manager](const std::string& tool_name, const nlohmann::json& input, const std::string& reason) -> bool {
@@ -231,6 +220,7 @@ void AgentCommander::InitializeComponents() {
     LOG_INFO("Using {} provider with base_url: {}", config_.default_provider, provider_config.base_url);
 
     // Agent CloseLoop
+    std::cout << "[InitializeComponents] Creating AgentCore..." << std::endl;
     agent_core_ = std::make_shared<AgentCore>(
         memory_manager_,
         skill_loader_,
@@ -278,6 +268,8 @@ void AgentCommander::InitializeComponents() {
     LOG_INFO("AgentCore initialized: model={}, temp={}, max_tokens={}, context_window={}",
              agent_config_.model, agent_config_.temperature,
              agent_config_.max_tokens, agent_config_.context_window);
+
+    LOG_INFO("InitializeComponents finished");
 }
 
 std::vector<SystemSchema> AgentCommander::BuildSystemPrompt() {
@@ -305,318 +297,52 @@ void AgentCommander::PrintHelp() {
     std::cout << "\n";
 }
 
-std::string AgentCommander::ReadLine(const std::string& prompt_str) {
-    struct winsize w;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-    std::cout << "\033[" << w.ws_row << ";1H\033[K" << prompt_str;
-    std::cout.flush();
-
-    // Use select() for blocking with timeout, allowing ESC check
-    std::string line;
-    while (!interrupted_) {
-        fd_set set;
-        FD_ZERO(&set);
-        FD_SET(STDIN_FILENO, &set);
-        struct timeval tv = {0, 50000};  // 50ms timeout
-        int ret = select(STDIN_FILENO + 1, &set, nullptr, nullptr, &tv);
-
-        if (ret > 0 && FD_ISSET(STDIN_FILENO, &set)) {
-            char c;
-            int n = read(STDIN_FILENO, &c, 1);
-            if (n > 0) {
-                if (c == 27) {  // ESC key
-                    // Just set interrupted_ and return, don't break the loop
-                    interrupted_ = true;
-                    return line;
-                }
-                if (c == '\n' || c == '\r') {
-                    break;
-                }
-                if (c == 127 || c == 8) {  // Backspace
-                    if (!line.empty()) {
-                        line.pop_back();
-                        std::cout << "\b \b" << std::flush;
-                    }
-                } else if ((c >= 32 && c < 127) || (unsigned char)c >= 0x80) {
-                    // ASCII or UTF-8 multibyte
-                    line += c;
-                    std::cout << c << std::flush;
-                }
-            }
-        }
-    }
-
-    std::cout << "\n";
-    std::cout.flush();
-    return line;
-}
-
-// Render Biscuit sprite to bottom-right corner (random species each time)
-static void PrintBiscuitAtCorner() {
-    auto& buddy = BuddyManager::GetInstance();
-
-    // Get terminal size (default to 80x24 if unknown)
-    int term_width = 80;
-    int term_height = 24;
-
-#ifdef TIOCGWINSZ
-    #include <sys/ioctl.h>
-    #include <unistd.h>
-    struct winsize w;
-    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) == 0) {
-        term_width = w.ws_col;
-        term_height = w.ws_row;
-    }
-#endif
-
-    auto sprite = buddy.RenderRandomSprite(0);
-    int sprite_height = static_cast<int>(sprite.size());
-    int sprite_width = 0;
-    for (const auto& s : sprite) {
-        if (static_cast<int>(s.size()) > sprite_width) {
-            sprite_width = static_cast<int>(s.size());
-        }
-    }
-
-    // Move cursor to bottom-right corner
-    int start_row = term_height - sprite_height - 1;
-    int start_col = term_width - sprite_width - 2;
-
-    for (size_t i = 0; i < sprite.size(); i++) {
-        // Move to position and print
-        std::cout << "\033[" << (start_row + i) << ";" << start_col << "H" << sprite[i];
-    }
-    // Move cursor back to input line
-    std::cout << "\033[" << (start_row + sprite_height + 1) << ";1H";
-    std::cout << "❯ ";
-    std::cout.flush();
-}
-
 bool AgentCommander::HandleCommand(const std::string& line) {
-    if (line == "/help") {
-        PrintHelp();
-        return true;
+    if (line.empty() || line[0] != '/') {
+        return false;  // Not a command
     }
-    if (line == "/exit" || line == "/quit") {
+
+    // Parse command line
+    std::vector<std::string> args = CommandRegistry::ParseCommandLine(line);
+    if (args.empty()) {
+        return false;
+    }
+
+    std::string cmd_name = args[0].substr(1);  // Remove leading '/'
+    std::vector<std::string> cmd_args(args.begin() + 1, args.end());
+
+    // Check for exit commands first (always available)
+    if (cmd_name == "exit" || cmd_name == "quit") {
         LOG_INFO("Exiting AiCode...");
-        return true;  // Signal to exit
-    }
-    if (line == "/clear") {
-        if (agent_core_) {
-            agent_core_->ClearHistory();
-        }
-        LOG_INFO("Conversation history cleared");
-        std::cout << "History cleared\n";
-        return true;
-    }
-    if (line == "/config") {
-        std::cout << "Current model: " << agent_config_.model << "\n";
-        std::cout << "Temperature: " << agent_config_.temperature << "\n";
-        std::cout << "Max tokens: " << agent_config_.max_tokens << "\n";
-        std::cout << "Context window: " << agent_config_.context_window << "\n";
-        std::cout << "Max iterations: "
-                  << agent_core_->GetConfig().DynamicMaxIterations() << "\n";
-        return true;
-    }
-    if (line == "/model") {
-        std::cout << "Current model: " << agent_config_.model << "\n";
-        size_t space_pos = line.find(' ');
-        if (space_pos != std::string::npos) {
-            std::string new_model = line.substr(space_pos + 1);
-            if (!new_model.empty()) {
-                agent_core_->SetModel(new_model);
-                std::cout << "Model changed to: " << new_model << "\n";
-            }
-        }
-        return true;
-    }
-    if (line == "/history") {
-        if (agent_core_) {
-            for (const auto& msg : agent_core_->GetHistory()) {
-                std::cout << msg.role << ": " << msg.text() << "\n";
-            }
-        }
-        return true;
-    }
-    if (line == "/permissions" || line == "/perms") {
-        // Show permission rules
-        std::cout << "\n=== Permission Rules ===\n\n";
-        auto& pm = PermissionManager::GetInstance();
-
-        auto allow_rules = pm.GetAllowRules();
-        if (!allow_rules.empty()) {
-            std::cout << "Allow rules (" << allow_rules.size() << "):\n";
-            for (const auto& rule : allow_rules) {
-                std::cout << "  - tool: " << rule.tool_name;
-                if (!rule.command_pattern.empty()) {
-                    std::cout << ", command: " << rule.command_pattern;
-                }
-                if (!rule.path_pattern.empty()) {
-                    std::cout << ", path: " << rule.path_pattern;
-                }
-                std::cout << "\n";
-            }
-        } else {
-            std::cout << "No allow rules.\n";
-        }
-
-        auto deny_rules = pm.GetDenyRules();
-        if (!deny_rules.empty()) {
-            std::cout << "\nDeny rules (" << deny_rules.size() << "):\n";
-            for (const auto& rule : deny_rules) {
-                std::cout << "  - tool: " << rule.tool_name;
-                if (!rule.command_pattern.empty()) {
-                    std::cout << ", command: " << rule.command_pattern;
-                }
-                std::cout << "\n";
-            }
-        }
-
-        std::cout << "\nMode: " << pm.GetMode() << "\n";
-        std::cout << "\nUse '/perms clear' to clear all rules\n";
-        std::cout << "\n";
-        return true;
-    }
-    if (line == "/permissions clear" || line == "/perms clear") {
-        auto& pm = PermissionManager::GetInstance();
-        pm.ClearRules();
-        std::cout << "All permission rules cleared\n";
-        return true;
-    }
-    if (line == "/memory") {
-        std::ostringstream memory_content;
-        if (agent_core_) {
-            for (const auto& msg : agent_core_->GetHistory()) {
-                memory_content << msg.role << ": " << msg.text() << "\n";
-            }
-        }
-        memory_manager_->SaveDailyMemory(memory_content.str());
-        std::cout << "Memory saved\n";
-        return true;
-    }
-    if (line == "/skills list") {
-        // List available skills
-        std::cout << "\n## Available Skills\n";
-        auto skills = skill_loader_->LoadSkillsFromDirectory(workspace_path_ / "skills");
-        if (skills.empty()) {
-            std::cout << "No skills found in workspace/skills directory.\n";
-        } else {
-            std::cout << "Found " << skills.size() << " skills:\n\n";
-            for (const auto& skill : skills) {
-                std::cout << "  /" << skill.name;
-                if (!skill.description.empty()) {
-                    std::cout << " - " << skill.description;
-                }
-                std::cout << "\n";
-            }
-        }
-        std::cout << "\n";
         return true;
     }
 
-    // Handle /buddy command (before generic skill handling)
-    if (line == "/buddy" || line.find("/buddy ") == 0) {
-        auto& buddy = BuddyManager::GetInstance();
+    // Execute command via registry
+    if (command_registry_ && command_registry_->HasCommand(cmd_name)) {
+        CommandContext ctx;
+        ctx.workspace = workspace_path_.string();
+        ctx.session_id = SessionManager::GetInstance().GetCurrentSessionId();
+        ctx.agent_core = agent_core_.get();
 
-        if (line == "/buddy") {
-            // Show current companion
-            if (!buddy.HasCompanion()) {
-                std::cout << "\nNo companion found. Hatch one with /buddy hatch\n\n";
-            } else {
-                // Render ASCII art
-                std::cout << "\n";
-                auto sprite = buddy.RenderSprite(0);
-                for (const auto& line : sprite) {
-                    std::cout << line << "\n";
-                }
-                std::cout << "\n" << buddy.RenderInfo() << "\n\n";
-            }
-            return true;
+        CommandResult result = command_registry_->ExecuteCommand(cmd_name, cmd_args, ctx);
+
+        if (!result.output.empty()) {
+            std::cout << result.output << "\n";
+        }
+        if (!result.error.empty()) {
+            std::cerr << result.error << "\n";
         }
 
-        if (line == "/buddy hatch") {
-            // Generate new companion
-            std::string user_id = "default_user";  // TODO: Get from config
-            auto companion = buddy.GenerateCompanion(user_id);
-
-            std::cout << "\n🎉 A new companion has hatched!\n\n";
-            auto sprite = buddy.RenderSprite(0);
-            for (const auto& line : sprite) {
-                std::cout << line << "\n";
-            }
-            std::cout << "\n" << buddy.RenderInfo() << "\n\n";
-            std::cout << "Your companion needs a name! Use /buddy name <name> to name it.\n\n";
-            return true;
-        }
-
-        if (line.find("/buddy name ") == 0) {
-            std::string name = line.substr(12);
-            if (!name.empty()) {
-                buddy.SetCompanionName(name);
-                std::cout << "Companion named: " << name << "\n\n";
-            }
-            return true;
-        }
-
-        if (line == "/buddy save") {
-            if (buddy.SaveCompanion()) {
-                std::cout << "Companion saved!\n\n";
-            } else {
-                std::cout << "Failed to save companion.\n\n";
-            }
-            return true;
-        }
-
-        std::cout << "Unknown /buddy subcommand. Use /buddy hatch, /buddy name <name>, or /buddy save.\n\n";
-        return true;
+        return result.success;
     }
 
-    // Handle /<skillname> format to load a skill
-    if (line.size() > 1 && line[0] == '/') {
-        std::string skill_name = line.substr(1);
-        // Check if it looks like a skill name (alphanumeric, no spaces)
-        bool valid_name = true;
-        for (char c : skill_name) {
-            if (!std::isalnum(c) && c != '_' && c != '-') {
-                valid_name = false;
-                break;
-            }
-        }
-        if (valid_name) {
-            // Try to load the skill
-            auto skills = skill_loader_->LoadSkillsFromDirectory(workspace_path_ / "skills");
-            bool found = false;
-            for (const auto& skill : skills) {
-                if (skill.name == skill_name) {
-                    found = true;
-                    std::cout << "\nLoading skill: " << skill.name << "\n";
-                    if (!skill.description.empty()) {
-                        std::cout << "Description: " << skill.description << "\n";
-                    }
-                    // Add skill to config
-                    config_.skills.entries[skill_name].enabled = true;
-                    // Rebuild system prompt with new skill and update agent
-                    system_prompt_ = BuildSystemPrompt();
-                    agent_core_->SetSystemPrompt(system_prompt_, true);
-                    std::cout << "Skill loaded successfully!\n\n";
-                    break;
-                }
-            }
-            if (!found) {
-                std::cout << "Skill '" << skill_name << "' not found.\n";
-                std::cout << "Use /skills to see available skills.\n\n";
-            }
-            return true;
-        }
-    }
-
-    return false;  // Not a command
+    // Unknown command
+    std::cout << "Unknown command: " << line << "\n";
+    std::cout << "Type /help for available commands.\n";
+    return true;
 }
 
 void AgentCommander::ProcessUserMessage(const std::string& line) {
-    struct winsize w;
-    ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-
     try {
         LOG_INFO("User: {}", line);
 
@@ -631,9 +357,6 @@ void AgentCommander::ProcessUserMessage(const std::string& line) {
                 interrupted_ = false;  // Reset for next use
                 return;
             }
-
-            // Move cursor up one line (to output area) and print response
-            std::cout << "\033[" << (w.ws_row - 1) << ";1H\033[J";
 
             // Print response
             for (const auto& msg : response) {
@@ -658,10 +381,17 @@ void AgentCommander::ProcessUserMessage(const std::string& line) {
                     }
 
                     if (!text.empty()) {
+#ifdef _WIN32
+                        LOG_INFO("AiCode: {}", text);
+#else
                         std::cout << "AiCode: " << text << std::endl;
+#endif
                     } else if (!msg.content.empty()) {
-                        // MessageSchema has content but no text (e.g., only tool calls)
+#ifdef _WIN32
+                        LOG_INFO("AiCode: [Processing with tools]");
+#else
                         std::cout << "AiCode: [Processing with tools]" << std::endl;
+#endif		
                     }
                 }
             }
@@ -669,27 +399,17 @@ void AgentCommander::ProcessUserMessage(const std::string& line) {
 
     } catch (const std::exception& e) {
         LOG_ERROR("Error: {}", e.what());
-        // Move cursor to output area for error
-        std::cout << "\033[" << (w.ws_row - 1) << ";1H\033[J";
         std::cout << "Error: " << e.what() << std::endl;
     }
-
-    // Redraw input prompt after output
-    std::cout << "\033[" << w.ws_row << ";1H\033[K❯ ";
-    std::cout.flush();
 }
 
 int AgentCommander::Run() {
-    // Setup signal handlers
-    std::signal(SIGINT, SignalHandler);
-    std::signal(SIGTERM, SignalHandler);
-
-    // Set global pointer for signal handling
+    // Set global pointer for signal handling (already set up in constructor)
     g_commander_ptr = this;
 
     // Load companion pet (if exists)
     auto& buddy = BuddyManager::GetInstance();
-    buddy.LoadCompanion();  // Uses AI_CODE_CONFIG env or ~/.aicode/config.json
+    buddy.LoadCompanion();
 
     // Print banner (with buddy if enabled in config)
     bool show_buddy = config_.show_buddy;
@@ -703,42 +423,27 @@ int AgentCommander::Run() {
     // Input queue for producer-consumer pattern
     InputQueue input_queue;
 
+
+    LOG_INFO("Starting main loop...");
+
     // Producer thread: read input and handle commands
     std::thread producer_thread([this, &input_queue, show_buddy]() {
-        struct winsize w;
-        ioctl(STDOUT_FILENO, TIOCGWINSZ, &w);
-
-        // Save and set terminal mode for the entire thread lifetime
-        struct termios orig_termios;
-        if (tcgetattr(STDIN_FILENO, &orig_termios) == 0) {
-            struct termios raw = orig_termios;
-            raw.c_lflag &= ~(ECHO | ICANON);
-            raw.c_iflag &= ~(IXON);
-            raw.c_cc[VMIN] = 1;
-            raw.c_cc[VTIME] = 0;
-            tcsetattr(STDIN_FILENO, TCSANOW, &raw);
-        }
-
+        LOG_INFO("Starting main producer_thread...");
         while (!interrupted_) {
-            // Show prompt or read silently during permission prompt
-            if (waiting_permission_) {
-                // No prompt during permission confirmation
-            } else if (show_buddy) {
-                PrintBiscuitAtCorner();
-            } else {
-                std::cout << "❯ ";
-            }
-            std::cout.flush();
+            // Show prompt
+#ifdef _WIN32
+            LOG_INFO("> ");
+#else
+            std::cout << "> " << std::flush;
+#endif
 
-            std::string line = ReadLine();
+            std::string line = aicode::ReadLine();
 
             // Handle permission response during permission prompt
             if (waiting_permission_) {
                 if (!line.empty()) {
                     char c = line[0];
                     if (c == 'y' || c == 'Y' || c == 'n' || c == 'N' || c == 'a' || c == 'A') {
-                        // Echo the response
-                        std::cout << c << "\n";
                         permission_response_ = c;
                         permission_cv_.notify_one();
                     }
@@ -746,15 +451,12 @@ int AgentCommander::Run() {
                 continue;
             }
 
-            // Check if interrupted during ReadLine (ESC key)
+            // Check if interrupted during ReadLine
             if (interrupted_) {
-                // ESC only cancels current AgentCore execution, not the whole program
-                // The interrupted flag will be reset after the current turn
-                std::cout << "\033[" << w.ws_row << ";1H\033[K[Interrupted]\n\n";
-                // Reset interrupted_ so user can continue typing
+                std::cout << "[Interrupted]\n";
                 interrupted_ = false;
-                agent_core_->Stop();  // Stop the current LLM call
-                continue;  // Go back to reading input
+                agent_core_->Stop();
+                continue;
             }
 
             // Normal input handling - skip empty lines
@@ -780,9 +482,6 @@ int AgentCommander::Run() {
             // Pass non-command input to consumer
             input_queue.Push(line);
         }
-
-        // Restore terminal mode
-        tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
     });
 
     // Consumer thread: process user messages (LLM calls happen here)

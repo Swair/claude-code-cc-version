@@ -4,15 +4,15 @@
 #include "managers/buddy_manager.h"
 
 #include <array>
-#include <fstream>
 #include <sstream>
-#include <chrono>
 #include <functional>
 #include <random>
 
 #include <nlohmann/json.hpp>
 #include "common/log_wrapper.h"
 #include "common/config.h"
+#include "common/file_utils.h"
+#include "common/time_wrapper.h"
 
 namespace aicode {
 
@@ -228,9 +228,7 @@ Companion BuddyManager::GenerateCompanion(const std::string& user_id) {
     std::string uid = user_id.empty() ? "default_user" : user_id;
     GenerateBones(uid);
 
-    companion_.hatched_at = std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    ).count();
+    companion_.hatched_at = GetCurrentTimeMillis() / 1000;
 
     companion_loaded_ = true;
     LOG_INFO("Generated new companion: {} ({}, {})",
@@ -245,14 +243,13 @@ bool BuddyManager::LoadCompanion(const std::string& config_path) {
     std::string path = config_path.empty() ? (AiCodeConfig::BaseDir() / "config.json").string() : config_path;
 
     try {
-        std::ifstream file(path);
-        if (!file.is_open()) {
+        auto json_opt = ReadJson(path);
+        if (!json_opt) {
             LOG_WARN("Companion config not found: {}", path);
             return false;
         }
 
-        nlohmann::json json;
-        file >> json;
+        nlohmann::json json = *json_opt;
 
         if (!json.contains("buddy")) {
             LOG_WARN("No buddy data in config");
@@ -287,13 +284,7 @@ bool BuddyManager::SaveCompanion(const std::string& config_path) const {
         json["buddy"]["personality"] = companion_.personality;
         json["buddy"]["hatched_at"] = companion_.hatched_at;
 
-        std::ofstream file(config_path);
-        if (!file.is_open()) {
-            LOG_ERROR("Cannot open config for writing: {}", config_path);
-            return false;
-        }
-
-        file << json.dump(2);
+        WriteJson(path, json, 2);
         LOG_INFO("Saved companion: {}", companion_.name);
         return true;
 

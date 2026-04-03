@@ -5,13 +5,12 @@
 
 #include <fstream>
 #include <sstream>
-#include <chrono>
-#include <iomanip>
-#include <filesystem>
 #include <algorithm>
 
 #include "common/log_wrapper.h"
 #include "common/constants.h"
+#include "common/time_wrapper.h"
+#include "common/file_utils.h"
 
 namespace aicode {
 
@@ -37,47 +36,16 @@ void SessionManager::Initialize(const std::string& sessions_dir) {
 
 void SessionManager::EnsureSessionsDir() {
     // Create directory if it doesn't exist
-    std::string dir = sessions_dir_;
-    if (dir.find("~") == 0) {
-        const char* home = getenv("HOME");
-        if (home) {
-            dir = std::string(home) + dir.substr(1);
-        }
-    }
-
-    std::string cmd = "mkdir -p \"" + dir + "\"";
-    system(cmd.c_str());
+    std::string dir = ExpandHome(sessions_dir_);
+    EnsureDirectory(dir);
 }
 
 std::string SessionManager::GenerateSessionId() {
-    auto now = std::chrono::system_clock::now();
-    auto duration = now.time_since_epoch();
-    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-
-    std::ostringstream oss;
-    oss << "sess_" << millis;
-    return oss.str();
-}
-
-std::string SessionManager::GetTimestamp() const {
-    auto now = std::chrono::system_clock::now();
-    auto time_t_now = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_now;
-    localtime_r(&time_t_now, &tm_now);
-
-    std::ostringstream oss;
-    oss << std::put_time(&tm_now, "%Y-%m-%d %H:%M:%S");
-    return oss.str();
+    return GenerateIdWithTimestamp("sess_");
 }
 
 std::string SessionManager::GetSessionPath(const std::string& session_id) const {
-    std::string dir = sessions_dir_;
-    if (dir.find("~") == 0) {
-        const char* home = getenv("HOME");
-        if (home) {
-            dir = std::string(home) + dir.substr(1);
-        }
-    }
+    std::string dir = ExpandHome(sessions_dir_);
     return dir + "/" + session_id + ".json";
 }
 
@@ -102,7 +70,7 @@ std::string SessionManager::StartSession(const std::string& workspace) {
     current_messages_.clear();
     current_metadata_ = nlohmann::json::object();
     current_metadata_["workspace"] = workspace;
-    current_metadata_["created_at"] = GetTimestamp();
+    current_metadata_["created_at"] = GetCurrentTimestamp();
     current_metadata_["updated_at"] = current_metadata_["created_at"];
 
     LOG_INFO("Started new session: {}", current_session_id_);
@@ -125,14 +93,8 @@ void SessionManager::SaveSession(const std::string& session_id,
     nlohmann::json json = SessionToJson(messages, metadata);
 
     std::string path = GetSessionPath(session_id);
-    std::ofstream file(path);
-    if (file.is_open()) {
-        file << json.dump(2);
-        file.close();
-        LOG_INFO("Saved session {} ({} messages)", session_id, messages.size());
-    } else {
-        LOG_ERROR("Failed to save session to {}", path);
-    }
+    WriteJson(path, json, 2);
+    LOG_INFO("Saved session {} ({} messages)", session_id, messages.size());
 }
 
 bool SessionManager::LoadSession(const std::string& session_id,
@@ -140,16 +102,14 @@ bool SessionManager::LoadSession(const std::string& session_id,
                                   nlohmann::json& metadata) {
     std::string path = GetSessionPath(session_id);
 
-    std::ifstream file(path);
-    if (!file.is_open()) {
+    auto json_opt = ReadJson(path);
+    if (!json_opt) {
         LOG_ERROR("Session not found: {}", session_id);
         return false;
     }
 
     try {
-        nlohmann::json json;
-        file >> json;
-        SessionFromJson(json, messages, metadata);
+        SessionFromJson(*json_opt, messages, metadata);
         LOG_INFO("Loaded session {} ({} messages)", session_id, messages.size());
         return true;
     } catch (const std::exception& e) {
@@ -161,13 +121,7 @@ bool SessionManager::LoadSession(const std::string& session_id,
 std::vector<SessionInfo> SessionManager::ListSessions() const {
     std::vector<SessionInfo> sessions;
 
-    std::string dir = sessions_dir_;
-    if (dir.find("~") == 0) {
-        const char* home = getenv("HOME");
-        if (home) {
-            dir = std::string(home) + dir.substr(1);
-        }
-    }
+    std::string dir = ExpandHome(sessions_dir_);
 
     // Use find command to list session files
     std::string cmd = "find \"" + dir + "\" -name \"sess_*.json\" -type f 2>/dev/null";
@@ -219,15 +173,13 @@ SessionInfo SessionManager::GetSessionInfo(const std::string& session_id) const 
 
     std::string path = GetSessionPath(session_id);
 
-    std::ifstream file(path);
-    if (!file.is_open()) {
+    auto json_opt = ReadJson(path);
+    if (!json_opt) {
         return info;
     }
 
     try {
-        nlohmann::json json;
-        file >> json;
-
+        auto& json = *json_opt;
         info.created_at = json.value("created_at", "");
         info.updated_at = json.value("updated_at", "");
         info.workspace = json.value("workspace", "");
@@ -245,10 +197,8 @@ SessionInfo SessionManager::GetSessionInfo(const std::string& session_id) const 
 bool SessionManager::DeleteSession(const std::string& session_id) {
     std::string path = GetSessionPath(session_id);
 
-    std::string cmd = "rm -f \"" + path + "\"";
-    int result = system(cmd.c_str());
-
-    if (result == 0) {
+    if (FileExists(path)) {
+        std::filesystem::remove(path);
         LOG_INFO("Deleted session: {}", session_id);
 
         if (session_id == current_session_id_) {
@@ -287,7 +237,7 @@ bool SessionManager::ResumeLastSession(std::vector<MessageSchema>& messages, nlo
 
 void SessionManager::AddMessageToSession(const MessageSchema& msg) {
     current_messages_.push_back(msg);
-    current_metadata_["updated_at"] = GetTimestamp();
+    current_metadata_["updated_at"] = GetCurrentTimestamp();
     current_metadata_["message_count"] = static_cast<int>(current_messages_.size());
 
     // Track last user message

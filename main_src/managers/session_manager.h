@@ -95,9 +95,6 @@ private:
     /// Get session file path
     std::string GetSessionPath(const std::string& session_id) const;
 
-    /// Get current timestamp string
-    std::string GetTimestamp() const;
-
     /// Count tokens in messages
     int CountTokens(const std::vector<MessageSchema>& messages) const;
 

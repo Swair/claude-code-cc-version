@@ -61,8 +61,15 @@ private:
     std::string completion_prefix_;
     std::string original_buffer_;  // Buffer before completion cycling
 
+    // UTF-8 multi-byte character buffer (for Windows wide char support)
+    std::string wide_char_buffer_;
+    size_t wide_char_index_ = 0;
+
     /// Read a single character
     int ReadChar();
+
+    /// Get next byte from cached UTF-8 sequence
+    int GetUtf8Byte();
 
     /// Read multiple characters (for escape sequences)
     int ReadCharWithTimeout(int timeout_ms);

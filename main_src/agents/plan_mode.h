@@ -149,9 +149,6 @@ private:
 
     bool in_plan_mode_ = false;
     Plan current_plan_;
-
-    /// Get current timestamp
-    std::string GetTimestamp() const;
 };
 
 }  // namespace aicode

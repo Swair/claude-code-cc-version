@@ -164,6 +164,12 @@ struct AiCodeConfig {
     static std::filesystem::path BaseDir();
     static void CreateDefaultConfig(const std::string& filepath = DefaultConfigPath());
 
+    /// Save config to file
+    void SaveToFile(const std::string& filepath = DefaultConfigPath()) const;
+
+    /// Convert to JSON
+    nlohmann::json ToJson() const;
+
  private:
     static std::string config_path_override_;
     static AiCodeConfig* instance_;

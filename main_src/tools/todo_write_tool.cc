@@ -4,13 +4,12 @@
 #include "tools/todo_write_tool.h"
 
 #include <sstream>
-#include <fstream>
-#include <chrono>
-#include <iomanip>
 #include <filesystem>
 #include <algorithm>
 
 #include "common/log_wrapper.h"
+#include "common/time_wrapper.h"
+#include "common/file_utils.h"
 
 namespace aicode {
 
@@ -22,21 +21,7 @@ TodoWriteTool& TodoWriteTool::GetInstance() {
 }
 
 std::string TodoWriteTool::GenerateId() const {
-    auto now = std::chrono::system_clock::now();
-    auto duration = now.time_since_epoch();
-    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-    return "todo_" + std::to_string(millis);
-}
-
-std::string TodoWriteTool::GetTimestamp() const {
-    auto now = std::chrono::system_clock::now();
-    auto time_t_now = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_now;
-    localtime_r(&time_t_now, &tm_now);
-
-    std::ostringstream oss;
-    oss << std::put_time(&tm_now, "%Y-%m-%dT%H:%M:%S");
-    return oss.str();
+    return GenerateIdWithTimestamp("todo_");
 }
 
 std::string TodoWriteTool::StatusToString(TodoStatus status) const {
@@ -65,7 +50,7 @@ std::string TodoWriteTool::CreateTodo(const std::string& content, const std::str
     item.content = content;
     item.status = TodoStatus::Pending;
     item.priority = priority;
-    item.created_at = GetTimestamp();
+    item.created_at = GetCurrentTimestamp();
 
     items_.push_back(item);
     LOG_INFO("Created todo: {} - {}", item.id, content);
@@ -83,7 +68,7 @@ bool TodoWriteTool::UpdateTodoStatus(const std::string& id, TodoStatus status) {
         if (item.id == id) {
             item.status = status;
             if (status == TodoStatus::Completed) {
-                item.completed_at = GetTimestamp();
+                item.completed_at = GetCurrentTimestamp();
             }
             LOG_INFO("Updated todo {} status to {}", id, StatusToString(status));
             Save();
@@ -249,16 +234,14 @@ bool TodoWriteTool::Load(const std::string& path) {
     }
 
     try {
-        std::ifstream ifs(path);
-        if (!ifs.is_open()) {
+        auto json_opt = ReadJson(path);
+        if (!json_opt) {
             LOG_ERROR("Failed to open todo file: {}", path);
             loaded_ = true;
             return false;
         }
 
-        nlohmann::json json;
-        ifs >> json;
-
+        nlohmann::json json = *json_opt;
         items_.clear();
         for (const auto& j : json) {
             TodoItem item;
@@ -285,7 +268,7 @@ bool TodoWriteTool::Save(const std::string& path) const {
     // Create parent directory if needed
     fs::path p(path);
     if (p.has_parent_path()) {
-        fs::create_directories(p.parent_path());
+        EnsureDirectory(p.parent_path().string());
     }
 
     nlohmann::json json = nlohmann::json::array();
@@ -300,14 +283,7 @@ bool TodoWriteTool::Save(const std::string& path) const {
         json.push_back(j);
     }
 
-    std::ofstream ofs(path);
-    if (!ofs.is_open()) {
-        LOG_ERROR("Failed to open todo file for writing: {}", path);
-        return false;
-    }
-
-    ofs << json.dump(2);
-    ofs.close();
+    WriteJson(path, json, 2);
 
     LOG_DEBUG("Saved {} todos to {}", items_.size(), path);
     return true;

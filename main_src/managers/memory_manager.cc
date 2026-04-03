@@ -5,11 +5,12 @@
 
 #include <chrono>
 #include <filesystem>
-#include <fstream>
 #include <sstream>
 #include <thread>
 
 #include "common/log_wrapper.h"
+#include "common/time_wrapper.h"
+#include "common/file_utils.h"
 
 namespace aicode {
 
@@ -43,7 +44,7 @@ void MemoryManager::LoadWorkspaceFiles() {
         try {
             auto content = ReadIdentityFile(name);
             if (!content.empty()) {
-                spdlog::debug("Loaded {} ({} bytes)", name, content.size());
+                LOG_DEBUG("Loaded {} ({} bytes)", name, content.size());
             }
         } catch (const std::exception& e) {
             LOG_DEBUG("No {} found: {}", name, e.what());
@@ -59,12 +60,12 @@ void MemoryManager::LoadWorkspaceFiles() {
                     ReadFileContent(entry.path());
                     loaded_count++;
                 } catch (const std::exception& e) {
-                    spdlog::warn("Failed to load memory file {}: {}",
-                                  entry.path().filename().string(), e.what());
+                    LOG_WARN("Failed to load memory file {}: {}",
+                              entry.path().filename().string(), e.what());
                 }
             }
         }
-        spdlog::info("Loaded {} daily memory files", loaded_count);
+        LOG_INFO("Loaded {} daily memory files", loaded_count);
     }
 
     spdlog::info("Workspace files loaded successfully");
@@ -120,37 +121,23 @@ std::vector<std::string> MemoryManager::SearchMemory(
 }
 
 void MemoryManager::SaveDailyMemory(const std::string& content) {
-    auto now = std::chrono::system_clock::now();
-    auto time_t = std::chrono::system_clock::to_time_t(now);
-    std::tm tm;
-#ifdef _WIN32
-    localtime_s(&tm, &time_t);
-#else
-    localtime_r(&time_t, &tm);
-#endif
-
-    std::ostringstream date_stream;
-    date_stream << std::put_time(&tm, "%Y-%m-%d");
-    auto date_str = date_stream.str();
+    auto date_str = GetCurrentDate();
+    auto timestamp_str = GetCurrentTimestamp();
 
     auto memory_dir = workspace_path_ / "memory";
     std::filesystem::create_directories(memory_dir);
 
     std::ostringstream entry_stream;
-    entry_stream << "## " << std::put_time(&tm, "%Y-%m-%d %H:%M:%S") << "\n";
+    entry_stream << "## " << timestamp_str << "\n";
     entry_stream << content << "\n";
     auto entry_content = entry_stream.str();
 
     auto memory_file = memory_dir / (date_str + ".md");
-    std::ofstream file(memory_file, std::ios::app);
-    if (file.is_open()) {
-        file << entry_content;
-        spdlog::debug("Saved memory entry to {}", memory_file.string());
-    } else {
-        spdlog::error("Failed to save memory entry to {}", memory_file.string());
+    if (!WriteFile(memory_file.string(), entry_content, true)) {
         throw std::runtime_error("Failed to write to memory file: " +
                                  memory_file.string());
     }
+    spdlog::debug("Saved memory entry to {}", memory_file.string());
 }
 
 void MemoryManager::StartFileWatcher() {
@@ -191,7 +178,7 @@ void MemoryManager::StartFileWatcher() {
                     auto it = file_mtimes_.find(name);
                     if (it == file_mtimes_.end() || it->second != mtime) {
                         file_mtimes_[name] = mtime;
-                        spdlog::info("File changed: {}", name);
+                        LOG_INFO("File changed: {}", name);
                         cb_copy = change_callback_;
                     }
                 }
@@ -202,8 +189,8 @@ void MemoryManager::StartFileWatcher() {
         }
     });
 
-    spdlog::info("File watcher started for workspace: {}",
-                  workspace_path_.string());
+    LOG_INFO("File watcher started for workspace: {}",
+              workspace_path_.string());
 }
 
 void MemoryManager::StopFileWatcher() {
@@ -213,7 +200,7 @@ void MemoryManager::StopFileWatcher() {
         watcher_thread_->join();
     }
     watcher_thread_.reset();
-    spdlog::info("File watcher stopped");
+    LOG_INFO("File watcher stopped");
 }
 
 void MemoryManager::SetFileChangeCallback(FileChangeCallback cb) {
@@ -229,7 +216,7 @@ void MemoryManager::SetAgentWorkspace(const std::string& agent_id) {
     agent_id_ = agent_id;
     workspace_path_ = base_dir_ / "agents" / agent_id / "workspace";
     std::filesystem::create_directories(workspace_path_);
-    spdlog::info("Set agent workspace: {}", workspace_path_.string());
+    LOG_INFO("Set agent workspace: {}", workspace_path_.string());
 }
 
 std::filesystem::path MemoryManager::GetBaseDir() const { return base_dir_; }
@@ -258,29 +245,18 @@ bool MemoryManager::IsMemoryFile(const std::filesystem::path& filepath) const {
 
 std::string MemoryManager::ReadFileContent(
     const std::filesystem::path& filepath) const {
-    if (!std::filesystem::exists(filepath)) {
+    auto content = ReadFile(filepath.string());
+    if (!content) {
         throw std::runtime_error("File not found: " + filepath.string());
     }
-
-    std::ifstream file(filepath);
-    if (!file.is_open()) {
-        throw std::runtime_error("Failed to open file: " + filepath.string());
-    }
-
-    std::ostringstream content;
-    content << file.rdbuf();
-
-    return content.str();
+    return *content;
 }
 
 void MemoryManager::WriteFileContent(const std::filesystem::path& filepath,
                                      const std::string& content) const {
-    std::ofstream file(filepath);
-    if (!file.is_open()) {
+    if (!WriteFile(filepath.string(), content)) {
         throw std::runtime_error("Failed to write file: " + filepath.string());
     }
-
-    file << content;
 }
 
 }  // namespace aicode

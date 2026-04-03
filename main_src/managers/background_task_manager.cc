@@ -8,6 +8,7 @@
 #include <filesystem>
 
 #include "common/log_wrapper.h"
+#include "common/time_wrapper.h"
 
 namespace aicode {
 
@@ -26,18 +27,14 @@ std::string BackgroundTaskManager::RunInDir(const std::string& command, const st
     std::lock_guard<std::mutex> lock(mutex_);
 
     // Generate short task ID
-    std::string task_id = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    ).count() % 100000000);
+    std::string task_id = std::to_string(GetCurrentTimeMillis() % 100000000);
 
     // Create task entry
     BackgroundTask task;
     task.id = task_id;
     task.command = command;
     task.status = "running";
-    task.started_at = std::chrono::duration_cast<std::chrono::seconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    ).count();
+    task.started_at = GetCurrentTimeMillis() / 1000;
 
     tasks_[task_id] = task;
 
@@ -96,9 +93,7 @@ void BackgroundTaskManager::ExecuteTask(const std::string& task_id, const std::s
         if (it != tasks_.end()) {
             it->second.status = status;
             it->second.result = result;
-            it->second.completed_at = std::chrono::duration_cast<std::chrono::seconds>(
-                std::chrono::system_clock::now().time_since_epoch()
-            ).count();
+            it->second.completed_at = GetCurrentTimeMillis() / 1000;
 
             // Add to notification queue
             nlohmann::json notification;

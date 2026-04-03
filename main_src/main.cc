@@ -5,31 +5,19 @@
 #include "core/agent_commander.h"
 #include "common/config.h"
 
-#include <spdlog/spdlog.h>
-#include <unordered_map>
-
-static void InitLog() {
-    const auto& config = aicode::AiCodeConfig::GetInstance();
-
-    static const std::unordered_map<std::string, spdlog::level::level_enum> kLevelMap = {
-        {"trace", spdlog::level::trace},
-        {"debug", spdlog::level::debug},
-        {"info", spdlog::level::info},
-        {"warn", spdlog::level::warn},
-        {"warning", spdlog::level::warn},
-        {"error", spdlog::level::err},
-        {"critical", spdlog::level::critical}
-    };
-
-    auto it = kLevelMap.find(config.log_level);
-    spdlog::level::level_enum level = (it != kLevelMap.end()) ? it->second : spdlog::level::info;
-    spdlog::set_level(level);
-
-    LOG_INFO("Log level set to: {}", config.log_level);
-}
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
-    InitLog();
+#ifdef _WIN32
+    // Set console code page to UTF-8 for proper Chinese character display
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
+
+    const auto& config = aicode::AiCodeConfig::GetInstance();
+    aicode::InitLog(config.log_level);
     LOG_INFO("AiCode v{}", AICODE_VERSION);
 
     try {

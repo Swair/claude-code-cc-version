@@ -1,29 +1,105 @@
 // Copyright 2026 AiCode Contributors
 // SPDX-License-Identifier: Apache-2.0
 
+#ifdef _WIN32
+
 #include "cli/input_handler.h"
 
 #include <iostream>
 #include <fstream>
 #include <algorithm>
-#include <sys/select.h>
-#include <termios.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <windows.h>
+#include <conio.h>
+#include <string>
 
 #include "common/log_wrapper.h"
 
+namespace {
+
+// Convert UTF-16 wide string to UTF-8
+std::string WideToUtf8(const std::wstring& wide) {
+    if (wide.empty()) return "";
+
+    // Calculate required buffer size
+    int size = WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (size <= 0) return "";
+
+    std::string result(size - 1, 0);  // -1 to exclude null terminator
+    WideCharToMultiByte(CP_UTF8, 0, wide.c_str(), -1, &result[0], size, nullptr, nullptr);
+    return result;
+}
+
+// Read a wide character from console, return UTF-8 string
+std::string ReadWideChar() {
+    INPUT_RECORD input_record;
+    DWORD events;
+    HANDLE h_input = GetStdHandle(STD_INPUT_HANDLE);
+
+    while (true) {
+        if (!ReadConsoleInputW(h_input, &input_record, 1, &events)) {
+            return "";
+        }
+
+        if (input_record.EventType == KEY_EVENT && input_record.Event.KeyEvent.bKeyDown) {
+            WORD vk = input_record.Event.KeyEvent.wVirtualKeyCode;
+            DWORD state = input_record.Event.KeyEvent.dwControlKeyState;
+
+            // Handle Ctrl+C
+            if ((state & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) && vk == 'C') {
+                return std::string(1, 3);  // Ctrl+C
+            }
+
+            // Handle Ctrl+D (EOF)
+            if ((state & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) && vk == 'D') {
+                return std::string(1, 4);  // Ctrl+D
+            }
+
+            // Get Unicode character from uChar.UnicodeChar
+            wchar_t wc = input_record.Event.KeyEvent.uChar.UnicodeChar;
+            if (wc != 0) {
+                // Convert wide char to UTF-8
+                std::wstring wide(1, wc);
+                return WideToUtf8(wide);
+            }
+
+            // Handle special keys - return empty string, caller should check virtual key
+            switch (vk) {
+                case VK_UP:    return "\x1b[A";   // Escape sequence for up arrow
+                case VK_DOWN:  return "\x1b[B";   // Down arrow
+                case VK_LEFT:  return "\x1b[D";   // Left arrow
+                case VK_RIGHT: return "\x1b[C";   // Right arrow
+                case VK_HOME:  return "\x1b[H";   // Home
+                case VK_END:   return "\x1b[F";   // End
+                case VK_DELETE: return "\x1b[3~"; // Delete
+                case VK_BACK:  return std::string(1, 127);  // Backspace
+                case VK_RETURN: return std::string(1, 13);  // Enter
+                case VK_ESCAPE: return std::string(1, 27);  // Escape
+                case VK_TAB:   return std::string(1, 9);    // Tab
+            }
+        }
+    }
+}
+
+}  // namespace
+
 namespace aicode {
 
-// Terminal state storage
-static termios orig_termios;
-static bool termios_saved = false;
+// Console state storage
+static DWORD orig_console_mode = 0;
+static bool console_mode_saved = false;
+static HANDLE h_input = INVALID_HANDLE_VALUE;
 
 InputHandler::InputHandler() {
     // Set default history file
     const char* home = getenv("HOME");
     if (home) {
         history_file_ = std::string(home) + "/.aicode/history";
+    } else {
+        // On Windows, use USERPROFILE if available
+        const char* profile = getenv("USERPROFILE");
+        if (profile) {
+            history_file_ = std::string(profile) + "/.aicode/history";
+        }
     }
 }
 
@@ -34,76 +110,127 @@ InputHandler::~InputHandler() {
 void InputHandler::EnableRawMode() {
     if (raw_mode_enabled_) return;
 
-    if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) {
-        LOG_ERROR("Failed to get terminal attributes");
-        return;
+    if (h_input == INVALID_HANDLE_VALUE) {
+        h_input = GetStdHandle(STD_INPUT_HANDLE);
     }
-    termios_saved = true;
 
-    termios raw = orig_termios;
+    if (!console_mode_saved && h_input != INVALID_HANDLE_VALUE) {
+        if (!GetConsoleMode(h_input, &orig_console_mode)) {
+            LOG_ERROR("Failed to get console mode");
+            return;
+        }
+        console_mode_saved = true;
 
-    // Input modes: disable special handling
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+        // Disable all input processing for raw mode
+        DWORD mode = 0;
+        mode |= ENABLE_WINDOW_INPUT;  // Keep window events
+        SetConsoleMode(h_input, mode);
 
-    // Output modes: disable post-processing
-    raw.c_oflag &= ~(OPOST);
-
-    // Control modes: set 8-bit characters
-    raw.c_cflag |= (CS8);
-
-    // Local modes: disable echo, canonical mode, signal keys
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
-
-    // Control characters: VMIN=1, VTIME=0 for blocking read
-    raw.c_cc[VMIN] = 1;
-    raw.c_cc[VTIME] = 0;
-
-    if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) == -1) {
-        LOG_ERROR("Failed to set raw mode");
+        raw_mode_enabled_ = true;
+        LOG_DEBUG("Raw mode enabled (Win32)");
         return;
     }
 
     raw_mode_enabled_ = true;
-    LOG_DEBUG("Raw mode enabled");
 }
 
 void InputHandler::DisableRawMode() {
     if (!raw_mode_enabled_) return;
 
-    if (termios_saved && tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1) {
-        LOG_ERROR("Failed to restore terminal mode");
-        return;
+    if (console_mode_saved && h_input != INVALID_HANDLE_VALUE) {
+        SetConsoleMode(h_input, orig_console_mode);
+        console_mode_saved = false;
     }
 
     raw_mode_enabled_ = false;
-    LOG_DEBUG("Raw mode disabled");
+    LOG_DEBUG("Raw mode disabled (Win32)");
 }
 
 int InputHandler::ReadChar() {
-    char c;
-    while (read(STDIN_FILENO, &c, 1) != 1) {
-        if (errno != EAGAIN) {
+    HANDLE h_input = GetStdHandle(STD_INPUT_HANDLE);
+
+    while (true) {
+        INPUT_RECORD input_record;
+        DWORD events;
+
+        if (!ReadConsoleInputW(h_input, &input_record, 1, &events)) {
             return -1;
         }
+
+        if (input_record.EventType == KEY_EVENT && input_record.Event.KeyEvent.bKeyDown) {
+            WORD vk = input_record.Event.KeyEvent.wVirtualKeyCode;
+            DWORD state = input_record.Event.KeyEvent.dwControlKeyState;
+
+            // Handle Ctrl+C
+            if ((state & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) && vk == 'C') {
+                return 3;  // Ctrl+C
+            }
+
+            // Handle Ctrl+D (EOF)
+            if ((state & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) && vk == 'D') {
+                return 4;  // Ctrl+D
+            }
+
+            // Get Unicode character from uChar.UnicodeChar
+            wchar_t wc = input_record.Event.KeyEvent.uChar.UnicodeChar;
+            if (wc != 0) {
+                // For characters in ASCII range, return directly
+                if (wc < 128) {
+                    return static_cast<int>(wc);
+                }
+                // For wide characters (Chinese, etc.), convert to UTF-8 and cache
+                wide_char_buffer_ = WideToUtf8(std::wstring(1, wc));
+                wide_char_index_ = 0;
+                // Return a marker to indicate UTF-8 sequence follows
+                return -300;  // Special marker for UTF-8 char
+            }
+
+            // Handle special keys
+            switch (vk) {
+                case VK_UP:    return -200;  // Special marker for up arrow
+                case VK_DOWN:  return -201;  // Down arrow
+                case VK_LEFT:  return -202;  // Left arrow
+                case VK_RIGHT: return -203;  // Right arrow
+                case VK_HOME:  return -204;  // Home
+                case VK_END:   return -205;  // End
+                case VK_INSERT: return -206; // Insert
+                case VK_DELETE: return -207; // Delete
+                case VK_PRIOR: return -208;  // Page Up
+                case VK_NEXT:  return -209;  // Page Down
+                case VK_BACK:  return 127;   // Backspace
+                case VK_RETURN: return 13;   // Enter
+                case VK_ESCAPE: return 27;   // Escape
+                case VK_TAB:   return 9;     // Tab
+            }
+        }
     }
-    return static_cast<unsigned char>(c);
+}
+
+// Get next byte from cached UTF-8 sequence, or -1 if none
+int InputHandler::GetUtf8Byte() {
+    if (wide_char_index_ < wide_char_buffer_.size()) {
+        return static_cast<unsigned char>(wide_char_buffer_[wide_char_index_++]);
+    }
+    return -1;
 }
 
 int InputHandler::ReadCharWithTimeout(int timeout_ms) {
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(STDIN_FILENO, &readfds);
+    auto start = std::chrono::steady_clock::now();
+    while (true) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+        if (elapsed >= timeout_ms) {
+            return -1;
+        }
 
-    struct timeval tv;
-    tv.tv_sec = timeout_ms / 1000;
-    tv.tv_usec = (timeout_ms % 1000) * 1000;
+        INPUT_RECORD input_record;
+        DWORD events;
+        if (PeekConsoleInputA(h_input, &input_record, 1, &events) && events > 0) {
+            return ReadChar();
+        }
 
-    int retval = select(STDIN_FILENO + 1, &readfds, nullptr, nullptr, &tv);
-    if (retval == -1 || retval == 0) {
-        return -1;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
-
-    return ReadChar();
 }
 
 void InputHandler::LoadHistory() {
@@ -127,14 +254,12 @@ void InputHandler::SaveHistory() {
     size_t pos = history_file_.rfind('/');
     if (pos != std::string::npos) {
         std::string dir = history_file_.substr(0, pos);
-        // Simple mkdir -p equivalent
-        std::string cmd = "mkdir -p \"" + dir + "\"";
+        std::string cmd = "mkdir \"" + dir + "\" 2>nul || mkdir \"" + dir + "\"";
         system(cmd.c_str());
     }
 
     std::ofstream file(history_file_);
     if (file.is_open()) {
-        // Save last 1000 entries
         size_t start = (history_.size() > 1000) ? history_.size() - 1000 : 0;
         for (size_t i = start; i < history_.size(); ++i) {
             file << history_[i] << "\n";
@@ -147,7 +272,6 @@ void InputHandler::SaveHistory() {
 void InputHandler::AddToHistory(const std::string& line) {
     if (line.empty()) return;
 
-    // Don't add duplicate of last entry
     if (!history_.empty() && history_.back() == line) {
         return;
     }
@@ -155,7 +279,6 @@ void InputHandler::AddToHistory(const std::string& line) {
     history_.push_back(line);
     history_index_ = history_.size();
 
-    // Limit history size
     if (history_.size() > 1000) {
         history_.erase(history_.begin());
     }
@@ -168,11 +291,29 @@ std::string InputHandler::ReadLine(const std::string& prompt) {
     cursor_pos_ = 0;
     completions_.clear();
     completion_index_ = 0;
+    wide_char_buffer_.clear();
+    wide_char_index_ = 0;
 
     std::cout << prompt << std::flush;
 
     while (true) {
         int c = ReadChar();
+
+        // Handle UTF-8 multi-byte character marker
+        if (c == -300) {
+            // Read all bytes of the UTF-8 sequence
+            while (true) {
+                int byte = GetUtf8Byte();
+                if (byte == -1) break;
+                buffer_.insert(buffer_.begin() + cursor_pos_, static_cast<char>(byte));
+                cursor_pos_++;
+            }
+            wide_char_buffer_.clear();
+            wide_char_index_ = 0;
+            completions_.clear();
+            RefreshLine(prompt);
+            continue;
+        }
 
         if (c == -1) {
             continue;
@@ -192,16 +333,32 @@ std::string InputHandler::ReadLine(const std::string& prompt) {
             return buffer_;
         }
 
-        // Backspace
+        // Backspace - handle UTF-8 multi-byte characters
         if (c == 127 || c == 8) {
-            HandleBackspace();
+            if (cursor_pos_ > 0) {
+                // Find the start of the current UTF-8 character
+                size_t pos = cursor_pos_ - 1;
+                while (pos > 0 && (buffer_[pos] & 0xC0) == 0x80) {
+                    pos--;
+                }
+                buffer_.erase(buffer_.begin() + pos, buffer_.begin() + cursor_pos_);
+                cursor_pos_ = pos;
+            }
             RefreshLine(prompt);
             continue;
         }
 
         // Delete
         if (c == 126) {
-            HandleDelete();
+            if (cursor_pos_ < buffer_.size()) {
+                // Find the end of the current UTF-8 character
+                size_t pos = cursor_pos_;
+                pos++;
+                while (pos < buffer_.size() && (buffer_[pos] & 0xC0) == 0x80) {
+                    pos++;
+                }
+                buffer_.erase(buffer_.begin() + cursor_pos_, buffer_.begin() + pos);
+            }
             RefreshLine(prompt);
             continue;
         }
@@ -212,7 +369,6 @@ std::string InputHandler::ReadLine(const std::string& prompt) {
             int c3 = ReadCharWithTimeout(10);
 
             if (c2 == -1) {
-                // Alt key or escape
                 continue;
             }
 
@@ -235,11 +391,25 @@ std::string InputHandler::ReadLine(const std::string& prompt) {
                 } else if (c3 == 70) {  // End
                     HandleEnd();
                     RefreshLine(prompt);
-                } else if (c3 == 51) {  // Delete (needs one more char)
-                    ReadCharWithTimeout(10);  // Consume '~'
+                } else if (c3 == 51) {  // Delete
+                    ReadCharWithTimeout(10);
                     HandleDelete();
                     RefreshLine(prompt);
                 }
+            }
+            continue;
+        }
+
+        // Handle special key markers from Windows
+        if (c <= -200) {
+            int key_code = -c - 200;
+            switch (key_code) {
+                case 0: HandleHistoryUp(); RefreshLine(prompt); break;
+                case 1: HandleHistoryDown(); RefreshLine(prompt); break;
+                case 2: HandleLeft(); RefreshLine(prompt); break;
+                case 3: HandleRight(); RefreshLine(prompt); break;
+                case 4: HandleHome(); RefreshLine(prompt); break;
+                case 5: HandleEnd(); RefreshLine(prompt); break;
             }
             continue;
         }
@@ -251,8 +421,9 @@ std::string InputHandler::ReadLine(const std::string& prompt) {
             continue;
         }
 
-        // Regular character
-        if (c >= 32 && c <= 126) {
+        // Regular character (including UTF-8 continuation bytes)
+        // Accept all bytes >= 32, including UTF-8 multi-byte sequences
+        if (c >= 32) {
             buffer_.insert(buffer_.begin() + cursor_pos_, static_cast<char>(c));
             cursor_pos_++;
             completions_.clear();
@@ -265,7 +436,6 @@ std::string InputHandler::ReadLine(const std::string& prompt) {
 void InputHandler::HandleTab() {
     if (!completion_callback_) return;
 
-    // If we already have completions, cycle through them
     if (!completions_.empty()) {
         completion_index_ = (completion_index_ + 1) % completions_.size();
         buffer_ = completion_prefix_ + completions_[completion_index_];
@@ -273,36 +443,28 @@ void InputHandler::HandleTab() {
         return;
     }
 
-    // Save original buffer for cycling
     original_buffer_ = buffer_;
-
-    // Get new completions
     completions_ = completion_callback_(buffer_, cursor_pos_);
 
     if (completions_.empty()) {
-        return;  // No completions
+        return;
     }
 
     if (completions_.size() == 1) {
-        // Single completion, apply it
         buffer_ = completion_prefix_ + completions_[0];
         cursor_pos_ = buffer_.size();
         completions_.clear();
         return;
     }
 
-    // Multiple completions - find and apply common prefix first
     std::string common = FindCommonPrefix(completions_);
     if (!common.empty() && common != completion_prefix_) {
-        // Apply common prefix, don't cycle yet
         buffer_ = completion_prefix_ + common;
         cursor_pos_ = buffer_.size();
-        // Keep completions for next tab to cycle
         completion_index_ = 0;
         return;
     }
 
-    // No common prefix to apply, show completions on second tab
     completion_prefix_ = buffer_;
     completion_index_ = 0;
     ShowCompletions();
@@ -329,29 +491,24 @@ std::string InputHandler::FindCommonPrefix(const std::vector<std::string>& compl
 void InputHandler::ShowCompletions() {
     if (completions_.empty()) return;
 
-    // Save cursor position and move to new line
     std::cout << "\r\n" << ansi::kSaveCursor;
 
-    // Calculate column layout
     const size_t max_count = std::min(completions_.size(), size_t(20));
-    const size_t cols = 4;  // Display in 4 columns
+    const size_t cols = 4;
     const size_t rows = (max_count + cols - 1) / cols;
 
-    // Find max width for each column
     std::vector<size_t> col_widths(cols, 0);
     for (size_t i = 0; i < max_count; ++i) {
         size_t col = i / rows;
         col_widths[col] = std::max(col_widths[col], completions_[i].size());
     }
 
-    // Display in column layout
     for (size_t row = 0; row < rows; ++row) {
         std::cout << "  ";
         for (size_t col = 0; col < cols; ++col) {
             size_t idx = col * rows + row;
             if (idx < max_count) {
-                std::cout << ansi::Color(36) << completions_[idx];  // Cyan color
-                // Add padding to next column
+                std::cout << ansi::Color(36) << completions_[idx];
                 if (col < cols - 1 && idx + rows < max_count) {
                     size_t padding = col_widths[col] - completions_[idx].size() + 4;
                     for (size_t p = 0; p < padding; ++p) {
@@ -367,15 +524,12 @@ void InputHandler::ShowCompletions() {
         std::cout << ansi::kDim << "  ... and " << (completions_.size() - 20) << " more\n";
     }
 
-    // Restore cursor position and clear to end of line
     std::cout << ansi::kRestoreCursor << ansi::kClearLine << std::flush;
 }
 
 void InputHandler::RefreshLine(const std::string& prompt) {
-    // Move cursor to beginning of line
     std::cout << "\r" << ansi::kClearLine << prompt << buffer_;
 
-    // Move cursor back to position
     if (cursor_pos_ < buffer_.size()) {
         std::cout << ansi::MoveCursorLeft(buffer_.size() - cursor_pos_);
     }
@@ -448,7 +602,6 @@ void InputHandler::HandleBackspace() {
 }
 
 bool InputHandler::IsInputComplete(const std::string& input) const {
-    // Check for unclosed quotes
     bool in_single_quote = false;
     bool in_double_quote = false;
 
@@ -456,7 +609,7 @@ bool InputHandler::IsInputComplete(const std::string& input) const {
         char c = input[i];
 
         if (c == '\\' && i + 1 < input.size()) {
-            i++;  // Skip escaped character
+            i++;
             continue;
         }
 
@@ -467,12 +620,10 @@ bool InputHandler::IsInputComplete(const std::string& input) const {
         }
     }
 
-    // If quotes are unclosed, input is not complete
     if (in_single_quote || in_double_quote) {
         return false;
     }
 
-    // Check for trailing backslash (continuation)
     if (!input.empty() && input.back() == '\\') {
         return false;
     }
@@ -481,3 +632,5 @@ bool InputHandler::IsInputComplete(const std::string& input) const {
 }
 
 }  // namespace aicode
+
+#endif  // _WIN32

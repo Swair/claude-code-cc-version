@@ -4,12 +4,12 @@
 #include "services/cron_scheduler.h"
 
 #include <sstream>
-#include <fstream>
-#include <iomanip>
 #include <algorithm>
 #include <filesystem>
 
 #include "common/log_wrapper.h"
+#include "common/time_wrapper.h"
+#include "common/file_utils.h"
 
 namespace aicode {
 
@@ -50,21 +50,7 @@ void CronScheduler::Shutdown() {
 }
 
 std::string CronScheduler::GenerateTaskId() const {
-    auto now = std::chrono::system_clock::now();
-    auto duration = now.time_since_epoch();
-    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-    return "cron_" + std::to_string(millis);
-}
-
-std::string CronScheduler::GetTimestamp() const {
-    auto now = std::chrono::system_clock::now();
-    auto time_t_now = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_now;
-    localtime_r(&time_t_now, &tm_now);
-
-    std::ostringstream oss;
-    oss << std::put_time(&tm_now, "%Y-%m-%dT%H:%M:%S");
-    return oss.str();
+    return GenerateIdWithTimestamp("cron_");
 }
 
 std::string CronScheduler::Schedule(const std::string& cron,
@@ -80,7 +66,7 @@ std::string CronScheduler::Schedule(const std::string& cron,
     task.recurring = recurring;
     task.durable = durable;
     task.status = CronJobStatus::Active;
-    task.created_at = GetTimestamp();
+    task.created_at = GetCurrentTimestamp();
     task.next_execution_at = GetNextExecutionTime(cron);
 
     tasks_[task.id] = task;
@@ -160,13 +146,7 @@ std::string CronScheduler::RunNow(const std::string& task_id) {
 
 std::string CronScheduler::GetNextExecutionTime(const std::string& cron_expression) const {
     auto next_time = CalculateNextTime(cron_expression);
-    auto time_t_next = std::chrono::system_clock::to_time_t(next_time);
-    std::tm tm_next;
-    localtime_r(&time_t_next, &tm_next);
-
-    std::ostringstream oss;
-    oss << std::put_time(&tm_next, "%Y-%m-%dT%H:%M:%S");
-    return oss.str();
+    return FormatTimestamp(next_time, "%Y-%m-%dT%H:%M:%S");
 }
 
 std::chrono::system_clock::time_point CronScheduler::CalculateNextTime(const std::string& cron) const {
@@ -176,9 +156,7 @@ std::chrono::system_clock::time_point CronScheduler::CalculateNextTime(const std
     iss >> minute >> hour >> dom >> month >> dow;
 
     auto now = std::chrono::system_clock::now();
-    auto time_t_now = std::chrono::system_clock::to_time_t(now);
-    std::tm tm;
-    localtime_r(&time_t_now, &tm);
+    auto tm = GetLocalTime(now);
 
     // Start from next minute
     tm.tm_sec = 0;
@@ -233,7 +211,7 @@ void CronScheduler::ExecuteTask(ScheduledTask& task) {
     LOG_INFO("Executing scheduled task {}: {}", task.id, task.prompt);
 
     task.execution_count++;
-    task.last_executed_at = GetTimestamp();
+    task.last_executed_at = GetCurrentTimestamp();
 
     try {
         task.last_result = execute_callback_(task.prompt);
@@ -308,14 +286,7 @@ bool CronScheduler::SaveToFile(const std::string& path) const {
         }
     }
 
-    std::ofstream ofs(path);
-    if (!ofs.is_open()) {
-        LOG_ERROR("Failed to open file for writing: {}", path);
-        return false;
-    }
-
-    ofs << json.dump(2);
-    ofs.close();
+    WriteJson(path, json, 2);
 
     LOG_INFO("Saved {} durable tasks to {}", json.size(), path);
     return true;
@@ -329,16 +300,14 @@ bool CronScheduler::LoadFromFile(const std::string& path) {
         return false;
     }
 
-    std::ifstream ifs(path);
-    if (!ifs.is_open()) {
+    auto json_opt = ReadJson(path);
+    if (!json_opt) {
         LOG_ERROR("Failed to open file for reading: {}", path);
         return false;
     }
 
     try {
-        nlohmann::json json;
-        ifs >> json;
-
+        nlohmann::json json = *json_opt;
         int loaded = 0;
         for (const auto& j : json) {
             ScheduledTask task;

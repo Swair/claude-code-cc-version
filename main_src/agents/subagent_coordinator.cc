@@ -4,13 +4,13 @@
 #include "agents/subagent_coordinator.h"
 
 #include <sstream>
-#include <chrono>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
 
 #include "common/log_wrapper.h"
 #include "common/constants.h"
+#include "common/time_wrapper.h"
 #include "managers/memory_manager.h"
 #include "core/skill_loader.h"
 
@@ -28,21 +28,7 @@ void SubagentCoordinator::Initialize(ChatCallback chat_cb, StreamChatCallback st
 }
 
 std::string SubagentCoordinator::GenerateAgentId() {
-    auto now = std::chrono::system_clock::now();
-    auto duration = now.time_since_epoch();
-    auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-    return "agent_" + std::to_string(millis);
-}
-
-std::string SubagentCoordinator::GetTimestamp() const {
-    auto now = std::chrono::system_clock::now();
-    auto time_t_now = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_now;
-    localtime_r(&time_t_now, &tm_now);
-
-    std::ostringstream oss;
-    oss << std::put_time(&tm_now, "%Y-%m-%d %H:%M:%S");
-    return oss.str();
+    return GenerateIdWithTimestamp("agent_");
 }
 
 std::string SubagentCoordinator::CreateSubagent(const std::string& name,
@@ -54,7 +40,7 @@ std::string SubagentCoordinator::CreateSubagent(const std::string& name,
     agent.description = description;
     agent.task = task;
     agent.status = SubagentStatus::Pending;
-    agent.created_at = GetTimestamp();
+    agent.created_at = GetCurrentTimestamp();
     agent.context = shared_context_;
 
     subagents_[agent.id] = agent;
@@ -75,7 +61,7 @@ bool SubagentCoordinator::StartSubagent(const std::string& agent_id) {
     }
 
     it->second.status = SubagentStatus::Running;
-    it->second.started_at = GetTimestamp();
+    it->second.started_at = GetCurrentTimestamp();
 
     // Run subagent synchronously
     RunSubagent(it->second);
@@ -94,7 +80,7 @@ void SubagentCoordinator::StartSubagentAsync(const std::string& agent_id) {
     }
 
     it->second.status = SubagentStatus::Running;
-    it->second.started_at = GetTimestamp();
+    it->second.started_at = GetCurrentTimestamp();
 
     // Run subagent in a separate thread
     running_threads_[agent_id] = std::thread([this, agent_id]() {
@@ -156,13 +142,13 @@ void SubagentCoordinator::RunSubagent(Subagent& agent) {
         }
 
         agent.status = SubagentStatus::Completed;
-        agent.completed_at = GetTimestamp();
+        agent.completed_at = GetCurrentTimestamp();
         LOG_INFO("Subagent completed: {}", agent.id);
 
     } catch (const std::exception& e) {
         agent.status = SubagentStatus::Failed;
         agent.error = e.what();
-        agent.completed_at = GetTimestamp();
+        agent.completed_at = GetCurrentTimestamp();
         LOG_ERROR("Subagent failed: {} - {}", agent.id, e.what());
     }
 }
@@ -196,7 +182,7 @@ bool SubagentCoordinator::CancelSubagent(const std::string& agent_id) {
     }
 
     it->second.status = SubagentStatus::Cancelled;
-    it->second.completed_at = GetTimestamp();
+    it->second.completed_at = GetCurrentTimestamp();
     LOG_INFO("Cancelled subagent: {}", agent_id);
     return true;
 }

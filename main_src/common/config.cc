@@ -13,6 +13,7 @@
 
 #include "common/constants.h"
 #include "common/log_wrapper.h"
+#include "common/file_utils.h"
 
 namespace aicode {
 
@@ -467,6 +468,66 @@ int AgentConfig::DynamicMaxIterations() const {
                    (kContextWindow200K - kContextWindow32K);
     return kMinMaxIterations +
            static_cast<int>(ratio * (kMaxMaxIterations - kMinMaxIterations));
+}
+
+// ==================== AiCodeConfig JSON Serialization ====================
+
+nlohmann::json AiCodeConfig::ToJson() const {
+    nlohmann::json json = nlohmann::json::object();
+
+    json["log_level"] = log_level;
+    json["default_provider"] = default_provider;
+    json["default_agent"] = default_agent;
+    json["show_buddy"] = show_buddy;
+
+    // Serialize providers
+    nlohmann::json providers_json = nlohmann::json::object();
+    for (const auto& [name, config] : providers) {
+        nlohmann::json provider_json = nlohmann::json::object();
+        provider_json["api_key"] = config.api_key;
+        provider_json["base_url"] = config.base_url;
+        provider_json["api_type"] = config.api_type;
+        provider_json["timeout"] = config.timeout;
+
+        // Serialize agents
+        nlohmann::json agents_json = nlohmann::json::object();
+        for (const auto& [agent_name, agent_config] : config.agents) {
+            nlohmann::json agent_json = nlohmann::json::object();
+            agent_json["model"] = agent_config.model;
+            agent_json["temperature"] = agent_config.temperature;
+            agent_json["max_tokens"] = agent_config.max_tokens;
+            agent_json["context_window"] = agent_config.context_window;
+            agents_json[agent_name] = agent_json;
+        }
+        provider_json["agents"] = agents_json;
+
+        providers_json[name] = provider_json;
+    }
+    json["providers"] = providers_json;
+
+    // Serialize security
+    nlohmann::json security_json = nlohmann::json::object();
+    security_json["permission_level"] = security.permission_level;
+    security_json["allow_local_execute"] = security.allow_local_execute;
+    json["security"] = security_json;
+
+    // Serialize tools
+    nlohmann::json tools_json = nlohmann::json::object();
+    tools_json["enabled"] = tools.enabled;
+    tools_json["timeout"] = tools.timeout;
+    if (!tools.allowed_paths.empty()) tools_json["allowed_paths"] = tools.allowed_paths;
+    if (!tools.denied_paths.empty()) tools_json["denied_paths"] = tools.denied_paths;
+    if (!tools.allowed_cmds.empty()) tools_json["allowed_cmds"] = tools.allowed_cmds;
+    if (!tools.denied_cmds.empty()) tools_json["denied_cmds"] = tools.denied_cmds;
+    json["tools"] = tools_json;
+
+    return json;
+}
+
+void AiCodeConfig::SaveToFile(const std::string& filepath) const {
+    auto json = ToJson();
+    aicode::WriteJson(filepath, json, 2);
+    LOG_INFO("Configuration saved to {}", filepath);
 }
 
 }  // namespace aicode

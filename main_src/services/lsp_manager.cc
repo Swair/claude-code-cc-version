@@ -5,10 +5,18 @@
 
 #include <sstream>
 #include <cstdlib>
-#include <unistd.h>
-#include <sys/wait.h>
 
 #include "common/log_wrapper.h"
+
+#ifndef _WIN32
+#include <unistd.h>
+#include <sys/wait.h>
+#else
+#include <io.h>
+#define close _close
+#define write _write
+#define read _read
+#endif
 
 namespace aicode {
 
@@ -89,6 +97,10 @@ void LspManager::RegisterServer(const LspServerConfig& config) {
 }
 
 bool LspManager::StartServerForFile(const std::string& filepath) {
+#ifdef _WIN32
+    LOG_WARN("LSP server management is not supported on Windows");
+    return false;
+#else
     auto* server = FindServerForFile(filepath);
     if (server) {
         return true;  // Already running
@@ -159,6 +171,7 @@ bool LspManager::StartServerForFile(const std::string& filepath) {
 
     LOG_DEBUG("No LSP server found for file: {}", filepath);
     return false;
+#endif
 }
 
 LspManager::ServerInstance* LspManager::FindServerForFile(const std::string& filepath) {
@@ -181,7 +194,11 @@ bool LspManager::InitializeServer(ServerInstance& server) {
     }
 
     nlohmann::json params = nlohmann::json::object();
+#ifndef _WIN32
     params["processId"] = getpid();
+#else
+    params["processId"] = 0;  // Windows process ID placeholder
+#endif
     params["rootUri"] = server.config.root_path.empty() ? nullptr : server.config.root_path;
     params["capabilities"] = nlohmann::json::object();
     params["initializationOptions"] = server.config.initialization_options;
@@ -471,11 +488,13 @@ void LspManager::ShutdownAll() {
         SendRequest(server, "shutdown", nlohmann::json::object());
         SendNotification(server, "exit", nlohmann::json::object());
 
+#ifndef _WIN32
         if (server.process) {
             pid_t pid = static_cast<pid_t>(reinterpret_cast<size_t>(server.process));
             kill(pid, SIGTERM);
             waitpid(pid, nullptr, WNOHANG);
         }
+#endif
 
         if (server.stdin_fd > 0) close(server.stdin_fd);
         if (server.stdout_fd > 0) close(server.stdout_fd);

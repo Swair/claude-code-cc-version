@@ -78,9 +78,6 @@ private:
     /// Generate unique ID
     std::string GenerateId() const;
 
-    /// Get current timestamp
-    std::string GetTimestamp() const;
-
     /// Status to string
     std::string StatusToString(TodoStatus status) const;
 

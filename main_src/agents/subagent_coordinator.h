@@ -128,9 +128,6 @@ private:
     /// Generate unique agent ID
     std::string GenerateAgentId();
 
-    /// Get current timestamp
-    std::string GetTimestamp() const;
-
     /// Run subagent (internal)
     void RunSubagent(Subagent& agent);
 };

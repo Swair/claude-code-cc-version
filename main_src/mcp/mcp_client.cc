@@ -7,10 +7,10 @@
 #include <chrono>
 #include <thread>
 #include <array>
-#include <fstream>
 #include <filesystem>
 
 #include "common/log_wrapper.h"
+#include "common/file_utils.h"
 
 #ifndef _WIN32
 #include <sys/wait.h>
@@ -499,29 +499,20 @@ bool McpClient::RemoveServer(const std::string& server_name) {
 }
 
 std::string McpClient::GetConfigFilePath() const {
-    const char* home = std::getenv("HOME");
-    if (!home) {
-        home = std::getenv("USERPROFILE");  // Windows
-    }
-    if (!home) {
-        return "/tmp/.aicode/mcp_servers.json";
-    }
-    return std::string(home) + "/.aicode/mcp_servers.json";
+    return ExpandHome("~/.aicode/mcp_servers.json");
 }
 
 bool McpClient::LoadServersFromFile() {
     std::string config_file = GetConfigFilePath();
-    std::ifstream file(config_file);
 
-    if (!std::filesystem::exists(config_file)) {
+    auto json_opt = ReadJson(config_file);
+    if (!json_opt) {
         LOG_INFO("MCP config file does not exist: {}", config_file);
         return false;
     }
 
     try {
-        nlohmann::json config;
-        file >> config;
-        file.close();
+        nlohmann::json config = *json_opt;
 
         if (config.contains("servers") && config["servers"].is_array()) {
             std::vector<McpServerConfig> servers;
@@ -574,16 +565,9 @@ bool McpClient::SaveServersToFile() {
         config["servers"].push_back(server);
     }
 
-    std::ofstream out_file(config_file);
-    if (out_file.is_open()) {
-        out_file << config.dump(2);
-        out_file.close();
-        LOG_INFO("Saved {} MCP servers to {}", servers_.size(), config_file);
-        return true;
-    }
-
-    LOG_ERROR("Failed to write MCP config file: {}", config_file);
-    return false;
+    WriteJson(config_file, config, 2);
+    LOG_INFO("Saved {} MCP servers to {}", servers_.size(), config_file);
+    return true;
 }
 
 }  // namespace aicode
