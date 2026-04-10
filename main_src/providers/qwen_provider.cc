@@ -254,16 +254,17 @@ ChatResponse QwenProvider::Chat(const ChatRequest& request) {
     LOG_DEBUG("=== Received response from Qwen API ===");
 
     if (http_response.failed()) {
+        std::string error_msg = http_response.error.empty() ? http_response.body : http_response.error;
         if (http_response.retry_after_seconds > 0) {
             LOG_WARN("Qwen API HTTP {}: rate limited, retry-after={}s",
                      http_response.status_code, http_response.retry_after_seconds);
         } else {
             LOG_ERROR("Qwen API HTTP {}: {}", http_response.status_code,
-                      http_response.body.substr(0, 256));
+                      error_msg.substr(0, 256));
         }
         throw std::runtime_error("Qwen API error (HTTP " +
                                  std::to_string(http_response.status_code) + "): " +
-                                 http_response.body);
+                                 error_msg);
     }
 
     ChatResponse response = Deserialize(http_response.body);

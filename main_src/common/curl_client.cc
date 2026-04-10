@@ -91,6 +91,7 @@ HttpResponse HttpClient::Get(const HttpRequest& request) {
     curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, request.timeout_seconds);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);  // Connection timeout
 
     // Default callbacks for blocking request
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -150,6 +151,7 @@ HttpResponse HttpClient::Post(const HttpRequest& request) {
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request.post_data.c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, request.timeout_seconds);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);  // Connection timeout
 
     // Default callbacks for blocking request
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
@@ -220,6 +222,7 @@ void StreamClient::Post(const StreamRequest& request) {
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request.post_data.c_str());
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, request.timeout_seconds);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);  // Connection timeout
 
     // Use provided streaming callback
     if (request.write_function) {

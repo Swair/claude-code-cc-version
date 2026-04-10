@@ -44,7 +44,8 @@ std::vector<std::string> OllamaProvider::GetSupportedModels() const {
             LOG_ERROR("Failed to parse Ollama models: {}", e.what());
         }
     } else {
-        LOG_ERROR("Failed to fetch Ollama models: HTTP {}", resp.status_code);
+        std::string error_msg = resp.error.empty() ? resp.body : resp.error;
+        LOG_ERROR("Failed to fetch Ollama models: HTTP {} - {}", resp.status_code, error_msg);
     }
 
     return models;
@@ -231,11 +232,11 @@ ChatResponse OllamaProvider::Chat(const ChatRequest& request) {
     LOG_DEBUG("=== Received response from Ollama API ===");
 
     if (http_response.failed()) {
-        LOG_ERROR("Ollama API HTTP {}: {}", http_response.status_code,
-                  http_response.body.substr(0, 256));
+        std::string error_msg = http_response.error.empty() ? http_response.body : http_response.error;
+        LOG_ERROR("Ollama API HTTP {}: {}", http_response.status_code, error_msg.substr(0, 256));
         throw std::runtime_error("Ollama API error (HTTP " +
                                  std::to_string(http_response.status_code) + "): " +
-                                 http_response.body);
+                                 error_msg);
     }
 
     ChatResponse response = Deserialize(http_response.body);
