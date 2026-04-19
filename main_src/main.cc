@@ -6,19 +6,26 @@
 
 #ifdef AICODE_SDL_UI
 #include "scene/sdl_app.h"
-#else
-#include "cli/agent_commander.h"
+// SDL 需要 main 函数重定向（Windows 下使用 WIN32 时隐藏控制台）
+#define SDL_MAIN_HANDLED
+#include <SDL3/SDL_main.h>
 #endif
 
 #ifdef _WIN32
 #include <windows.h>
 #endif
 
-int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
 #ifdef _WIN32
-    // Set console code page to UTF-8 for proper Chinese character display
-    SetConsoleOutputCP(CP_UTF8);
-    SetConsoleCP(CP_UTF8);
+int WINAPI WinMain(HINSTANCE hInst, HINSTANCE hPrevInst, LPSTR cmdLine, int nCmdShow) {
+#else
+int main(int argc, char* argv[]) {
+#endif
+
+#ifdef _WIN32
+    // 隐藏控制台窗口
+    FreeConsole();
+#else
+    (void)argc; (void)argv;
 #endif
 
     const auto& config = aicode::AiCodeConfig::GetInstance();

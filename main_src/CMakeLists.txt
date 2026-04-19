@@ -123,7 +123,12 @@ if(WIN32)
     target_link_libraries(aicode_core PUBLIC ws2_32 bcrypt)
 endif()
 
-add_executable(aicode main.cc)
+if(WIN32)
+    add_executable(aicode WIN32 main.cc)
+else()
+    add_executable(aicode main.cc)
+endif()
+
 target_link_libraries(aicode PRIVATE aicode_core)
 target_include_directories(aicode PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
