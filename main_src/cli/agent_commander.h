@@ -30,6 +30,8 @@ class InputManager;
 class OutputManager;
 class UIRenderer;
 class AgentStateVisualizer;
+class ActiveInteractionManager;
+class ActiveTriggerManager;
 
 /// Run mode for AgentCommander
 enum class RunMode {
@@ -119,6 +121,9 @@ class AgentCommander : public Noncopyable {
 
     // Run mode
     RunMode mode_ = RunMode::Terminal;
+
+    // User interaction tracking (for idle detection)
+    std::atomic<int64_t> last_interaction_time_{0};
 };
 
 }  // namespace aicode

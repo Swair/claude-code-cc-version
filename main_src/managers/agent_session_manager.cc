@@ -14,6 +14,8 @@
 #include "managers/permission_manager.h"
 #include "core/memory_consolidation_service.h"
 #include "managers/active_interaction_manager.h"
+#include "managers/active_trigger_manager.h"
+#include "providers/provider_router.h"
 
 namespace aicode {
 
@@ -32,11 +34,11 @@ void AgentSessionManager::Initialize(std::shared_ptr<MemoryManager> memory_manag
     auto roles_dir = aicode::AiCodeConfig::BaseDir() / "roles";
     LoadRolesFromDirectory(roles_dir.string());
 
-    // 初始化主动交互管理器（使用原始指针，避免 shared_ptr 循环依赖）
+    // 初始化主动交互管理器（基于会话事件的主动交互）
     auto& active_interaction = ActiveInteractionManager::GetInstance();
     active_interaction.Initialize(this);
 
-    // 设置 LLM 执行回调（用于后台主动提词）
+    // 设置 LLM 执行回调（用于后台执行提词）
     active_interaction.SetLlmExecuteCallback(
         [this](const std::string& session_id, const std::string& prompt) -> std::string {
             auto* session = this->GetSession(session_id);
@@ -70,6 +72,61 @@ void AgentSessionManager::Initialize(std::shared_ptr<MemoryManager> memory_manag
         });
 
     LOG_INFO("ActiveInteractionManager initialized with LLM callback");
+
+    // 初始化主动触发管理器（基于插件的主动触发）
+    auto& active_trigger = ActiveTriggerManager::GetInstance();
+    active_trigger.Initialize("~/.aicode/active");
+
+    // 设置 LLM 执行回调（用于插件触发后的 LLM 响应）
+    active_trigger.SetLlmExecuteCallback(
+        [this](const std::string& /*session_id*/, const std::string& trigger_reason,
+               const std::string& prompt_md) -> std::string {
+            // 创建临时会话用于主动触发交互
+            ChatRequest req;
+            req.model = "claude-sonnet-4-6";
+            req.temperature = 0.7;
+            req.max_tokens = 4096;
+
+            // 构建系统提示和用户消息
+            std::string user_message = "触发事件：" + trigger_reason + "\n\n" + prompt_md;
+            req.AddUserMessage(user_message);
+
+            // 使用默认 provider 执行 LLM 调用
+            auto& provider_router = ProviderRouter::GetInstance();
+            auto provider = provider_router.GetProviderByName("anthropic");
+            if (!provider) {
+                LOG_ERROR("Provider not found for model: {}", req.model);
+                return "";
+            }
+
+            return provider->Chat(req).content_text;
+        });
+
+    // 设置用户交互回调（用于空闲检测）
+    // 返回 true=用户活跃，false=用户空闲
+    active_trigger.SetUserInteractionCallback([this]() -> bool {
+        // 检查最近 5 分钟内是否有用户交互
+        auto now_secs = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count();
+
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto& [id, session] : sessions_) {
+            auto last_active_secs = std::chrono::duration_cast<std::chrono::seconds>(
+                session.last_active.time_since_epoch()).count();
+            if (last_active_secs > now_secs - 300) {  // 5 分钟
+                return true;  // 用户活跃
+            }
+        }
+        return false;  // 用户空闲
+    });
+
+    // 设置会话管理器引用
+    active_trigger.SetSessionManager(this);
+
+    // 启动主动触发调度器
+    active_trigger.Start();
+
+    LOG_INFO("ActiveTriggerManager initialized and started");
 }
 
 void AgentSessionManager::SetToolExecutor(ToolExecutorCallback tool_executor) {

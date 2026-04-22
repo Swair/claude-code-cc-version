@@ -31,6 +31,8 @@
 #include "scene/sdl_app.h"
 #include "scene/agent_state_observer.h"
 #include "services/lsp_manager.h"
+#include "managers/active_interaction_manager.h"
+#include "managers/active_trigger_manager.h"
 
 namespace aicode {
 
@@ -220,6 +222,9 @@ void AgentCommander::InitializeComponents() {
 
     LOG_INFO("InitializeComponents finished, current_session: {} (role: {})",
              current_session_id_, default_role_id);
+
+    // ActiveInteractionManager and ActiveTriggerManager are already initialized
+    // in AgentSessionManager::Initialize() - no need to initialize again here.
 }
 
 void AgentCommander::SwitchRole(const std::string& role_id) {
@@ -379,6 +384,9 @@ void AgentCommander::HandleInputEvent(const InputEvent& event) {
 
 void AgentCommander::ProcessUserMessage(const std::string& line) {
     try {
+        // 更新用户交互时间（用于空闲检测）
+        last_interaction_time_ = std::time(nullptr);
+
 #ifdef _WIN32
         // Windows: Raw mode 不回显，需要手动输出
         std::cout << "> " << line << std::endl;
