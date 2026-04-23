@@ -463,23 +463,16 @@ A: 交互配置，A → Prompt
 
 如果您使用本软件，请按下述格式引用：
 
-**BibTeX**：
-```bibtex
-@software{jiating_fang_2026_19710262,
-  author = {jiating.fang, Swair},
-  title = {Swair/claude-code-cc-version: 基于插件化的主动式多模态交互触发架构 v1.0 \& 主动式交互 Agent 理论建设 v1.0},
-  version = {v0.3.0},
-  doi = {10.5281/zenodo.19710262},
-  url = {https://doi.org/10.5281/zenodo.19710262},
-  date-released = {2026-04-23}
-}
-```
-
-**APA 格式**：
-```
-jiating.fang, & Swair (2026). Swair/claude-code-cc-version: 基于插件化的主动式多模态交互触发架构 v1.0 & 主动式交互 Agent 理论建设 v1.0 (v0.3.0) [Computer software]. https://doi.org/10.5281/zenodo.19710262
-```
-
+cff-version: 1.1.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: fang
+    given-names: jiating
+title: "Swair/claude-code-cc-version: 基于插件化的主动式多模态交互触发架构 v1.0 & 主动式交互 Agent 理论建设 v1.0"
+version: v0.3.0
+date-released: 2026-04-23
+doi: 10.5281/zenodo.19710262
+url: "https://doi.org/10.5281/zenodo.19710262"
 ---
 
 *Version: v1.0.0*  
