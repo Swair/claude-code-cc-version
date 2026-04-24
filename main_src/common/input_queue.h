@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -11,7 +11,7 @@
 
 #include "common/noncopyable.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Thread-safe queue for producer-consumer pattern
 class InputQueue : public Noncopyable {
@@ -67,4 +67,4 @@ class InputQueue : public Noncopyable {
     std::vector<std::string> buffer_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

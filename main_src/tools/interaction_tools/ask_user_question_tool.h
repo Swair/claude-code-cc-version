@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -8,7 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Question option for AskUserQuestionTool
 struct QuestionOption {
@@ -61,4 +61,4 @@ private:
     std::string ReadLine() const;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

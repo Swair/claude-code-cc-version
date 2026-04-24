@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/curl_client.h"
@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <sstream>
 
-namespace aicode {
+namespace prosophor {
 
 // ============================================================================
 // Retry-After header parser
@@ -339,4 +339,4 @@ size_t StreamWriteCallback(void* contents, size_t size, size_t nmemb, void* user
     return total;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

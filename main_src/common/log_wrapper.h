@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -7,7 +7,7 @@
 #include <string>
 #include <unordered_map>
 
-namespace aicode {
+namespace prosophor {
 
 inline void InitLog(const std::string& level = "info") {
     static const std::unordered_map<std::string, spdlog::level::level_enum> kLevelMap = {
@@ -27,7 +27,7 @@ inline void InitLog(const std::string& level = "info") {
     spdlog::info("Log level set to: {}", level);
 }
 
-}  // namespace aicode
+}  // namespace prosophor
 
 #define LOG_INFO(...) spdlog::info(__VA_ARGS__)
 #define LOG_DEBUG(...) spdlog::debug(__VA_ARGS__)

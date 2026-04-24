@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #include "managers/active_interaction_manager.h"
 
@@ -11,7 +11,7 @@
 #include "common/time_wrapper.h"
 #include "common/file_utils.h"
 
-namespace aicode {
+namespace prosophor {
 
 namespace {
 // 延迟时间（秒）
@@ -36,7 +36,7 @@ std::string ActiveInteractionManager::GetChangelogDir() {
     if (!home) home = std::getenv("HOME");
     if (!home) return "";
 
-    std::string dir = std::string(home) + "/.aicode/changelog";
+    std::string dir = std::string(home) + "/.prosophor/changelog";
     EnsureChangelogDir();
     return dir;
 }
@@ -46,7 +46,7 @@ bool ActiveInteractionManager::EnsureChangelogDir() {
     if (!home) home = std::getenv("HOME");
     if (!home) return false;
 
-    std::string dir = std::string(home) + "/.aicode/changelog";
+    std::string dir = std::string(home) + "/.prosophor/changelog";
     try {
         if (!std::filesystem::exists(dir)) {
             std::filesystem::create_directories(dir);
@@ -261,7 +261,7 @@ bool ActiveInteractionManager::SaveToChangelog(const std::string& filename, cons
     if (changelog_dir.empty()) return false;
 
     std::string filepath = changelog_dir + "/" + filename;
-    return aicode::WriteFile(filepath, content);
+    return prosophor::WriteFile(filepath, content);
 }
 
 std::string ActiveInteractionManager::GenerateTaskId() const {
@@ -279,4 +279,4 @@ ActiveInteractionManager::~ActiveInteractionManager() {
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "cli/command_registry.h"
@@ -27,7 +27,7 @@
 #include "services/lsp_manager.h"
 #include "mcp/mcp_client.h"
 
-namespace aicode {
+namespace prosophor {
 
 CommandRegistry& CommandRegistry::GetInstance() {
     static CommandRegistry instance;
@@ -347,9 +347,9 @@ void CommandRegistry::Initialize() {
             return CmdRole(ctx, args);
         };
         cmd.completer = [](const std::string& partial) {
-            // Complete role names from config/.aicode/roles/
+            // Complete role names from config/.prosophor/roles/
             std::vector<std::string> completions;
-            std::string roles_dir = "config/.aicode/roles";
+            std::string roles_dir = "config/.prosophor/roles";
             if (std::filesystem::exists(roles_dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
                     if (entry.is_regular_file() && entry.path().extension() == ".md") {
@@ -544,7 +544,7 @@ std::vector<std::string> CommandRegistry::CompleteCommand(const std::string& par
 
 std::vector<std::string> CommandRegistry::CompleteRole(const std::string& partial) const {
     std::vector<std::string> completions;
-    std::string roles_dir = "config/.aicode/roles";
+    std::string roles_dir = "config/.prosophor/roles";
 
     if (std::filesystem::exists(roles_dir)) {
         for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
@@ -943,7 +943,7 @@ CommandResult CommandRegistry::CmdTasks(const CommandContext&, const std::vector
 }
 
 CommandResult CommandRegistry::CmdConfig(const CommandContext&, const std::vector<std::string>& args) {
-    auto& config = AiCodeConfig::GetInstance();
+    auto& config = ProsophorConfig::GetInstance();
 
     if (args.empty()) {
         // Show current config
@@ -955,7 +955,7 @@ CommandResult CommandRegistry::CmdConfig(const CommandContext&, const std::vecto
         return CommandResult::Ok(oss.str());
     }
 
-    return CommandResult::Ok("Config editing not yet implemented. Please edit ~/.aicode/config.json directly.");
+    return CommandResult::Ok("Config editing not yet implemented. Please edit ~/.prosophor/config.json directly.");
 }
 
 CommandResult CommandRegistry::CmdClear(const CommandContext&, const std::vector<std::string>&) {
@@ -964,7 +964,7 @@ CommandResult CommandRegistry::CmdClear(const CommandContext&, const std::vector
 }
 
 CommandResult CommandRegistry::CmdMcp(const CommandContext&, const std::vector<std::string>& args) {
-    auto& mcp_client = aicode::McpClient::GetInstance();
+    auto& mcp_client = prosophor::McpClient::GetInstance();
     std::ostringstream oss;
 
     if (args.empty() || args[0] == "list") {
@@ -1036,7 +1036,7 @@ CommandResult CommandRegistry::CmdMcp(const CommandContext&, const std::vector<s
             return CommandResult::Fail("Command required for stdio MCP servers. Use: /mcp add <name> --command <cmd>");
         }
 
-        aicode::McpServerConfig config;
+        prosophor::McpServerConfig config;
         config.name = server_name;
         config.type = type;
         config.command = command;
@@ -1136,7 +1136,7 @@ CommandResult CommandRegistry::CmdCompact(const CommandContext&, const std::vect
 }
 
 CommandResult CommandRegistry::CmdPlugins(const CommandContext&, const std::vector<std::string>& args) {
-    auto& plugin_mgr = aicode::PluginManager::GetInstance();
+    auto& plugin_mgr = prosophor::PluginManager::GetInstance();
     std::ostringstream oss;
 
     if (args.empty() || args[0] == "list") {
@@ -1180,7 +1180,7 @@ CommandResult CommandRegistry::CmdPlugins(const CommandContext&, const std::vect
 }
 
 CommandResult CommandRegistry::CmdSkills(const CommandContext&, const std::vector<std::string>& args) {
-    auto& plugin_mgr = aicode::PluginManager::GetInstance();
+    auto& plugin_mgr = prosophor::PluginManager::GetInstance();
     std::ostringstream oss;
 
     if (args.empty() || args[0] == "list") {
@@ -1200,7 +1200,7 @@ CommandResult CommandRegistry::CmdSkills(const CommandContext&, const std::vecto
 }
 
 CommandResult CommandRegistry::CmdWorktree(const CommandContext&, const std::vector<std::string>& args) {
-    auto& wt_mgr = aicode::WorktreeManager::GetInstance();
+    auto& wt_mgr = prosophor::WorktreeManager::GetInstance();
     std::ostringstream oss;
 
     if (args.empty() || args[0] == "list" || args[0] == "ls") {
@@ -1283,7 +1283,7 @@ CommandResult CommandRegistry::CmdWorktree(const CommandContext&, const std::vec
 }
 
 CommandResult CommandRegistry::CmdSchedule(const CommandContext&, const std::vector<std::string>& args) {
-    auto& cron = aicode::CronScheduler::GetInstance();
+    auto& cron = prosophor::CronScheduler::GetInstance();
     std::ostringstream oss;
 
     if (args.empty() || args[0] == "list" || args[0] == "ls") {
@@ -1444,15 +1444,15 @@ CommandResult CommandRegistry::CmdContext(const CommandContext&, const std::vect
 CommandResult CommandRegistry::CmdDoctor(const CommandContext& ctx, const std::vector<std::string>&) {
     auto& tracker = TokenTracker::GetInstance();
     auto& perm_mgr = PermissionManager::GetInstance();
-    auto& mcp_client = aicode::McpClient::GetInstance();
-    auto& lsp_manager = aicode::LspManager::GetInstance();
+    auto& mcp_client = prosophor::McpClient::GetInstance();
+    auto& lsp_manager = prosophor::LspManager::GetInstance();
 
     std::ostringstream oss;
-    oss << "=== AiCode Diagnostic Information ===\n\n";
+    oss << "=== Prosophor Diagnostic Information ===\n\n";
 
     // Version and environment
     oss << "Environment:\n";
-    oss << "  AiCode Version: " << AICODE_VERSION << "\n";
+    oss << "  Prosophor Version: " << PROSOPHOR_VERSION << "\n";
     oss << "  Workspace: " << ctx.workspace << "\n";
 #ifdef NDEBUG
     oss << "  Build: Release\n";
@@ -1549,7 +1549,7 @@ CommandResult CommandRegistry::CmdDoctor(const CommandContext& ctx, const std::v
 
     // Configuration
     oss << "Configuration:\n";
-    auto& config = AiCodeConfig::GetInstance();
+    auto& config = ProsophorConfig::GetInstance();
     oss << "  Default role: " << config.default_role << "\n";
     oss << "  Log level: " << config.log_level << "\n";
 
@@ -1592,7 +1592,7 @@ CommandResult CommandRegistry::CmdEffort(const CommandContext&, const std::vecto
 }
 
 CommandResult CommandRegistry::CmdPlan(const CommandContext&, const std::vector<std::string>& args) {
-    auto& plan_manager = aicode::PlanModeManager::GetInstance();
+    auto& plan_manager = prosophor::PlanModeManager::GetInstance();
     std::ostringstream oss;
 
     if (args.empty()) {
@@ -1837,7 +1837,7 @@ CommandResult CommandRegistry::CmdMemory(const CommandContext& ctx, const std::v
     } else {
         workspace = ctx.workspace;
     }
-    aicode::MemoryManager mem_mgr(workspace);
+    prosophor::MemoryManager mem_mgr(workspace);
 
     if (args.empty() || args[0] == "list") {
         // List memory entries
@@ -2025,7 +2025,7 @@ CommandResult CommandRegistry::CmdSummary(const CommandContext& ctx, const std::
 CommandResult CommandRegistry::CmdRoles(const CommandContext&, const std::vector<std::string>&) {
     std::ostringstream oss;
     oss << "Available roles:\n";
-    std::string roles_dir = "config/.aicode/roles";
+    std::string roles_dir = "config/.prosophor/roles";
     if (std::filesystem::exists(roles_dir)) {
         for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".md") {
@@ -2041,7 +2041,7 @@ CommandResult CommandRegistry::CmdRoles(const CommandContext&, const std::vector
 }
 
 CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vector<std::string>& args) {
-    auto& config = AiCodeConfig::GetInstance();
+    auto& config = ProsophorConfig::GetInstance();
 
     if (args.empty()) {
         // Show current role
@@ -2060,7 +2060,7 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
 
         // List available roles
         oss << "\nAvailable roles:\n";
-        std::string roles_dir = "config/.aicode/roles";
+        std::string roles_dir = "config/.prosophor/roles";
         if (std::filesystem::exists(roles_dir)) {
             for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
                 if (entry.is_regular_file() && entry.path().extension() == ".md") {
@@ -2079,13 +2079,13 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
     std::string new_role_id = args[0];
 
     // Validate role exists
-    std::string role_path = "config/.aicode/roles/" + new_role_id + ".md";
+    std::string role_path = "config/.prosophor/roles/" + new_role_id + ".md";
     if (!std::filesystem::exists(role_path)) {
         return CommandResult::Fail("Unknown role: " + new_role_id);
     }
 
     // Update default_role in config
-    auto& mutable_config = AiCodeConfig::GetInstance();
+    auto& mutable_config = ProsophorConfig::GetInstance();
     mutable_config.default_role = new_role_id;
 
     // Save config to file
@@ -2275,4 +2275,4 @@ CommandResult CommandRegistry::CmdBye([[maybe_unused]] const CommandContext& ctx
     return CommandResult::Ok("Goodbye!");
 }
 
-}  // namespace aicode
+}  // namespace prosophor

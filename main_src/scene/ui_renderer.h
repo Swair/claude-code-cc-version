@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -16,7 +16,7 @@
 // 注意：不能依赖 scene/core/managers 等业务模块，只允许依赖 common/ 和第三方库
 // ============================================================================
 
-namespace aicode {
+namespace prosophor {
 
 /// UI 渲染器 - 统一处理 SDL + ImGui 渲染
 class UIRenderer {
@@ -88,4 +88,4 @@ private:
     AgentRuntimeState current_state_ = AgentRuntimeState::IDLE;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -7,7 +7,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// GrepTool - Search for text/pattern in files
 class GrepTool {
@@ -43,4 +43,4 @@ private:
     std::string EscapeRegex(const std::string& s) const;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

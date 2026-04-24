@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #include "managers/active_trigger_manager.h"
 
@@ -12,7 +12,7 @@
 #include "common/file_utils.h"
 #include "common/subprocess_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 ActiveTriggerManager& ActiveTriggerManager::GetInstance() {
     static ActiveTriggerManager instance;
@@ -438,4 +438,4 @@ ActiveTriggerManager::~ActiveTriggerManager() {
     Stop();
 }
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -19,9 +19,9 @@
 #include "components/ui_types.h"  // For AgentRuntimeState
 
 // Forward declaration for MemoryConsolidationService
-namespace aicode { class MemoryConsolidationService; }
+namespace prosophor { class MemoryConsolidationService; }
 
-namespace aicode {
+namespace prosophor {
 
 /// Tool executor callback
 using ToolExecutorCallback = std::function<std::string(const std::string& tool_name, const nlohmann::json& args)>;
@@ -38,8 +38,8 @@ using SessionOutputCallback = std::function<void(const std::string& session_id,
 /// 记录"这个精灵在做什么任务"
 ///
 /// 记忆双层设计：
-/// - Role Memory (长期记忆): 角色专属习惯、偏好，跨项目复用 (~/.aicode/memories/{role_id}/)
-/// - Session History (会话历史): 当前项目的对话历史、上下文、决策 (~/.aicode/sessions/{session_id}/history/)
+/// - Role Memory (长期记忆): 角色专属习惯、偏好，跨项目复用 (~/.prosophor/memories/{role_id}/)
+/// - Session History (会话历史): 当前项目的对话历史、上下文、决策 (~/.prosophor/sessions/{session_id}/history/)
 struct AgentSession {
     // =====================
     // 输入（AgentCore 的输入参数）
@@ -194,4 +194,4 @@ struct AgentSession {
     }
 };
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -6,7 +6,7 @@
 #include "scene/agent_state_observer.h"
 #include <array>
 
-namespace aicode {
+namespace prosophor {
 
 /// OfficeCharacterManager: manages 3 roles (coder, reviewer, architect) in office scene
 /// Reference: pixel-agents character system with state machine + pathfinding
@@ -72,4 +72,4 @@ private:
     static constexpr float TILE_SIZE = 32.0f;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -11,7 +11,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Background task status
 struct BackgroundTask {
@@ -69,4 +69,4 @@ private:
     std::queue<nlohmann::json> notification_queue_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

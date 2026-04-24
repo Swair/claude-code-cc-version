@@ -262,7 +262,7 @@ F(state, config) → {true, false}
 ```
 方案：事件驱动
 - 事件发生即刻感知（实时性✓）
-- 无事件时空转（低开销✓）
+- 无事件时休眠等待，零资源消耗（低开销✓）
 - 但只能感知有事件源的状态（自主性✗）
 ∴ 牺牲自主性
 ```
@@ -329,7 +329,7 @@ Plugin = (T, C, A)
 
 其中：
 T: trigger 脚本，T: State → {true, false}
-C: 触发模式配置，C ∈ {periodic, idle, idle_once}
+C: 触发模式配置，C ∈ {periodic, idle}（idle_once 是 idle 的参数化变体）
 A: 交互配置，A → Prompt
 ```
 
@@ -355,7 +355,7 @@ A: 交互配置，A → Prompt
 
 **说明**：
 - 本架构聚焦 **periodic + idle** 两种核心模式
-- idle_once 是 idle 的参数化变体（通过 triggered_count 控制单次触发）
+- idle_once 是 idle 的参数化变体（通过 triggered_count=1 参数控制，每次空闲触发一次）
 
 ---
 
@@ -364,7 +364,7 @@ A: 交互配置，A → Prompt
 **工程考量**：
 - **periodic**：覆盖无事件源的状态（CPU 温度等）—— 依赖时间流逝
 - **idle**：覆盖用户空闲场景（缺席检测，定理 1）—— 依赖时间差计算
-- **idle_once**：idle 的变体，通过 triggered_count 参数控制单次触发
+- **idle_once**：idle 的变体，通过 triggered_count=1 参数控制，每次空闲触发一次
 
 **说明**：
 - 本架构核心模式为 **periodic + idle** 两种
@@ -468,7 +468,7 @@ message: "If you use this software, please cite it as below."
 authors:
   - family-names: fang
     given-names: jiating
-title: "Swair/claude-code-cc-version: 基于插件化的主动式多模态交互触发架构 v1.0 & 主动式交互 Agent 理论建设 v1.0"
+title: "Swair/prosophor: 基于插件化的主动式多模态交互触发架构 v1.0 & 主动式交互 Agent 理论建设 v1.0"
 version: v0.3.0
 date-released: 2026-04-23
 doi: 10.5281/zenodo.19710262

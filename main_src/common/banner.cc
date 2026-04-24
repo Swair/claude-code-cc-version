@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/banner.h"
@@ -6,7 +6,7 @@
 #include <iostream>
 #include "managers/buddy_manager.h"
 
-namespace aicode {
+namespace prosophor {
 
 void PrintBanner(const std::string& version, bool show_buddy) {
     std::cout << "\n";
@@ -28,7 +28,7 @@ void PrintBanner(const std::string& version, bool show_buddy) {
         std::cout << "          ____        \n";
         std::cout << "     ╭─(─|    |─)-──╮\n";
         std::cout << "    ╭─────────────╮ |\n";
-        std::cout << " A==│  ◉      ◉   │ |==C \n";
+        std::cout << " )==│  ◉      ◉   │ |==( \n";
         std::cout << "    │     V       │ |\n";
         std::cout << "    ╰─────────────╯|\n";
         std::cout << "    ╰──────────────╯   \n";
@@ -36,7 +36,7 @@ void PrintBanner(const std::string& version, bool show_buddy) {
         std::cout << "\n";
     }
 
-    std::cout << "AiCode v" << version << "\n";
+    std::cout << "Prosophor v" << version << "\n";
     std::cout << "AI Coding Assistant"  << "\n";
     std::cout << "\n";
     std::cout << "  Type 'exit' or Ctrl+D to quit, Ctrl+C to interrupt\n";
@@ -56,4 +56,4 @@ void PrintHelp() {
     std::cout << "\n";
 }
 
-}  // namespace aicode
+}  // namespace prosophor

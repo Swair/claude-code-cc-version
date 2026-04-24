@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -6,7 +6,7 @@
 #include <vector>
 #include <functional>
 
-namespace aicode {
+namespace prosophor {
 
 /// Terminal input handler with tab completion
 class InputHandler {
@@ -170,4 +170,4 @@ namespace ansi {
     inline const char* kDim = "\033[2m";
 }  // namespace ansi
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/effort_config.h"
@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 namespace {
 // Global effort configuration state
@@ -83,4 +83,4 @@ nlohmann::json EffortConfig::ToJson() {
     return j;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

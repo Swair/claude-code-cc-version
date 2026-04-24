@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -14,7 +14,7 @@
 
 #include "tools/tool_registry.h"  // For ToolsSchema
 
-namespace aicode {
+namespace prosophor {
 
 /// Agent 角色定义（模板/蓝图）
 /// 定义"是什么精灵"：性格、技能、记忆、指令
@@ -48,7 +48,7 @@ struct AgentRole {
     bool auto_confirm_tools = false;   // 是否自动确认工具
 
     // === 记忆配置 ===
-    std::string memory_dir;            // 专属记忆目录：~/.aicode/memories/coder
+    std::string memory_dir;            // 专属记忆目录：~/.prosophor/memories/coder
 
     /// 检查是否绑定了专属 Provider
     bool HasCustomProvider() const {
@@ -99,4 +99,4 @@ struct AgentRole {
     }
 };
 
-}  // namespace aicode
+}  // namespace prosophor

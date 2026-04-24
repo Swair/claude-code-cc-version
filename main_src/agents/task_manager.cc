@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "agents/task_manager.h"
@@ -12,7 +12,7 @@
 #include "common/time_wrapper.h"
 #include "common/file_utils.h"
 
-namespace aicode {
+namespace prosophor {
 
 TaskManager& TaskManager::GetInstance() {
     static TaskManager instance;
@@ -303,4 +303,4 @@ void TaskManager::LoadFromFile() {
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

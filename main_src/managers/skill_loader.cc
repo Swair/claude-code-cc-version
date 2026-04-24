@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/skill_loader.h"
@@ -13,7 +13,7 @@
 
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 SkillLoader& SkillLoader::GetInstance() {
     static SkillLoader instance;
@@ -194,7 +194,7 @@ bool SkillLoader::InstallSkill(const SkillMetadata& skill) {
         } else if (eff_method == "download") {
             const char* home = std::getenv("HOME");
             std::string bin_dir =
-                std::string(home ? home : "/tmp") + "/.aicode/bin";
+                std::string(home ? home : "/tmp") + "/.prosophor/bin";
             std::filesystem::create_directories(bin_dir);
             std::string dest =
                 bin_dir + "/" + (eff_binary.empty() ? "downloaded" : eff_binary);
@@ -234,7 +234,7 @@ std::vector<std::string> SkillLoader::GetAllSkillIds() const {
     // 从默认目录加载所有技能 ID
     std::vector<std::filesystem::path> dirs = {
         std::filesystem::current_path() / "skills",
-        std::filesystem::path(std::getenv("HOME") ? std::getenv("HOME") : "/tmp") / ".aicode" / "skills"
+        std::filesystem::path(std::getenv("HOME") ? std::getenv("HOME") : "/tmp") / ".prosophor" / "skills"
     };
 
     std::unordered_set<std::string> seen;
@@ -269,7 +269,7 @@ std::vector<SkillMetadata> SkillLoader::LoadSkills(
     const char* home = std::getenv("HOME");
     if (home) home_str = home;
     dirs.push_back(std::filesystem::path(home_str.empty() ? "/tmp" : home_str) /
-                   ".aicode" / "skills");
+                   ".prosophor" / "skills");
 
     for (const auto& extra : skills_config.load.extra_dirs) {
         dirs.push_back(std::filesystem::path(extra));
@@ -544,4 +544,4 @@ nlohmann::json SkillLoader::ParseYamlFrontmatter(
     return root;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

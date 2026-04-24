@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "components/chat_panel.h"
@@ -7,7 +7,7 @@
 #include "drawer.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 // ============================================================================
 // ChatPanel 实现
@@ -140,4 +140,4 @@ bool ChatPanel::IsScrolledToBottom() const {
     return scroll_window_->IsScrolledToBottom();
 }
 
-}  // namespace aicode
+}  // namespace prosophor

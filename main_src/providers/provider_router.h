@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -13,7 +13,7 @@
 #include "providers/ollama_provider.h"
 #include "common/config.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// ProviderRouter: 根据角色配置路由到不同的 LLM Provider
 class ProviderRouter {
@@ -21,7 +21,7 @@ public:
     static ProviderRouter& GetInstance();
 
     /// 初始化（从 config 加载 providers）
-    void Initialize(const AiCodeConfig& config);
+    void Initialize(const ProsophorConfig& config);
 
     /// 根据角色获取 provider
     std::shared_ptr<LLMProvider> GetProvider(const std::string& role_id);
@@ -49,4 +49,4 @@ private:
         const ProviderConfig& config);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

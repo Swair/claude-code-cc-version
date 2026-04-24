@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/file_utils.h"
@@ -9,7 +9,7 @@
 
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 // ============================================================================
 // Path Utilities
@@ -134,4 +134,4 @@ bool DirExists(const std::string& path) {
     return std::filesystem::exists(path, ec) && std::filesystem::is_directory(path, ec);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

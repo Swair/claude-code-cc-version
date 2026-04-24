@@ -34,7 +34,7 @@ tools_white_list:
 max_iterations: 20
 auto_confirm_tools: false
 
-memory_dir: ~/.aicode/memories/teacher
+memory_dir: ~/.prosophor/memories/teacher
 ---
 
 # 教学方法

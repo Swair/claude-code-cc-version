@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #include <string>
 #include <optional>
 
-namespace aicode {
+namespace prosophor {
 
 /// 子进程执行结果
 struct SubprocessResult {
@@ -24,4 +24,4 @@ SubprocessResult ExecuteScriptWithTimeout(
     int timeout_ms = 100
 );
 
-}  // namespace aicode
+}  // namespace prosophor

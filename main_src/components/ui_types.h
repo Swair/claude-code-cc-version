@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -9,7 +9,7 @@
 // UI 通用类型定义 - 放在 common/ 避免循环依赖
 // ============================================================================
 
-namespace aicode {
+namespace prosophor {
 
 /// Agent 运行时状态
 enum class AgentRuntimeState {
@@ -39,4 +39,4 @@ struct StateVisualProps {
     std::string name;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

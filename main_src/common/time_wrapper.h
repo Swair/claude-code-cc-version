@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -9,7 +9,7 @@
 #include <sstream>
 #include <iomanip>
 
-namespace aicode {
+namespace prosophor {
 
 // ============================================================================
 // SystemClock - 墙钟时间工具类（用于时间戳、日期显示）
@@ -150,4 +150,4 @@ inline bool IsExpired(TimePoint since, double threshold_s) {
     return SteadyClock::IsExpired(since, threshold_s);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -8,7 +8,7 @@
 #include <string>
 #include <functional>
 
-namespace aicode {
+namespace prosophor {
 
 /// 输出管理器 - 统一处理所有输出
 class OutputManager : public Noncopyable {
@@ -47,4 +47,4 @@ private:
     StateChangeCallback state_callback_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

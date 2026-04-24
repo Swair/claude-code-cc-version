@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -10,7 +10,7 @@
 #include <mutex>
 #include <functional>
 
-namespace aicode {
+namespace prosophor {
 
 /// AgentStateObserver: Callback interface for agent state changes
 class AgentStateObserver {
@@ -105,4 +105,4 @@ class AgentStateVisualizer : public Noncopyable {
     float text_offset_ = 35.0f;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

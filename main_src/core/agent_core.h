@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -11,7 +11,7 @@
 #include "core/compact_service.h"  // For GetCompactService()
 #include "components/ui_types.h"  // For AgentRuntimeState
 
-namespace aicode {
+namespace prosophor {
 
 /// AgentCore: orchestrates message processing, tool execution, and LLM interaction
 /// Stateless utility class - all state is in AgentSession
@@ -52,4 +52,4 @@ class AgentCore {
                                  int& iterations);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

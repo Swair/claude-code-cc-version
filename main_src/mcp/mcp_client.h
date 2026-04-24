@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -10,7 +10,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// MCP Tool definition
 struct McpTool {
@@ -128,4 +128,4 @@ private:
     void WriteToServer(ServerConnection& conn, const std::string& data);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

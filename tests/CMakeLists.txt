@@ -1,61 +1,84 @@
-# Copyright 2026 AiCode Contributors
+# Copyright 2026 Prosophor Contributors
 # SPDX-License-Identifier: Apache-2.0
 
 cmake_minimum_required(VERSION 3.20)
-project(aicode_tests VERSION 1.0.0 LANGUAGES CXX)
+project(prosophor_tests VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Fetch GoogleTest
 include(FetchContent)
-FetchContent_Declare(
-    googletest
-    GIT_REPOSITORY https://github.com/google/googletest.git
-    GIT_TAG        v1.14.0
-    GIT_SHALLOW    TRUE
-)
+
+############################################# googletest #####################################
+# 检查：thirdparty_src 目录存在则使用，否则下载
+if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty_src/googletest-src")
+    message(STATUS "Found googletest in thirdparty_src, using existing download")
+    FetchContent_Declare(googletest SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty_src/googletest-src")
+else()
+    message(STATUS "googletest not found, fetching from GitHub...")
+    FetchContent_Declare(
+        googletest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.14.0
+        GIT_SHALLOW TRUE
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty_src/googletest-src
+    )
+endif()
+
 FetchContent_MakeAvailable(googletest)
 
 include(GoogleTest)
 
-# Test executable
-add_executable(aicode_test)
-
-# Add test source files
-file(GLOB_RECURSE TEST_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/*.cc)
-target_sources(aicode_test PRIVATE ${TEST_SOURCES})
-
-# Include directories
-target_include_directories(aicode_test
-    PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../main_src
-        ${CMAKE_CURRENT_SOURCE_DIR}
+# Common test configuration
+set(TEST_INCLUDE_DIRS
+    ${CMAKE_CURRENT_SOURCE_DIR}/../main_src
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# Link libraries - aicode_core already includes spdlog and nlohmann_json
-target_link_libraries(aicode_test
-    PRIVATE
-        aicode_core
-        GTest::gtest
-        GTest::gtest_main
-        GTest::gmock
+# Common link libraries for tests
+set(TEST_LINK_LIBS
+    prosophor_core
+    GTest::gtest
+    GTest::gtest_main
 )
 
-# Compiler flags
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(aicode_test PRIVATE -Wall -Wextra -O2)
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(aicode_test PRIVATE /W4 /Od /RTC1 /EHsc)
+# ========================================
+# Individual Test Executables
+# Each .cc file is compiled as a separate test program
+# Automatically discovered from the tests directory
+# ========================================
+
+# Get all .cc files (excluding main.cc which is a helper)
+file(GLOB TEST_SOURCES "*.cc")
+list(REMOVE_ITEM TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/main.cc")
+
+# Create an executable for each test file
+foreach(TEST_FILE ${TEST_SOURCES})
+    # Get filename without path and extension
+    get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
+
+    # Use the filename as the executable name (already has _test suffix)
+    add_executable(${TEST_NAME} ${TEST_FILE})
+    target_include_directories(${TEST_NAME} PRIVATE ${TEST_INCLUDE_DIRS})
+
+    # agent_core_sync_test uses different linking (standalone demo)
+    if(TEST_NAME STREQUAL "agent_core_sync_test")
+        target_link_libraries(${TEST_NAME} PRIVATE prosophor_core spdlog::spdlog nlohmann_json::nlohmann_json)
     else()
-        target_compile_options(aicode_test PRIVATE /W4 /O2 /EHsc)
-    endif()
-endif()
+        # Regular gtest-based test
+        target_link_libraries(${TEST_NAME} PRIVATE ${TEST_LINK_LIBS})
 
-# Register tests
-gtest_discover_tests(aicode_test
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    TEST_PREFIX "aicode."
-    DISCOVERY_TIMEOUT 60
-)
+        # Register for CTest discovery
+        gtest_discover_tests(${TEST_NAME}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            TEST_PREFIX "${TEST_NAME}."
+            DISCOVERY_TIMEOUT 60)
+    endif()
+
+    # Add to install list
+    list(APPEND TEST_TARGETS ${TEST_NAME})
+endforeach()
+
+# Install all test executables
+install(TARGETS ${TEST_TARGETS} DESTINATION bin/tests)

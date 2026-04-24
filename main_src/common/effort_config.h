@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Effort level enum for model reasoning depth control
 enum class EffortLevel {
@@ -51,4 +51,4 @@ struct EffortConfig {
     static nlohmann::json ToJson();
 };
 
-}  // namespace aicode
+}  // namespace prosophor

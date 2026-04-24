@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -6,7 +6,7 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Represents a content block in a message
 struct ContentSchema {
@@ -63,4 +63,4 @@ struct MessageSchema {
     }
 };
 
-}  // namespace aicode
+}  // namespace prosophor

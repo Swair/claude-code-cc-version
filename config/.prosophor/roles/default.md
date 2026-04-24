@@ -23,7 +23,7 @@ tools_white_list:
 max_iterations: 30
 auto_confirm_tools: true
 
-memory_dir: ~/.aicode/memories/default
+memory_dir: ~/.prosophor/memories/default
 ---
 
 # 工作方式

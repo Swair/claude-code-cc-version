@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -10,7 +10,7 @@
 
 #include "common/messages_schema.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Result of context compaction
 struct CompactResult {
@@ -101,4 +101,4 @@ private:
     std::string BuildCompactionPrompt(const std::vector<MessageSchema>& messages);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

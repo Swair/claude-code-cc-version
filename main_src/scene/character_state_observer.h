@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -7,7 +7,7 @@
 #include <memory>
 #include <string>
 
-namespace aicode {
+namespace prosophor {
 
 // Forward declaration to avoid circular dependency
 class OfficeCharacterManager;
@@ -38,4 +38,4 @@ private:
     std::string current_tool_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

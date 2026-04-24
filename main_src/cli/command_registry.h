@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -11,7 +11,7 @@
 #include "common/noncopyable.h"
 #include "core/agent_session.h"
 
-namespace aicode {
+namespace prosophor {
 
 class AgentCore;  // Forward declaration
 
@@ -143,4 +143,4 @@ private:
     CommandResult CmdBye(const CommandContext&, const std::vector<std::string>& args);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

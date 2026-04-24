@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #ifdef _WIN32
@@ -82,7 +82,7 @@ std::string ReadWideChar() {
 
 }  // namespace
 
-namespace aicode {
+namespace prosophor {
 
 // Console state storage
 static DWORD orig_console_mode = 0;
@@ -93,12 +93,12 @@ InputHandler::InputHandler() {
     // Set default history file
     const char* home = getenv("HOME");
     if (home) {
-        history_file_ = std::string(home) + "/.aicode/history";
+        history_file_ = std::string(home) + "/.prosophor/history";
     } else {
         // On Windows, use USERPROFILE if available
         const char* profile = getenv("USERPROFILE");
         if (profile) {
-            history_file_ = std::string(profile) + "/.aicode/history";
+            history_file_ = std::string(profile) + "/.prosophor/history";
         }
     }
 }
@@ -648,6 +648,6 @@ bool InputHandler::IsInputComplete(const std::string& input) const {
     return true;
 }
 
-}  // namespace aicode
+}  // namespace prosophor
 
 #endif  // _WIN32

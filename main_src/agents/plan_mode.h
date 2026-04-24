@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -6,7 +6,7 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Plan step status
 enum class PlanStepStatus {
@@ -151,4 +151,4 @@ private:
     Plan current_plan_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

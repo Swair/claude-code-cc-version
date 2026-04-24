@@ -17,7 +17,7 @@
 // PanelStyle 预设样式
 // ============================================================================
 
-namespace aicode {
+namespace prosophor {
 
 /// 面板样式配置 - 定义面板的视觉属性
 struct PanelStyle {
@@ -224,4 +224,4 @@ private:
     float width_, height_;  ///< 标题栏尺寸
 };
 
-}  // namespace aicode
+}  // namespace prosophor

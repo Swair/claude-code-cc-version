@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/agent_role_loader.h"
@@ -14,7 +14,7 @@
 #include "tools/tool_registry.h"
 #include "managers/skill_loader.h"
 
-namespace aicode {
+namespace prosophor {
 
 AgentRoleLoader& AgentRoleLoader::GetInstance() {
     static AgentRoleLoader instance;
@@ -104,13 +104,13 @@ AgentRole AgentRoleLoader::ParseMarkdownFile(const std::filesystem::path& file) 
 
     // 从 settings.json 的 agents 配置中读取 temperature 和 max_tokens
     // 如果 role 中没有指定 provider_name，则根据 default_role 来确定默认 provider
-    auto& config = AiCodeConfig::GetInstance();
+    auto& config = ProsophorConfig::GetInstance();
     std::string provider_to_use = role.provider_name;
 
     // 如果 role 没有指定 provider_name，使用 default_role 的 provider
     if (provider_to_use.empty()) {
         // 尝试加载 default_role 来获取其 provider_name
-        std::string default_role_path = "config/.aicode/roles/" + config.default_role + ".md";
+        std::string default_role_path = "config/.prosophor/roles/" + config.default_role + ".md";
         if (std::filesystem::exists(default_role_path)) {
             auto& loader = AgentRoleLoader::GetInstance();
             try {
@@ -404,4 +404,4 @@ nlohmann::json AgentRoleLoader::ParseYamlFrontmatter(const std::string& yaml_str
     return root;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

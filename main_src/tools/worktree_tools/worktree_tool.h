@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #include <string>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// WorktreeTool - Manage git worktrees for task isolation
 class WorktreeTool {
@@ -26,4 +26,4 @@ private:
     std::string Exec(const nlohmann::json& params);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

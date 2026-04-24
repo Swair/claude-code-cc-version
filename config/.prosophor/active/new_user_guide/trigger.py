@@ -11,7 +11,7 @@ from pathlib import Path
 
 def check_first_run():
     """检查是否为新用户"""
-    marker_file = Path.home() / ".aicode" / "first_run_marker"
+    marker_file = Path.home() / ".prosophor" / "first_run_marker"
 
     if marker_file.exists():
         print("检测到新用户标记文件")

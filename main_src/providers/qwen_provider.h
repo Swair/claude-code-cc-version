@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -10,7 +10,7 @@
 #include "common/curl_client.h"
 #include "providers/llm_provider.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Qwen API provider implementation
 class QwenProvider : public LLMProvider {
@@ -45,4 +45,4 @@ class QwenProvider : public LLMProvider {
     int timeout_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

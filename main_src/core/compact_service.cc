@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "core/compact_service.h"
@@ -9,7 +9,7 @@
 #include "common/log_wrapper.h"
 #include "common/constants.h"
 
-namespace aicode {
+namespace prosophor {
 
 CompactService& CompactService::GetInstance() {
     static CompactService instance;
@@ -278,4 +278,4 @@ CompactResult CompactService::CompressToTokenLimit(
     return result;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

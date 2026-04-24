@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #ifdef _WIN32
@@ -42,7 +42,7 @@
 #include "tools/lsp_tools/lsp_tool.h"
 #include "tools/worktree_tools/worktree_tool.h"
 
-namespace aicode {
+namespace prosophor {
 
 #ifdef _WIN32
 /// Convert system locale output to UTF-8 on Windows
@@ -145,12 +145,12 @@ static std::pair<std::string, int> ExecuteCommand(const std::string& command,
 
     std::string result;
     char buffer[1024];
-    auto start = aicode::Now();
+    auto start = prosophor::Now();
 
     for (;;) {
         DWORD wait_ms = 100;
         if (timeout_seconds > 0) {
-            int64_t elapsed_ms = aicode::ElapsedMillis(start);
+            int64_t elapsed_ms = prosophor::ElapsedMillis(start);
             int64_t timeout_ms = timeout_seconds * 1000;
             if (elapsed_ms >= timeout_ms) {
                 TerminateProcess(pi.hProcess, 1);
@@ -236,7 +236,7 @@ static std::pair<std::string, int> ExecuteCommand(const std::string& command,
 
     std::string result;
     char buffer[4096];
-    auto start = aicode::Now();
+    auto start = prosophor::Now();
 
     // Set non-blocking read with timeout
     struct timeval tv;
@@ -262,7 +262,7 @@ static std::pair<std::string, int> ExecuteCommand(const std::string& command,
 
         // Check timeout
         if (timeout_seconds > 0) {
-            int64_t elapsed_ms = aicode::ElapsedMillis(start);
+            int64_t elapsed_ms = prosophor::ElapsedMillis(start);
             if (elapsed_ms >= timeout_seconds * 1000) {
                 kill(pid, SIGKILL);
                 close(pipefd[0]);
@@ -302,7 +302,7 @@ ToolRegistry& ToolRegistry::GetInstance() {
 }
 
 ToolRegistry::ToolRegistry()
-    : workspace_path_("~/.aicode/workspace") {
+    : workspace_path_("~/.prosophor/workspace") {
     LOG_INFO("ToolRegistry initialized");
 
     // Initialize permission manager with default config
@@ -1174,7 +1174,7 @@ std::string ToolRegistry::WebFetchTool(const nlohmann::json& params) {
     HttpRequest req;
     req.url = url;
     req.timeout_seconds = 30;
-    req.user_agent = "AiCode/1.0 (WebFetch Tool)";
+    req.user_agent = "Prosophor/1.0 (WebFetch Tool)";
 
     HttpResponse resp = HttpClient::Post(req);
 
@@ -1323,9 +1323,9 @@ std::string ToolRegistry::WebSearchTool(const nlohmann::json& params) {
             HttpRequest req;
             req.url = url;
             req.timeout_seconds = 15;
-            req.user_agent = "AiCode/1.0";
+            req.user_agent = "Prosophor/1.0";
 
-            aicode::HeaderList headers;
+            prosophor::HeaderList headers;
             headers.append("Accept: application/json");
             headers.append("Accept-Encoding: identity");
             headers.append(("X-Subscription-Token: " + std::string(brave_key)).c_str());
@@ -1371,7 +1371,7 @@ std::string ToolRegistry::WebSearchTool(const nlohmann::json& params) {
             req.post_data = body.dump();
             req.timeout_seconds = 15;
 
-            aicode::HeaderList headers;
+            prosophor::HeaderList headers;
             headers.append("Content-Type: application/json");
             req.headers = headers.get();
 
@@ -1414,7 +1414,7 @@ std::string ToolRegistry::WebSearchTool(const nlohmann::json& params) {
         req.timeout_seconds = 15;
         req.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36";
 
-        aicode::HeaderList headers;
+        prosophor::HeaderList headers;
         headers.append("Accept: text/html");
         req.headers = headers.get();
 
@@ -1920,7 +1920,7 @@ std::string ToolRegistry::GitBranchTool(const nlohmann::json& params) {
 }
 
 std::string ToolRegistry::AskUserQuestionTool(const nlohmann::json& params) {
-    auto& question_tool = aicode::AskUserQuestionTool::GetInstance();
+    auto& question_tool = prosophor::AskUserQuestionTool::GetInstance();
 
     // Parse questions from parameters
     std::vector<Question> questions;
@@ -1969,7 +1969,7 @@ std::string ToolRegistry::AskUserQuestionTool(const nlohmann::json& params) {
 }
 
 std::string ToolRegistry::TodoWriteTool(const nlohmann::json& params) {
-    auto& todo_tool = aicode::TodoWriteTool::GetInstance();
+    auto& todo_tool = prosophor::TodoWriteTool::GetInstance();
 
     std::string operation = params.value("operation", "list");
 
@@ -2028,39 +2028,39 @@ std::string ToolRegistry::TodoWriteTool(const nlohmann::json& params) {
 
 // LSP Tool implementations
 std::string ToolRegistry::LspDiagnosticsTool(const nlohmann::json& params) {
-    return aicode::LspTool::GetInstance().Diagnostics(params);
+    return prosophor::LspTool::GetInstance().Diagnostics(params);
 }
 
 std::string ToolRegistry::LspGoToDefinitionTool(const nlohmann::json& params) {
-    return aicode::LspTool::GetInstance().GoToDefinition(params);
+    return prosophor::LspTool::GetInstance().GoToDefinition(params);
 }
 
 std::string ToolRegistry::LspFindReferencesTool(const nlohmann::json& params) {
-    return aicode::LspTool::GetInstance().FindReferences(params);
+    return prosophor::LspTool::GetInstance().FindReferences(params);
 }
 
 std::string ToolRegistry::LspGetHoverTool(const nlohmann::json& params) {
-    return aicode::LspTool::GetInstance().GetHover(params);
+    return prosophor::LspTool::GetInstance().GetHover(params);
 }
 
 std::string ToolRegistry::LspDocumentSymbolsTool(const nlohmann::json& params) {
-    return aicode::LspTool::GetInstance().GetDocumentSymbols(params);
+    return prosophor::LspTool::GetInstance().GetDocumentSymbols(params);
 }
 
 std::string ToolRegistry::LspWorkspaceSymbolsTool(const nlohmann::json& params) {
-    return aicode::LspTool::GetInstance().WorkspaceSymbols(params);
+    return prosophor::LspTool::GetInstance().WorkspaceSymbols(params);
 }
 
 std::string ToolRegistry::LspFormatDocumentTool(const nlohmann::json& params) {
-    return aicode::LspTool::GetInstance().FormatDocument(params);
+    return prosophor::LspTool::GetInstance().FormatDocument(params);
 }
 
 std::string ToolRegistry::LspAllDiagnosticsTool(const nlohmann::json& params) {
-    return aicode::LspTool::GetInstance().GetAllDiagnostics(params);
+    return prosophor::LspTool::GetInstance().GetAllDiagnostics(params);
 }
 
 std::string ToolRegistry::LspListServersTool(const nlohmann::json& params) {
-    return aicode::LspTool::GetInstance().ListServers(params);
+    return prosophor::LspTool::GetInstance().ListServers(params);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

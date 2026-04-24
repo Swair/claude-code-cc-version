@@ -8,7 +8,7 @@ endif()
 # Remove 'v' prefix if present (e.g., v0.2.0 -> 0.2.0)
 string(REGEX REPLACE "^v" "" PACKAGE_VERSION_CLEAN ${PACKAGE_VERSION})
 
-project(aicode VERSION ${PACKAGE_VERSION_CLEAN} LANGUAGES CXX)
+project(prosophor VERSION ${PACKAGE_VERSION_CLEAN} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,16 +27,16 @@ add_subdirectory(main_src)
 # add_subdirectory(tests)
 
 # Install configuration files, roles, skills, and workspace
-# Install to ~/.aicode (home directory) on all platforms
+# Install to ~/.prosophor (home directory) on all platforms
 if(WIN32)
     # On Windows, use USERPROFILE environment variable
-    file(TO_CMAKE_PATH "$ENV{USERPROFILE}/.aicode" AICODE_INSTALL_DIR)
+    file(TO_CMAKE_PATH "$ENV{USERPROFILE}/.prosophor" PROSOPHOR_INSTALL_DIR)
 else()
     # On Unix-like systems, use HOME environment variable
-    file(TO_CMAKE_PATH "$ENV{HOME}/.aicode" AICODE_INSTALL_DIR)
+    file(TO_CMAKE_PATH "$ENV{HOME}/.prosophor" PROSOPHOR_INSTALL_DIR)
 endif()
 
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/.aicode/ DESTINATION ${AICODE_INSTALL_DIR}
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/.prosophor/ DESTINATION ${PROSOPHOR_INSTALL_DIR}
     PATTERN "settings.json" EXCLUDE  # Don't overwrite user's settings
 )
 

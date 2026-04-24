@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -7,7 +7,7 @@
 #include "common/input_event.h"
 #include <functional>
 
-namespace aicode {
+namespace prosophor {
 
 /// SdlApp: SDL-based graphical interface entry point
 /// SDL dependencies are hidden behind media_engine interfaces
@@ -41,4 +41,4 @@ class SdlApp : public Noncopyable {
     InputCallback input_callback_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

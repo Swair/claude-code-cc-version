@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/plugin_manager.h"
@@ -11,7 +11,7 @@
 #include "common/log_wrapper.h"
 #include "common/constants.h"
 
-namespace aicode {
+namespace prosophor {
 
 Plugin Plugin::FromJson(const nlohmann::json& json, const std::string& path) {
     Plugin plugin;
@@ -327,4 +327,4 @@ void PluginManager::SaveConfig() {
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

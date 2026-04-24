@@ -1,5 +1,5 @@
 {
-  "default_role": "default",           // Default role to use when not specified
+  "default_role": "default",
   "log_level": "info",
   "providers": {
     "dashscope": {
@@ -17,7 +17,7 @@
           "temperature": 0.1
         }
       },
-      "api_key": "sk-sp-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "api_key": "sk-sp-198786439e234d0abc2xxxxxxxxxxxxx",
       "api_type": "qwen",
       "base_url": "https://coding.dashscope.aliyuncs.com/apps/anthropic",
       "timeout": 60
@@ -40,29 +40,8 @@
       "api_key": "",
       "api_type": "ollama",
       "base_url": "http://localhost:11434",
-      "timeout": 120
+      "timeout": 180
     }
-  },
-  "permissions": {
-    "mode": "default",
-    "allow": [
-      {
-        "tool": "bash",
-        "command": "date *"
-      },
-      {
-        "tool": "bash",
-        "command": "pwd"
-      },
-      {
-        "tool": "bash",
-        "command": "whoami"
-      },
-      {
-        "tool": "bash",
-        "command": "echo *"
-      }
-    ]
   },
   "security": {
     "allow_local_execute": true,

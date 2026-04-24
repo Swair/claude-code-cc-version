@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -11,7 +11,7 @@
 // Texture 前向声明
 class Texture;
 
-namespace aicode {
+namespace prosophor {
 
 /// Direction enum (matches pixel-agents)
 enum class CharDirection {
@@ -119,4 +119,4 @@ private:
     std::array<CharacterSprites, 6> sprite_rects_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

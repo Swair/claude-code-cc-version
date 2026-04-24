@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "scene/sdl_app.h"
@@ -14,7 +14,7 @@
 #include <memory>
 #include "cli/agent_commander.h"
 
-namespace aicode {
+namespace prosophor {
 
 SdlApp& SdlApp::GetInstance() {
     static SdlApp instance;
@@ -68,7 +68,7 @@ void SdlApp::Initialize() {
     auto& commander = AgentCommander::GetInstance();
     commander.SetMode(RunMode::SDL);
 
-    aicode::AgentCommander::GetInstance();
+    prosophor::AgentCommander::GetInstance();
 
     MediaCore::Instance().MediaInit(2500, 1400);
     MediaCore::Instance().SetFPS(60);
@@ -80,7 +80,7 @@ void SdlApp::Initialize() {
 
     UIRenderer::Instance().SetOnMessageSubmit([this](const std::string& message) {
         if (!message.empty() && message[0] == '/') {
-            if (aicode::AgentCommander::GetInstance().HandleCommand(message)) {
+            if (prosophor::AgentCommander::GetInstance().HandleCommand(message)) {
                 UIRenderer::Instance().AddMessage("system", message);
             } else {
                 UIRenderer::Instance().AddMessage("system", "命令执行失败：" + message);
@@ -88,7 +88,7 @@ void SdlApp::Initialize() {
             return;
         }
 
-        aicode::AgentCommander::GetInstance().ProcessUserMessage(message);
+        prosophor::AgentCommander::GetInstance().ProcessUserMessage(message);
     });
 
     // Register event handler for MediaCore events
@@ -125,22 +125,22 @@ void SdlApp::Initialize() {
         UIRenderer::Instance().RenderImGui();
     });
 
-    UIRenderer::Instance().SetStatePropsGetter([](aicode::AgentRuntimeState state) {
+    UIRenderer::Instance().SetStatePropsGetter([](prosophor::AgentRuntimeState state) {
         switch (state) {
-            case aicode::AgentRuntimeState::IDLE:
-                return aicode::StateVisualProps{100, 100, 100, 255, "Idle"};
-            case aicode::AgentRuntimeState::THINKING:
-                return aicode::StateVisualProps{65, 105, 225, 255, "Thinking"};
-            case aicode::AgentRuntimeState::EXECUTING_TOOL:
-                return aicode::StateVisualProps{255, 165, 0, 255, "Executing"};
-            case aicode::AgentRuntimeState::WAITING_PERMISSION:
-                return aicode::StateVisualProps{255, 255, 0, 255, "Waiting"};
-            case aicode::AgentRuntimeState::STATE_ERROR:
-                return aicode::StateVisualProps{255, 0, 0, 255, "Error"};
-            case aicode::AgentRuntimeState::COMPLETE:
-                return aicode::StateVisualProps{0, 255, 0, 255, "Complete"};
+            case prosophor::AgentRuntimeState::IDLE:
+                return prosophor::StateVisualProps{100, 100, 100, 255, "Idle"};
+            case prosophor::AgentRuntimeState::THINKING:
+                return prosophor::StateVisualProps{65, 105, 225, 255, "Thinking"};
+            case prosophor::AgentRuntimeState::EXECUTING_TOOL:
+                return prosophor::StateVisualProps{255, 165, 0, 255, "Executing"};
+            case prosophor::AgentRuntimeState::WAITING_PERMISSION:
+                return prosophor::StateVisualProps{255, 255, 0, 255, "Waiting"};
+            case prosophor::AgentRuntimeState::STATE_ERROR:
+                return prosophor::StateVisualProps{255, 0, 0, 255, "Error"};
+            case prosophor::AgentRuntimeState::COMPLETE:
+                return prosophor::StateVisualProps{0, 255, 0, 255, "Complete"};
             default:
-                return aicode::StateVisualProps{128, 128, 128, 255, "Unknown"};
+                return prosophor::StateVisualProps{128, 128, 128, 255, "Unknown"};
         }
     });
 
@@ -168,4 +168,4 @@ void SdlApp::Stop() {
     MediaCore::Instance().Quit();
 }
 
-}  // namespace aicode
+}  // namespace prosophor

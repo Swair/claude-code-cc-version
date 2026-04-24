@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #include "scene/character_state_observer.h"
 #include "scene/office_character_manager.h"
 #include "common/log_wrapper.h"
 #include <vector>
 
-namespace aicode {
+namespace prosophor {
 
 CharacterStateObserver& CharacterStateObserver::Instance() {
     static CharacterStateObserver instance;
@@ -85,4 +85,4 @@ bool CharacterStateObserver::IsReadingTool(const std::string& tool_name) const {
     return false;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,14 +1,14 @@
 #!/bin/bash
-# AiCode 三层验证脚本
+# Prosophor 三层验证脚本
 # 语法检查 → 功能测试 → 逻辑校验
 
 set -e
 
 echo "=============================================="
-echo "         AiCode 三层验证脚本"
+echo "         Prosophor 三层验证脚本"
 echo "=============================================="
 
-PROJECT_DIR="E:/ai_ws/AiCode"
+PROJECT_DIR="E:/ai_ws/Prosophor"
 INCLUDE_DIR="$PROJECT_DIR/include"
 SRC_DIR="$PROJECT_DIR/src"
 
@@ -89,11 +89,11 @@ check_class() {
     fi
 }
 
-check_class "MemoryManager" "$INCLUDE_DIR/aicode/core/memory_manager.hpp"
-check_class "SkillLoader" "$INCLUDE_DIR/aicode/core/skill_loader.hpp"
-check_class "ToolRegistry" "$INCLUDE_DIR/aicode/tools/tool_registry.hpp"
-check_class "LLMProvider" "$INCLUDE_DIR/aicode/providers/llm_provider.hpp"
-check_class "AgentCore" "$INCLUDE_DIR/aicode/core/agent_core.hpp"
+check_class "MemoryManager" "$INCLUDE_DIR/prosophor/core/memory_manager.hpp"
+check_class "SkillLoader" "$INCLUDE_DIR/prosophor/core/skill_loader.hpp"
+check_class "ToolRegistry" "$INCLUDE_DIR/prosophor/tools/tool_registry.hpp"
+check_class "LLMProvider" "$INCLUDE_DIR/prosophor/providers/llm_provider.hpp"
+check_class "AgentCore" "$INCLUDE_DIR/prosophor/core/agent_core.hpp"
 
 # 检查必要函数
 check_function() {
@@ -108,9 +108,9 @@ check_function() {
     fi
 }
 
-check_function "ChatCompletion" "$INCLUDE_DIR/aicode/providers/llm_provider.hpp"
-check_function "ExecuteTool" "$INCLUDE_DIR/aicode/tools/tool_registry.hpp"
-check_function "LoadSkillsFromDirectory" "$INCLUDE_DIR/aicode/core/skill_loader.hpp"
+check_function "ChatCompletion" "$INCLUDE_DIR/prosophor/providers/llm_provider.hpp"
+check_function "ExecuteTool" "$INCLUDE_DIR/prosophor/tools/tool_registry.hpp"
+check_function "LoadSkillsFromDirectory" "$INCLUDE_DIR/prosophor/core/skill_loader.hpp"
 
 # ==============================================
 # 总结

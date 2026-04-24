@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -10,7 +10,7 @@
 #include <vector>
 #include <memory>
 
-namespace aicode {
+namespace prosophor {
 
 /// 聊天面板组件 - 使用独立 ScrollWindow
 class ChatPanel {
@@ -45,4 +45,4 @@ private:
     void RenderMessage(const ChatMessage& msg, size_t index);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

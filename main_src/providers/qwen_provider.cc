@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "providers/qwen_provider.h"
@@ -12,7 +12,7 @@
 #include "providers/llm_provider.h"
 #include "common/messages_schema.h"
 
-namespace aicode {
+namespace prosophor {
 
 // Internal helper functions for Qwen serialization (static to avoid linkage conflicts)
 
@@ -407,4 +407,4 @@ ChatResponse QwenProvider::ChatStream(const ChatRequest& request, std::function<
     return stream_handler.accumulated_response;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

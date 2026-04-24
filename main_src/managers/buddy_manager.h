@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -9,7 +9,7 @@
 #include "common/noncopyable.h"
 #include "managers/buddy_types.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Buddy Manager - handles companion pet system
 class BuddyManager : public Noncopyable {
@@ -27,11 +27,11 @@ public:
     Companion GenerateCompanion(const std::string& user_id = "");
 
     /// Load companion from config file
-    /// If config_path is empty, uses AI_CODE_CONFIG env var or ~/.aicode/config.json
+    /// If config_path is empty, uses AI_CODE_CONFIG env var or ~/.prosophor/config.json
     bool LoadCompanion(const std::string& config_path = "");
 
     /// Save companion to config file
-    /// If config_path is empty, uses AI_CODE_CONFIG env var or ~/.aicode/config.json
+    /// If config_path is empty, uses AI_CODE_CONFIG env var or ~/.prosophor/config.json
     bool SaveCompanion(const std::string& config_path = "") const;
 
     /// Set companion name (calls LLM to generate personality)
@@ -67,4 +67,4 @@ private:
     bool companion_loaded_ = false;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

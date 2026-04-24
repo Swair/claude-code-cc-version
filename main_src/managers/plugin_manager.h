@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -8,7 +8,7 @@
 #include <functional>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Plugin definition
 struct Plugin {
@@ -32,7 +32,7 @@ public:
     static PluginManager& GetInstance();
 
     /// Initialize plugin manager
-    void Initialize(const std::string& plugins_dir = "~/.aicode/plugins");
+    void Initialize(const std::string& plugins_dir = "~/.prosophor/plugins");
 
     /// Load all plugins from plugins directory
     void LoadAllPlugins();
@@ -100,4 +100,4 @@ private:
     void DiscoverPluginContents(Plugin& plugin, const std::string& plugin_dir);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

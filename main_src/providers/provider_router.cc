@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "providers/provider_router.h"
@@ -9,14 +9,14 @@
 #include "common/log_wrapper.h"
 #include "managers/agent_role_loader.h"
 
-namespace aicode {
+namespace prosophor {
 
 ProviderRouter& ProviderRouter::GetInstance() {
     static ProviderRouter instance;
     return instance;
 }
 
-void ProviderRouter::Initialize(const AiCodeConfig& config) {
+void ProviderRouter::Initialize(const ProsophorConfig& config) {
     std::unique_lock<std::shared_mutex> lock(mutex_);  // 写锁
 
     providers_.clear();
@@ -34,7 +34,7 @@ void ProviderRouter::Initialize(const AiCodeConfig& config) {
 
     // Set default provider based on default_role
     // Load the default role to get its provider_name
-    std::string role_path = "config/.aicode/roles/" + config.default_role + ".md";
+    std::string role_path = "config/.prosophor/roles/" + config.default_role + ".md";
     if (std::filesystem::exists(role_path)) {
         auto& loader = AgentRoleLoader::GetInstance();
         try {
@@ -121,4 +121,4 @@ std::shared_ptr<LLMProvider> ProviderRouter::CreateProvider(
         config.timeout);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

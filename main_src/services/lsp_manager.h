@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -8,7 +8,7 @@
 #include <functional>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// LSP Server configuration
 struct LspServerConfig {
@@ -143,4 +143,4 @@ private:
     void CloseDocument(ServerInstance& server, const std::string& uri);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

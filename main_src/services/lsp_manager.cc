@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "services/lsp_manager.h"
@@ -18,7 +18,7 @@
 #define read _read
 #endif
 
-namespace aicode {
+namespace prosophor {
 
 LspManager& LspManager::GetInstance() {
     static LspManager instance;
@@ -504,4 +504,4 @@ void LspManager::ShutdownAll() {
     LOG_INFO("All LSP servers shut down");
 }
 
-}  // namespace aicode
+}  // namespace prosophor

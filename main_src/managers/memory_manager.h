@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -16,7 +16,7 @@
 
 #include "common/config.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Manages workspace files and daily memory storage
 class MemoryManager {
@@ -60,7 +60,7 @@ class MemoryManager {
     /// Set workspace for a specific agent ID
     void SetAgentWorkspace(const std::string& agent_id);
 
-    /// Get base AiCode directory (~/.aicode)
+    /// Get base Prosophor directory (~/.prosophor)
     std::filesystem::path GetBaseDir() const;
 
     /// Get sessions directory for an agent
@@ -75,11 +75,11 @@ class MemoryManager {
     void WriteFileContent(const std::filesystem::path& filepath,
     const std::string& content) const;
 
-    /// Load AICODE.md files recursively from all subdirectories
-    void LoadAicodeFilesRecursively(const std::filesystem::path& dir);
+    /// Load PROSOPHOR.md files recursively from all subdirectories
+    void LoadprosophorFilesRecursively(const std::filesystem::path& dir);
 
     std::filesystem::path workspace_path_;
-    std::filesystem::path base_dir_;  // ~/.aicode
+    std::filesystem::path base_dir_;  // ~/.prosophor
     std::string agent_id_;
     std::atomic<bool> watching_;
     std::mutex watcher_mutex_;
@@ -88,4 +88,4 @@ class MemoryManager {
     std::unique_ptr<std::thread> watcher_thread_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

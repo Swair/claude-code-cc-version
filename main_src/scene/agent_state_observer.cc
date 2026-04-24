@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "scene/agent_state_observer.h"
@@ -12,7 +12,7 @@
 #include "scene/ui_renderer.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 // ============================================================================
 // AgentStateNotifier Implementation
@@ -209,4 +209,4 @@ void AgentStateVisualizer::SetVisible(bool visible) {
     visible_ = visible;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

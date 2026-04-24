@@ -3,7 +3,7 @@ rem 新用户引导触发脚本（Windows 版本）
 rem 检测是否存在新用户标记文件
 rem 返回 0 = 触发（新用户），返回 1 = 不触发（老用户）
 
-if exist "%USERPROFILE%\.aicode\first_run_marker" (
+if exist "%USERPROFILE%\.prosophor\first_run_marker" (
     echo 检测到新用户标记文件
     exit /b 0
 ) else (

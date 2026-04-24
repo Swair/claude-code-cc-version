@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -15,7 +15,7 @@
 
 #include "managers/agent_session_manager.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// 主动触发插件信息
 struct ActiveTriggerPlugin {
@@ -46,7 +46,7 @@ public:
     static ActiveTriggerManager& GetInstance();
 
     /// 初始化（指定 active/ 目录）
-    void Initialize(const std::string& active_dir = "~/.aicode/active");
+    void Initialize(const std::string& active_dir = "~/.prosophor/active");
 
     /// 启动调度器
     void Start();
@@ -122,4 +122,4 @@ private:
     mutable std::mutex mutex_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

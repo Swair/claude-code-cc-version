@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -11,7 +11,7 @@
 #include "core/agent_session.h"
 #include "providers/llm_provider.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// LLM chat callback (non-streaming)
 using LlmChatCallback = std::function<ChatResponse(const ChatRequest&)>;
@@ -136,4 +136,4 @@ private:
     void RunSubagent(Subagent& agent);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

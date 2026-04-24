@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -18,7 +18,7 @@
 #include "core/agent_core.h"
 #include "managers/memory_manager.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// AgentSessionManager: 管理多 Agent 角色和多会话
 /// 支持：
@@ -147,4 +147,4 @@ private:
     ThreadPool thread_pool_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

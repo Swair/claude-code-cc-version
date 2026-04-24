@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #ifndef _WIN32
@@ -15,7 +15,7 @@
 
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 // Terminal state storage
 static termios orig_termios;
@@ -25,7 +25,7 @@ InputHandler::InputHandler() {
     // Set default history file
     const char* home = getenv("HOME");
     if (home) {
-        history_file_ = std::string(home) + "/.aicode/history";
+        history_file_ = std::string(home) + "/.prosophor/history";
     }
 }
 
@@ -472,6 +472,6 @@ bool InputHandler::IsInputComplete(const std::string& input) const {
     return true;
 }
 
-}  // namespace aicode
+}  // namespace prosophor
 
 #endif  // _WIN32

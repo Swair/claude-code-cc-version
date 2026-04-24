@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -8,7 +8,7 @@
 #include <filesystem>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 // ============================================================================
 // Path Utilities
@@ -93,4 +93,4 @@ bool FileExists(const std::string& path);
 /// @return true if directory exists
 bool DirExists(const std::string& path);
 
-}  // namespace aicode
+}  // namespace prosophor

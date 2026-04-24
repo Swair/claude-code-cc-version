@@ -1,8 +1,8 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-namespace aicode {
+namespace prosophor {
 
 /// Base class for non-copyable objects
 class Noncopyable {
@@ -15,4 +15,4 @@ class Noncopyable {
     Noncopyable& operator=(Noncopyable&&) = default;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

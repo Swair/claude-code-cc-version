@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -11,7 +11,7 @@
 #include <atomic>
 #include <vector>
 
-namespace aicode {
+namespace prosophor {
 
 /// 通用无类型线程池
 /// - 任务提交时捕获所有状态（无共享状态竞争）
@@ -226,4 +226,4 @@ inline void ThreadPool::Shutdown() {
     workers_.clear();
 }
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "agent_tool.h"
@@ -8,7 +8,7 @@
 #include "../tool_registry.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 std::string AgentTool::Execute(const std::string& action, const nlohmann::json& params) {
     try {
@@ -113,7 +113,7 @@ std::string AgentTool::ExecuteSkill(const nlohmann::json& params) {
     // Try loading from global skills directory
     const char* home = std::getenv("HOME");
     std::string home_str = home ? home : "/tmp";
-    std::filesystem::path global_skills_dir = std::filesystem::path(home_str) / ".aicode" / "skills";
+    std::filesystem::path global_skills_dir = std::filesystem::path(home_str) / ".prosophor" / "skills";
 
     auto global_skills = loader.LoadSkillsFromDirectory(global_skills_dir);
     for (const auto& skill : global_skills) {
@@ -202,4 +202,4 @@ std::string AgentTool::SearchTools(const nlohmann::json& params) {
     return response.dump(2);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

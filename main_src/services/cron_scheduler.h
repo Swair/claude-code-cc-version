@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -13,7 +13,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Cron job status
 enum class CronJobStatus {
@@ -119,4 +119,4 @@ private:
     mutable std::mutex mutex_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -6,7 +6,7 @@
 #include <vector>
 #include <optional>
 
-namespace aicode {
+namespace prosophor {
 
 /// Line range for file references
 struct LineRange {
@@ -79,4 +79,4 @@ private:
                                     const std::string& workspace);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

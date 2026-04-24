@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -10,7 +10,7 @@
 #include <nlohmann/json.hpp>
 #include "common/messages_schema.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Token usage statistics for a single model
 struct TokenStats {
@@ -177,4 +177,4 @@ public:
     static int CountMessageTokens(const std::vector<ContentSchema>* content, const std::string& model = "claude-3");
 };
 
-}  // namespace aicode
+}  // namespace prosophor

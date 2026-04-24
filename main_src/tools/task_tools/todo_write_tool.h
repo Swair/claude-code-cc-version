@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -7,7 +7,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Todo item status
 enum class TodoStatus {
@@ -67,10 +67,10 @@ public:
     std::string FormatTodos() const;
 
     /// Load todos from file
-    bool Load(const std::string& path = ".aicode/todos.json");
+    bool Load(const std::string& path = ".prosophor/todos.json");
 
     /// Save todos to file
-    bool Save(const std::string& path = ".aicode/todos.json") const;
+    bool Save(const std::string& path = ".prosophor/todos.json") const;
 
 private:
     TodoWriteTool() = default;
@@ -88,4 +88,4 @@ private:
     mutable bool loaded_ = false;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -12,7 +12,7 @@
 // ============================================================================
 // 输入面板组件 - 聚合背景、输入框、发送按钮
 // ============================================================================
-namespace aicode {
+namespace prosophor {
 
 /// 输入面板 - 可复用的输入区域组件
 class InputPanel {
@@ -55,4 +55,4 @@ private:
     float width_ = 0, height_ = 0;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

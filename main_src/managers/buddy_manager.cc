@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/buddy_manager.h"
@@ -14,7 +14,7 @@
 #include "common/file_utils.h"
 #include "common/time_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 // Sprite frames - 3 frames per species, 5 lines tall, 12 chars wide
 // {E} is replaced with eye character
@@ -240,7 +240,7 @@ Companion BuddyManager::GenerateCompanion(const std::string& user_id) {
 }
 
 bool BuddyManager::LoadCompanion(const std::string& config_path) {
-    std::string path = config_path.empty() ? (AiCodeConfig::BaseDir() / "config.json").string() : config_path;
+    std::string path = config_path.empty() ? (ProsophorConfig::BaseDir() / "config.json").string() : config_path;
 
     try {
         auto json_opt = ReadJson(path);
@@ -276,7 +276,7 @@ bool BuddyManager::LoadCompanion(const std::string& config_path) {
 }
 
 bool BuddyManager::SaveCompanion(const std::string& config_path) const {
-    std::string path = config_path.empty() ? (AiCodeConfig::BaseDir() / "config.json").string() : config_path;
+    std::string path = config_path.empty() ? (ProsophorConfig::BaseDir() / "config.json").string() : config_path;
 
     try {
         nlohmann::json json;
@@ -426,4 +426,4 @@ void BuddyManager::SetCompanionName(const std::string& name) {
     LOG_INFO("Companion named: {}", name);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

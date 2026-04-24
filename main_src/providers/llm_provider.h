@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -14,7 +14,7 @@
 #include "common/config.h"
 #include "common/messages_schema.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Tool use information
 struct ToolUseSchema {
@@ -134,4 +134,4 @@ class LLMProvider {
     virtual ChatResponse Deserialize(const std::string& json_str) const = 0;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

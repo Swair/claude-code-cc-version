@@ -76,7 +76,7 @@ void SdlResource::SDLInit() {
 
 void SdlResource::SDLImage() {
     // 创建窗口与渲染器
-    SDL_CreateWindowAndRenderer("AiCode Assistant", window_width_, window_height_, SDL_WINDOW_RESIZABLE, &window_, &sdl_renderer_);
+    SDL_CreateWindowAndRenderer("Prosophor Assistant", window_width_, window_height_, SDL_WINDOW_RESIZABLE, &window_, &sdl_renderer_);
     if (!window_ || !sdl_renderer_){
         LOG_ERROR("[SdlResource] 创建窗口或渲染器失败：{}", SDL_GetError());
     }

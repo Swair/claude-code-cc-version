@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/agent_session_manager.h"
@@ -17,7 +17,7 @@
 #include "managers/active_trigger_manager.h"
 #include "providers/provider_router.h"
 
-namespace aicode {
+namespace prosophor {
 
 AgentSessionManager& AgentSessionManager::GetInstance() {
     static AgentSessionManager instance;
@@ -30,8 +30,8 @@ void AgentSessionManager::Initialize(std::shared_ptr<MemoryManager> memory_manag
     tool_executor_ = tool_executor;
     LOG_INFO("AgentSessionManager initialized");
 
-    // Load roles from ~/.aicode/roles/
-    auto roles_dir = aicode::AiCodeConfig::BaseDir() / "roles";
+    // Load roles from ~/.prosophor/roles/
+    auto roles_dir = prosophor::ProsophorConfig::BaseDir() / "roles";
     LoadRolesFromDirectory(roles_dir.string());
 
     // 初始化主动交互管理器（基于会话事件的主动交互）
@@ -75,7 +75,7 @@ void AgentSessionManager::Initialize(std::shared_ptr<MemoryManager> memory_manag
 
     // 初始化主动触发管理器（基于插件的主动触发）
     auto& active_trigger = ActiveTriggerManager::GetInstance();
-    active_trigger.Initialize("~/.aicode/active");
+    active_trigger.Initialize("~/.prosophor/active");
 
     // 设置 LLM 执行回调（用于插件触发后的 LLM 响应）
     active_trigger.SetLlmExecuteCallback(
@@ -204,7 +204,7 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
     session.consolidation_service = &MemoryConsolidationService::GetInstance();
 
     // 初始化 Session History 目录
-    auto base_dir = aicode::AiCodeConfig::BaseDir();
+    auto base_dir = prosophor::ProsophorConfig::BaseDir();
     session.session_history_dir = (base_dir / "sessions" / session_id / "history").string();
     std::filesystem::create_directories(session.session_history_dir);
 
@@ -539,4 +539,4 @@ std::vector<SystemSchema> AgentSessionManager::BuildSystemPrompt(const AgentSess
     return {{"text", prompt.str(), false}};
 }
 
-}  // namespace aicode
+}  // namespace prosophor

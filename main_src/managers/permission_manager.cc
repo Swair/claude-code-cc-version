@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/permission_manager.h"
@@ -10,7 +10,7 @@
 
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 // Simple glob-style pattern matching
 // Supports: * (any sequence), ? (single char), case-insensitive
@@ -306,4 +306,4 @@ void PermissionManager::SetMode(const std::string& mode) {
     LOG_INFO("Permission mode changed to: {}", mode);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

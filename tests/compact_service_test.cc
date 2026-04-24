@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include <gtest/gtest.h>
@@ -6,7 +6,7 @@
 #include "core/compact_service.h"
 #include "providers/llm_provider.h"
 
-namespace aicode {
+namespace prosophor {
 
 class CompactServiceTest : public ::testing::Test {
 protected:
@@ -157,4 +157,4 @@ TEST_F(CompactServiceTest, SummaryGeneration) {
     EXPECT_GT(result.messages_removed, 0);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

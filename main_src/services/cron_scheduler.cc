@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "services/cron_scheduler.h"
@@ -11,7 +11,7 @@
 #include "common/time_wrapper.h"
 #include "common/file_utils.h"
 
-namespace aicode {
+namespace prosophor {
 
 namespace fs = std::filesystem;
 
@@ -337,4 +337,4 @@ bool CronScheduler::LoadFromFile(const std::string& path) {
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

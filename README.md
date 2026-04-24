@@ -1,4 +1,4 @@
-# AiCode
+# Prosophor
 
 <div align="center">
 
@@ -12,9 +12,9 @@
 
 ## 🎯 Overview
 
-> **Core Innovation**: AiCode is the **industry's first Agent CLI tool based on plugin-based proactive trigger architecture**, achieving a paradigm shift from "passive response" to "proactive predictive interaction."
+> **Core Innovation**: Prosophor is the **industry's first Agent CLI tool based on plugin-based proactive trigger architecture**, achieving a paradigm shift from "passive response" to "proactive predictive interaction."
 
-AiCode is a **proactive multimodal interaction Agent CLI tool** developed in C++, adopting the REACT paradigm (Think-Act-Observe loop), achieving **proactive perception, proactive prediction, and proactive interaction** agent capabilities through the **industry's first plugin-based proactive trigger architecture**.
+Prosophor is a **proactive multimodal interaction Agent CLI tool** developed in C++, adopting the REACT paradigm (Think-Act-Observe loop), achieving **proactive perception, proactive prediction, and proactive interaction** agent capabilities through the **industry's first plugin-based proactive trigger architecture**.
 
 Designed based on the "Plugin-Based Proactive Multimodal Interaction Trigger Architecture" whitepaper, filling the gap between "passive response Agents" and "fixed rule engines."
 
@@ -52,7 +52,7 @@ Designed based on the "Plugin-Based Proactive Multimodal Interaction Trigger Arc
 
 ## 🆚 Advantages over Claude Code
 
-| Feature | AiCode | Claude Code |
+| Feature | Prosophor | Claude Code |
 |:--------|:------:|:-----------:|
 | **Multi-LLM Support** | ✅ Anthropic, Qwen, Ollama | ❌ Claude only |
 | **Local Deployment** | ✅ Fully local, data controllable | ❌ Cloud API dependent |
@@ -63,7 +63,7 @@ Designed based on the "Plugin-Based Proactive Multimodal Interaction Trigger Arc
 ### Core Advantages
 
 #### 1. Multi-LLM Provider Support 🔄
-AiCode is not bound to a single model, supporting:
+Prosophor is not bound to a single model, supporting:
 - **Anthropic (Claude)** - Via official API or compatible interface
 - **Qwen (Tongyi Qianwen)** - Alibaba Cloud DashScope
 - **Ollama** - Local model deployment
@@ -73,7 +73,7 @@ AiCode is not bound to a single model, supporting:
 
 **The industry's first plugin-based framework for proactive interaction scenarios**, filling the gap between "passive response Agents" and "fixed rule engines."
 
-| Dimension | Traditional Agent | Rule Engine Tools | AiCode Architecture |
+| Dimension | Traditional Agent | Rule Engine Tools | Prosophor Architecture |
 |-----------|------------------|-------------------|---------------------|
 | Trigger Mode | Passive response (user command) | Fixed rules (if-then) | **Plugin-based proactive trigger** |
 | Extension | Modify kernel/config | Modify script/rules | **Plugin hot-swapping** |
@@ -102,10 +102,10 @@ trigger returns true → Read ACTIVE.md → Invoke LLM → Generate response →
 **Three-Mode Triggering**:
 - **Periodic Mandatory Trigger** (periodic): Trigger periodically by configured interval, for critical events (hardware failures, etc.)
 - **User Idle Trigger** (idle): Trigger when no interaction with LLM reaches threshold, for normal events (idle reminders, etc.)
-- **Single Idle Trigger** (idle_once): Trigger once when idle threshold reached, auto-disable after trigger (one-time guidance)
+- **Single Idle Trigger** (idle_once): Trigger once when idle threshold reached, resets on re-interaction (one-time guidance)
 
 #### 2. Fully Local Controllable 🔒
-- Configuration file stored at `~/.aicode/config.json`, fully controllable
+- Configuration file stored at `~/.prosophor/config.json`, fully controllable
 - Supports custom API endpoints (including local proxies)
 - Configurable path whitelist/blacklist for fine-grained file access control
 - Configurable command whitelist/blacklist for fine-grained command execution control
@@ -154,13 +154,13 @@ Define skills via `SKILL.md` files, supporting:
 
 ### 🎯 Proactive Interaction Architecture
 
-AiCode proposes **the industry's first plugin-based architecture for proactive interaction scenarios**, filling the gap between "passive response Agents" and "fixed rule engines."
+Prosophor proposes **the industry's first plugin-based architecture for proactive interaction scenarios**, filling the gap between "passive response Agents" and "fixed rule engines."
 
 **Limitations of Traditional Solutions**:
 - **Passive Response Agents** (ChatGPT, Claude): Trigger Agent Loop after waiting for user commands, unable to actively perceive scene changes
 - **Fixed Rule Engines** (Hazel, AutoHotkey): if-then rules solidified, cannot extend, no intelligent response
 
-**AiCode's Proactive Interaction Architecture**:
+**Prosophor's Proactive Interaction Architecture**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -199,9 +199,9 @@ trigger returns true → Read ACTIVE.md → Invoke LLM → Generate response →
 **Three-Mode Triggering**:
 - **Periodic Mandatory Trigger** (periodic): Trigger periodically by configured interval, for critical events (hardware failures, etc.)
 - **User Idle Trigger** (idle): Trigger when no interaction with LLM reaches threshold, for normal events (idle reminders, etc.)
-- **Single Idle Trigger** (idle_once): Trigger once when idle threshold reached, auto-disable after trigger (one-time guidance)
+- **Single Idle Trigger** (idle_once): Trigger once when idle threshold reached, resets on re-interaction (one-time guidance)
 
-> See: [Whitepaper](./Whitepaper%20abount%20Plugin-Based%20Proactive%20Multimodal%20Interaction%20Trigger%20Architecture.md)
+> See: [Whitepaper](./Whitepaper%20about%20Plugin-Based%20Proactive%20Multimodal%20Interaction%20Trigger%20Architecture.md)
 
 ### 🏃 REACT Paradigm - "Think-Act-Observe" Loop
 
@@ -209,7 +209,7 @@ trigger returns true → Read ACTIVE.md → Invoke LLM → Generate response →
 Understand → Plan → Tool Invocation → Observe → Verify → Iterate/Terminate
 ```
 
-AiCode adopts the **REACT (Reason + Act) paradigm**, autonomously generating task sequences (e.g., read file → modify code → run tests → fix errors), supporting multi-round iteration.
+Prosophor adopts the **REACT (Reason + Act) paradigm**, autonomously generating task sequences (e.g., read file → modify code → run tests → fix errors), supporting multi-round iteration.
 
 ### 🛠️ Tool System - 40+ Built-in Tools
 
@@ -291,8 +291,8 @@ Supports MCP (Model Context Protocol) server integration:
 
 ```bash
 # Clone repository
-git clone https://github.com/your-repo/aicode.git
-cd aicode
+git clone https://github.com/Swair/prosophor.git
+cd prosophor
 
 # Create build directory
 mkdir -p build && cd build
@@ -314,12 +314,12 @@ make install
 make run
 
 # Or run directly
-./build/install/bin/aicode
+./build/install/bin/prosophor
 ```
 
 ### Configuration
 
-On first run, configuration file will be generated at `~/.aicode/config.json`:
+On first run, configuration file will be generated at `~/.prosophor/config.json`:
 
 ```json
 {
@@ -385,8 +385,8 @@ Configuration can be overridden via environment variables:
 
 | Variable | Description |
 |----------|-------------|
-| `AICODE_CONFIG_PATH` | Custom configuration file path |
-| `AICODE_LOG_LEVEL` | Log level |
+| `PROSOPHOR_CONFIG_PATH` | Custom configuration file path |
+| `PROSOPHOR_LOG_LEVEL` | Log level |
 | `ANTHROPIC_API_KEY` | Anthropic API key |
 | `QWEN_API_KEY` | Qwen API key |
 
@@ -396,11 +396,11 @@ Configuration can be overridden via environment variables:
 
 ### Basic Interaction
 
-After starting AiCode, you can input natural language commands:
+After starting Prosophor, you can input natural language commands:
 
 ```
-$ aicode
-AiCode v1.0.0
+$ prosophor
+Prosophor v1.0.0
 
 > Show me the file structure of the current directory
 > Create a function to calculate Fibonacci sequence
@@ -523,7 +523,7 @@ AiCode v1.0.0
 ## 📁 Project Structure
 
 ```
-AiCode/
+Prosophor/
 ├── main_src/
 │   ├── cli/                    # CLI interaction layer
 │   │   ├── command_registry.*  # Command registration and execution
@@ -592,12 +592,13 @@ AiCode/
 
 | Document | Description |
 |----------|-------------|
-| [docs/README.md](./docs/README.md) | Documentation index |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System architecture design |
+| [docs/CORE_ARCHITECTURE.md](./docs/CORE_ARCHITECTURE.md) | System architecture design |
+| [docs/overall_flow.md](./docs/overall_flow.md) | Overall system flow |
 | [docs/FEATURES.md](./docs/FEATURES.md) | Core features list |
 | [docs/CONFIGURATION.md](./docs/CONFIGURATION.md) | Configuration guide |
 | [Whitepaper (Chinese)](./基于插件化的主动式多模态交互触发架构白皮书.md) | Proactive interaction architecture whitepaper (Chinese) |
-| [Whitepaper (English)](./Whitepaper%20abount%20Plugin-Based%20Proactive%20Multimodal%20Interaction%20Trigger%20Architecture.md) | Proactive interaction architecture whitepaper (English) |
+| [Whitepaper (English)](./Whitepaper%20about%20Plugin-Based%20Proactive%20Multimodal%20Interaction%20Trigger%20Architecture.md) | Proactive interaction architecture whitepaper (English) |
+| [Theoretical Foundations](./Theoretical%20Foundations%20of%20Proactive%20Interactive%20Agents.md) | Theoretical foundations of proactive interactive agents |
 
 ---
 

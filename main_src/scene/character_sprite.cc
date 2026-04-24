@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #include "scene/character_sprite.h"
 #include "media_core.h"
@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <fstream>
 
-namespace aicode {
+namespace prosophor {
 
 // PNG 布局：112x96 = 7 列 x 3 行，每帧 16x32 像素
 constexpr int FRAME_W = 16;
@@ -157,4 +157,4 @@ void CharacterSpriteRenderer::Render(const CharacterInstance& ch, float x, float
     tex->RenderTexture(frame->x, frame->y, frame->w, frame->h, x, y, render_w, render_h, flip_h, false);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

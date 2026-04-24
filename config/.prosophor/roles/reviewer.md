@@ -33,7 +33,7 @@ tools_white_list:
 max_iterations: 10
 auto_confirm_tools: true
 
-memory_dir: ~/.aicode/memories/reviewer
+memory_dir: ~/.prosophor/memories/reviewer
 ---
 
 # 审查维度

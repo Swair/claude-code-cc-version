@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -10,7 +10,7 @@
 #include <atomic>
 #include <functional>
 
-namespace aicode {
+namespace prosophor {
 
 /// 状态回调类型
 using StateCallback = std::function<void(AgentRuntimeState, const std::string&)>;
@@ -43,4 +43,4 @@ protected:
 /// 工厂方法：创建终端输入管理器
 std::unique_ptr<InputManager> CreateTerminalInput();
 
-}  // namespace aicode
+}  // namespace prosophor

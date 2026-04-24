@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -8,7 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 // Default LLM settings
 inline constexpr int kDefaultMaxIterations = 32;
@@ -53,4 +53,4 @@ inline constexpr int kOverflowCompactionMaxRetries = 3;
 // Token estimation
 inline constexpr int kCharsPerTokenEstimate = 4;
 
-}  // namespace aicode
+}  // namespace prosophor

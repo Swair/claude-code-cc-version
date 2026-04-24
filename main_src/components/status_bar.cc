@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "components/status_bar.h"
 #include "drawer.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 StatusBar::StatusBar(float x, float y, float width, float height) {
     panel_ = std::make_unique<UIPanel>(x, y, width, height, PanelStyle::StatusBar());
@@ -80,4 +80,4 @@ void StatusBar::SetStatePropsGetter(StatePropsGetter getter) {
     state_props_getter_ = getter;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

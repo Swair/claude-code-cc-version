@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "components/ui_panel.h"
@@ -6,7 +6,7 @@
 #include "media/imgui_widget.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 // ============================================================================
 // PanelStyle 预设样式
@@ -243,4 +243,4 @@ void HeaderBar::Render(const std::string& title, Color bg_color) const {
 }
 
 
-}  // namespace aicode
+}  // namespace prosophor

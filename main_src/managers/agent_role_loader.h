@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -8,7 +8,7 @@
 
 #include "core/agent_role.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// AgentRoleLoader: 加载 AgentRole 配置文件
 class AgentRoleLoader {
@@ -35,4 +35,4 @@ private:
                                    std::string& body) const;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

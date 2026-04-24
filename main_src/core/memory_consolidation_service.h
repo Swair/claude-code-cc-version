@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -12,7 +12,7 @@
 #include "common/messages_schema.h"
 #include "core/agent_session.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Key decision extracted from conversation
 struct KeyDecision {
@@ -129,4 +129,4 @@ private:
     std::unique_lock<std::mutex> GetFileLock(const std::string& file_path);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

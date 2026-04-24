@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "providers/ollama_provider.h"
@@ -11,7 +11,7 @@
 
 using namespace nlohmann;
 
-namespace aicode {
+namespace prosophor {
 
 OllamaProvider::OllamaProvider(const std::string& base_url, int timeout_seconds)
     : base_url_(base_url),
@@ -365,4 +365,4 @@ ChatResponse OllamaProvider::ChatStream(const ChatRequest& request,
     return stream_handler.accumulated_response;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

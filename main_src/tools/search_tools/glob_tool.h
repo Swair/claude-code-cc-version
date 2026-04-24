@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -7,7 +7,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Convert glob pattern to regex string
 std::string GlobToRegex(const std::string& glob);
@@ -30,4 +30,4 @@ private:
     GlobTool() = default;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -8,7 +8,7 @@
 #include <functional>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Task status
 enum class TaskStatus {
@@ -62,7 +62,7 @@ public:
     static TaskManager& GetInstance();
 
     /// Initialize task manager
-    void Initialize(const std::string& storage_path = "~/.aicode/tasks.json");
+    void Initialize(const std::string& storage_path = "~/.prosophor/tasks.json");
 
     /// Create a new task
     std::string CreateTask(const std::string& subject,
@@ -137,4 +137,4 @@ private:
     std::string GenerateTaskId();
 };
 
-}  // namespace aicode
+}  // namespace prosophor

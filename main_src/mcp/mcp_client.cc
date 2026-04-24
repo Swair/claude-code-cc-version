@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "mcp/mcp_client.h"
@@ -20,7 +20,7 @@
 #include <cstring>
 #endif
 
-namespace aicode {
+namespace prosophor {
 
 McpClient& McpClient::GetInstance() {
     static McpClient instance;
@@ -124,7 +124,7 @@ bool McpClient::ConnectToServer(const McpServerConfig& config) {
             nlohmann::json init_params = {
                 {"protocolVersion", "2024-11-05"},
                 {"capabilities", {{"tools", {}}, {"resources", {}}, {"prompts", {}}}},
-                {"clientInfo", {{"name", "AiCode"}, {"version", "1.0.0"}}}
+                {"clientInfo", {{"name", "Prosophor"}, {"version", "1.0.0"}}}
             };
 
             auto result = SendRequest(*conn, "initialize", init_params);
@@ -499,7 +499,7 @@ bool McpClient::RemoveServer(const std::string& server_name) {
 }
 
 std::string McpClient::GetConfigFilePath() const {
-    return ExpandHome("~/.aicode/mcp_servers.json");
+    return ExpandHome("~/.prosophor/mcp_servers.json");
 }
 
 bool McpClient::LoadServersFromFile() {
@@ -570,4 +570,4 @@ bool McpClient::SaveServersToFile() {
     return true;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

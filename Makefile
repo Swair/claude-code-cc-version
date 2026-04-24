@@ -1,5 +1,5 @@
 # ==============================================================================
-# AiCode Makefile
+# Prosophor Makefile
 # ==============================================================================
 # 编译目标说明：
 #   1. build        - Linux/macOS 构建 (使用 system 默认编译器)
@@ -49,7 +49,7 @@ build:
 .PHONY: build
 
 run:
-	$(INSTALL_DIR)/bin/aicode;
+	$(INSTALL_DIR)/bin/prosophor;
 .PHONY: run
 
 clean:
@@ -76,7 +76,7 @@ CMAKE_ARGS_WIN ?= \
 build_win:
 	mkdir -p ${BUILD_DIR_WIN} && \
 	cd ${BUILD_DIR_WIN} && \
-	${CMAKE} ${CMAKE_ARGS_WIN} -DAICODE_SDL_UI=OFF .. && \
+	${CMAKE} ${CMAKE_ARGS_WIN} -DPROSOPHOR_SDL_UI=OFF .. && \
 	ninja -j${NUM_JOB}; \
 	ninja install
 .PHONY: build_win
@@ -85,13 +85,13 @@ build_win:
 build_win_sdl:
 	mkdir -p ${BUILD_DIR_WIN} && \
 	cd ${BUILD_DIR_WIN} && \
-	${CMAKE} ${CMAKE_ARGS_WIN} -DAICODE_SDL_UI=ON .. && \
+	${CMAKE} ${CMAKE_ARGS_WIN} -DPROSOPHOR_SDL_UI=ON .. && \
 	ninja -j${NUM_JOB}; \
 	ninja install
 .PHONY: build_win_sdl
 
 run_win:
-	cd $(INSTALL_DIR_WIN)/bin && ./aicode.exe
+	cd $(INSTALL_DIR_WIN)/bin && ./prosophor.exe
 .PHONY: run_win
 
 clean_win:

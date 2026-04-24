@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -16,7 +16,7 @@
 #include "common/messages_schema.h"
 #include "common/input_event.h"
 
-namespace aicode {
+namespace prosophor {
 
 // Forward declarations
 class MemoryManager;
@@ -59,7 +59,7 @@ class AgentCommander : public Noncopyable {
     bool IsInterrupted() const { return interrupted_; }
 
     /// Get current config
-    const AiCodeConfig& GetConfig() const { return config_; }
+    const ProsophorConfig& GetConfig() const { return config_; }
 
     /// Handle input event (called by InputManager)
     void HandleInputEvent(const InputEvent& event);
@@ -96,7 +96,7 @@ class AgentCommander : public Noncopyable {
     CommandRegistry* GetCommandRegistry() const { return command_registry_; }
 
     /// Configuration
-    AiCodeConfig config_;
+    ProsophorConfig config_;
     AgentConfig agent_config_;  // Current agent configuration from default provider
 
     // Components
@@ -126,4 +126,4 @@ class AgentCommander : public Noncopyable {
     std::atomic<int64_t> last_interaction_time_{0};
 };
 
-}  // namespace aicode
+}  // namespace prosophor

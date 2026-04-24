@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "todo_write_tool.h"
@@ -11,7 +11,7 @@
 #include "common/time_wrapper.h"
 #include "common/file_utils.h"
 
-namespace aicode {
+namespace prosophor {
 
 namespace fs = std::filesystem;
 
@@ -33,7 +33,7 @@ std::string TodoWriteTool::StatusToString(TodoStatus status) const {
     return "unknown";
 }
 
-aicode::TodoStatus TodoWriteTool::StringToStatus(const std::string& s) const {
+prosophor::TodoStatus TodoWriteTool::StringToStatus(const std::string& s) const {
     if (s == "completed") return TodoStatus::Completed;
     if (s == "cancelled") return TodoStatus::Cancelled;
     return TodoStatus::Pending;
@@ -289,4 +289,4 @@ bool TodoWriteTool::Save(const std::string& path) const {
     return true;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

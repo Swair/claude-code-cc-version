@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #include "scene/pixel_character.h"
 #include "media_core.h"
@@ -6,7 +6,7 @@
 #include "media/colors.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 // 像素小人尺寸：16x32 像素
 constexpr int PIXEL_W = 16;
@@ -272,4 +272,4 @@ void PixelCharacterRenderer::RenderCharacterSide(float x, float y, int palette_i
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

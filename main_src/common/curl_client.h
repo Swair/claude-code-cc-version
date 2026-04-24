@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -8,7 +8,7 @@
 #include <memory>
 #include <string>
 
-namespace aicode {
+namespace prosophor {
 
 /// RAII wrapper for HTTP header list
 class HeaderList {
@@ -107,4 +107,4 @@ size_t HeaderCallback(char* buffer, size_t size, size_t nitems, void* userdata);
 /// Write callback that delegates to a StreamHandler (for SSE streaming)
 size_t StreamWriteCallback(void* contents, size_t size, size_t nmemb, void* userp);
 
-}  // namespace aicode
+}  // namespace prosophor

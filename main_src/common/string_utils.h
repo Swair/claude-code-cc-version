@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
 
 #include <string>
 
-namespace aicode {
+namespace prosophor {
 
 // ============================================================================
 // String Encoding Utilities
@@ -31,4 +31,4 @@ bool IsUtf8(const std::string& input);
 /// @return UTF-8 encoded line (without trailing newline)
 std::string ReadLine();
 
-}  // namespace aicode
+}  // namespace prosophor

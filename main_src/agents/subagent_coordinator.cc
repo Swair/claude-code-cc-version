@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "agents/subagent_coordinator.h"
@@ -16,7 +16,7 @@
 #include "core/agent_session.h"
 #include "core/agent_core.h"
 
-namespace aicode {
+namespace prosophor {
 
 SubagentCoordinator& SubagentCoordinator::GetInstance() {
     static SubagentCoordinator instance;
@@ -332,4 +332,4 @@ std::string SubagentCoordinator::LaunchSubagent(const std::string& prompt,
     return result;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

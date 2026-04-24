@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #include "common/subprocess_wrapper.h"
 
@@ -14,7 +14,7 @@
 
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 #ifdef _WIN32
 
@@ -172,4 +172,4 @@ SubprocessResult ExecuteScriptWithTimeout(const std::string& script_path, int ti
 
 #endif
 
-}  // namespace aicode
+}  // namespace prosophor

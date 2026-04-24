@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/buddy_types.h"
@@ -6,7 +6,7 @@
 #include <array>
 #include <functional>
 
-namespace aicode {
+namespace prosophor {
 
 // Species names
 static const std::array<const char*, 18> kSpeciesNames = {
@@ -91,4 +91,4 @@ std::string BuddyUtils::GetRarityColor(Rarity rarity) {
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

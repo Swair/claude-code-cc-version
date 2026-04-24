@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "core/reference_parser.h"
@@ -10,7 +10,7 @@
 
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 namespace fs = std::filesystem;
 
@@ -248,4 +248,4 @@ bool ReferenceParser::HasSessionRefs(const std::string& input) {
     return std::regex_search(input, SESSION_REF_PATTERN);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

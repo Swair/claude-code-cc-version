@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -8,7 +8,7 @@
 #include <functional>
 #include <memory>
 
-namespace aicode {
+namespace prosophor {
 
 /// 状态栏 - 可复用的状态显示组件
 class StatusBar {
@@ -34,4 +34,4 @@ private:
     bool visible_ = true;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

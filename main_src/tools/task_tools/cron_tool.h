@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -6,7 +6,7 @@
 #include <functional>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Cron tool for LLM function calling
 class CronTool {
@@ -37,4 +37,4 @@ private:
     static std::string Resume(const nlohmann::json& params);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

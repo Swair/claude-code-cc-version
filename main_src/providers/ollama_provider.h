@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -9,7 +9,7 @@
 #include "providers/llm_provider.h"
 #include "common/config.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Ollama provider for local LLM inference
 class OllamaProvider : public LLMProvider {
@@ -39,4 +39,4 @@ class OllamaProvider : public LLMProvider {
     void PrintRequestLog(const std::string& url) const;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

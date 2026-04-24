@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "cron_tool.h"
@@ -6,7 +6,7 @@
 #include "services/cron_scheduler.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 std::string CronTool::Execute(const std::string& action, const nlohmann::json& params) {
     try {
@@ -181,4 +181,4 @@ std::string CronTool::Resume(const nlohmann::json& params) {
     return "Error: Failed to resume task: " + task_id;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

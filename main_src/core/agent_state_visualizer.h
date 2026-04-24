@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #include "components/ui_types.h"
 #include <string>
 
-namespace aicode {
+namespace prosophor {
 
 /// Get visual properties for a given agent state
 inline StateVisualProps GetStateVisualProps(AgentRuntimeState state) {
@@ -27,4 +27,4 @@ inline StateVisualProps GetStateVisualProps(AgentRuntimeState state) {
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

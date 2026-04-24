@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -9,7 +9,7 @@
 
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 // Forward declarations
 struct AgentConfig;
@@ -21,7 +21,7 @@ struct SkillEntryConfig;
 struct SkillsLoadConfig;
 struct SkillsConfig;
 struct SecurityConfig;
-struct AiCodeConfig;
+struct ProsophorConfig;
 
 /// Cost information for a model
 struct ModelCost {
@@ -136,8 +136,8 @@ struct SecurityConfig {
     }
 };
 
-/// Top-level AiCode configuration
-struct AiCodeConfig {
+/// Top-level Prosophor configuration
+struct ProsophorConfig {
     std::string log_level = "info";
     std::string default_role = "default";  // Default role to use when not specified
     bool show_buddy = true;
@@ -148,7 +148,7 @@ struct AiCodeConfig {
     SkillsConfig skills;
 
     /// Get singleton instance
-    static AiCodeConfig& GetInstance();
+    static ProsophorConfig& GetInstance();
 
     /// Get current agent config from default provider
     const AgentConfig& GetAgentConfig() const;
@@ -157,8 +157,8 @@ struct AiCodeConfig {
     const ProviderConfig& GetProvider(const std::string& name = "anthropic") const;
 
     /// Load config from file
-    static AiCodeConfig FromJson(const nlohmann::json& json);
-    static AiCodeConfig LoadFromFile(const std::string& filepath);
+    static ProsophorConfig FromJson(const nlohmann::json& json);
+    static ProsophorConfig LoadFromFile(const std::string& filepath);
     static std::string ExpandHome(const std::string& path);
     static std::string DefaultConfigPath();
     static std::filesystem::path BaseDir();
@@ -172,7 +172,7 @@ struct AiCodeConfig {
 
  private:
     static std::string config_path_override_;
-    static AiCodeConfig* instance_;
+    static ProsophorConfig* instance_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

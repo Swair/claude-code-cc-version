@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -6,7 +6,7 @@
 #include <vector>
 #include <cstdint>
 
-namespace aicode {
+namespace prosophor {
 
 /// Rarity tiers
 enum class Rarity {
@@ -116,4 +116,4 @@ public:
     static std::string GetRarityColor(Rarity rarity);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "scene/office_background.h"
@@ -8,7 +8,7 @@
 #include "colors.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 OfficeBackground& OfficeBackground::GetInstance() {
     static OfficeBackground instance;
@@ -185,4 +185,4 @@ void OfficeBackground::DrawPlant() {
     ::Drawer::Instance().DrawFillCircle(plant_x, plant_y + 20, 15, Colors::PlantLeafLight);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

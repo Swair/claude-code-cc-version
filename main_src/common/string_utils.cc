@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/string_utils.h"
@@ -10,7 +10,7 @@
 #include <iostream>
 #endif
 
-namespace aicode {
+namespace prosophor {
 
 bool IsUtf8(const std::string& input) {
     for (size_t i = 0; i < input.size(); ++i) {
@@ -94,4 +94,4 @@ std::string ReadLine() {
 #endif
 }
 
-}  // namespace aicode
+}  // namespace prosophor

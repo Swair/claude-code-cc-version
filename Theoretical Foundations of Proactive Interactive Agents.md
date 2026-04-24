@@ -265,7 +265,7 @@ Approach: Event-driven
 
 **Case 3: Autonomy + Real-time**
 ```
-Approach: Continuous monitoring + multi-threaded polling
+Approach: Continuous monitoring
 - Can perceive arbitrary state (Autonomy ✓)
 - State changes perceived immediately (Real-time ✓)
 - But continuously occupies resources (Low Overhead ✗)
@@ -313,7 +313,7 @@ Approach: Continuous monitoring + multi-threaded polling
 | Perception goals must be predefined | Pluginization | `active/plugin/trigger` explicit declaration |
 | Absence detection relies on time | Layered implementation | threshold (countdown) + interval (periodic) |
 | Abandon autonomy for low overhead + real-time | trigger script lightweight judgment | 100ms timeout, non-LLM |
-| Different scenarios, different tradeoffs | Multi-mode triggering | periodic / idle / idle_once |
+| Different scenarios, different tradeoffs | Multi-mode triggering | periodic / idle (idle_once is a variant) |
 
 ---
 
@@ -325,7 +325,7 @@ Plugin = (T, C, A)
 
 Where:
 T: trigger script, T: State → {true, false}
-C: trigger mode configuration, C ∈ {periodic, idle, idle_once}
+C: trigger mode configuration, C ∈ {periodic, idle} (idle_once is a parameterized variant of idle)
 A: interaction configuration, A → Prompt
 ```
 
@@ -347,11 +347,11 @@ A: interaction configuration, A → Prompt
 | Source | Detection Method | Corresponding Mode | Example |
 |--------|------------------|--------------------|---------|
 | Time elapsing | Timer | periodic | Check CPU every 60 seconds |
-| Activity absence | Time difference calculation | idle / idle_once | User no input for 5 minutes |
+| Activity absence | Time difference calculation | idle (idle_once is a variant) | User no input for 5 minutes |
 
 **Note**: 
 - Core modes: **periodic + idle**
-- idle_once is a parameterized variant of idle (controlled by triggered_count)
+- idle_once is a parameterized variant of idle (controlled by triggered_count=1, triggers once per idle period)
 
 ---
 
@@ -360,7 +360,7 @@ A: interaction configuration, A → Prompt
 **Engineering Considerations**:
 - **periodic**: Covers states without event sources (CPU temperature, etc.) — relies on time elapsing
 - **idle**: Covers user idle scenarios (absence detection, Theorem 1) — relies on time difference calculation
-- **idle_once**: Variant of idle, controlled by triggered_count for single-trigger
+- **idle_once**: Variant of idle, controlled by triggered_count=1, triggers once per idle period
 
 **Note**:
 - Core modes: **periodic + idle**
@@ -464,7 +464,7 @@ message: "If you use this software, please cite it as below."
 authors:
   - family-names: fang
     given-names: jiating
-title: "Swair/claude-code-cc-version: Plugin-Based Proactive Multimodal Interaction Architecture v1.0 \& Theoretical Foundations of Proactive Interactive Agents v1.0
+title: "Swair/prosophor: Plugin-Based Proactive Multimodal Interaction Architecture v1.0 & Theoretical Foundations of Proactive Interactive Agents v1.0"
 version: v0.3.0
 date-released: 2026-04-23
 doi: 10.5281/zenodo.19710262
@@ -474,5 +474,4 @@ url: "https://doi.org/10.5281/zenodo.19710262"
 
 *Version: v1.0.0*  
 *Date: April 2026*  
-*Author: jiating.fang*  
 *Author: jiating.fang*

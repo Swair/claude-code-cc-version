@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "core/agent_core.h"
@@ -18,7 +18,7 @@
 #include "core/reference_parser.h"
 #include "tools/tool_registry.h"
 
-namespace aicode {
+namespace prosophor {
 
 // Truncates a tool result if it exceeds the limit
 static std::string TruncateToolResult(const std::string& result,
@@ -340,4 +340,4 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
                              std::to_string(max_iterations) + " iterations");
 }
 
-}  // namespace aicode
+}  // namespace prosophor

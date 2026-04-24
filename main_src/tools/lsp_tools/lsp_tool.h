@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -9,7 +9,7 @@
 
 #include "services/lsp_manager.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// LSP Tool implementation
 class LspTool {
@@ -72,4 +72,4 @@ private:
     std::string PathToUri(const std::string& path);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "lsp_tool.h"
@@ -9,7 +9,7 @@
 
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 namespace fs = std::filesystem;
 
@@ -464,4 +464,4 @@ std::string LspTool::ListServers(const nlohmann::json& /*params*/) {
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

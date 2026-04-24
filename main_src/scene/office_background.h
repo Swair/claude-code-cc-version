@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -9,7 +9,7 @@
 
 class Texture;
 
-namespace aicode {
+namespace prosophor {
 
 /// Office background renderer
 /// Draws a simple office room background with desk, chair, and walls
@@ -69,4 +69,4 @@ class OfficeBackground : public Noncopyable {
     float office_height_ = 720.0f;  // 720 * 1.0
 };
 
-}  // namespace aicode
+}  // namespace prosophor

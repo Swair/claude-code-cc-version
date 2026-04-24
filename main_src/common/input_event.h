@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #pragma once
@@ -19,7 +19,7 @@
 #endif
 #endif
 
-namespace aicode {
+namespace prosophor {
 
 /// 输入源类型
 enum class InputSource {
@@ -146,4 +146,4 @@ using InputEventCallback = std::function<void(const InputEvent&)>;
 /// 输出事件回调类型
 using OutputEventCallback = std::function<void(const OutputEvent&)>;
 
-}  // namespace aicode
+}  // namespace prosophor

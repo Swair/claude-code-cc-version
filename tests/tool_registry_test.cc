@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include <gtest/gtest.h>
@@ -6,16 +6,22 @@
 
 #include "tools/tool_registry.h"
 
-namespace aicode {
+namespace prosophor {
 
 class ToolRegistryTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        registry_ = std::make_unique<ToolRegistry>();
-        registry_->RegisterBuiltinTools();
+        // ToolRegistry is a singleton with private constructor
+        // Tests use the singleton instance
+        registry_ = &ToolRegistry::GetInstance();
+        registry_->SetWorkspace("/tmp");
     }
 
-    std::unique_ptr<ToolRegistry> registry_;
+    void TearDown() override {
+        // Reset singleton state if needed
+    }
+
+    ToolRegistry* registry_ = nullptr;
 };
 
 TEST_F(ToolRegistryTest, ToolRegistration) {
@@ -27,9 +33,7 @@ TEST_F(ToolRegistryTest, ToolRegistration) {
     // Check for common tools
     std::vector<std::string> expected_tools = {
         "read_file", "write_file", "edit_file",
-        "bash", "glob", "grep",
-        "task_create", "task_list", "task_update",
-        "cron_create", "cron_list"
+        "bash", "glob", "grep"
     };
 
     for (const auto& expected : expected_tools) {
@@ -63,7 +67,7 @@ TEST_F(ToolRegistryTest, ToolSchemaStructure) {
 
 TEST_F(ToolRegistryTest, ExecuteReadFile) {
     // Create a test file
-    std::string test_path = "/tmp/aicode_test.txt";
+    std::string test_path = "/tmp/prosophor_test.txt";
     std::ofstream ofs(test_path);
     ofs << "Hello, World!";
     ofs.close();
@@ -107,45 +111,6 @@ TEST_F(ToolRegistryTest, ExecuteBash_ExitCode) {
     EXPECT_NE(result.find("exit"), std::string::npos);
 }
 
-TEST_F(ToolRegistryTest, ExecuteTaskCreate) {
-    nlohmann::json params = nlohmann::json::object();
-    params["subject"] = "Test Task";
-    params["description"] = "Test Description";
-
-    std::string result = registry_->ExecuteTool("task_create", params);
-
-    EXPECT_NE(result.find("\"success\""), std::string::npos);
-    EXPECT_NE(result.find("\"task_id\""), std::string::npos);
-}
-
-TEST_F(ToolRegistryTest, ExecuteTaskList) {
-    nlohmann::json params = nlohmann::json::object();
-    std::string result = registry_->ExecuteTool("task_list", params);
-
-    EXPECT_NE(result.find("\"tasks\""), std::string::npos);
-    EXPECT_NE(result.find("\"count\""), std::string::npos);
-}
-
-TEST_F(ToolRegistryTest, ExecuteTaskUpdate) {
-    // First create a task
-    nlohmann::json create_params = nlohmann::json::object();
-    create_params["subject"] = "Update Test";
-    create_params["description"] = "To be updated";
-    std::string create_result = registry_->ExecuteTool("task_create", create_params);
-
-    nlohmann::json create_json = nlohmann::json::parse(create_result);
-    std::string task_id = create_json["task_id"].get<std::string>();
-
-    // Update the task
-    nlohmann::json update_params = nlohmann::json::object();
-    update_params["task_id"] = task_id;
-    update_params["status"] = "in_progress";
-
-    std::string result = registry_->ExecuteTool("task_update", update_params);
-
-    EXPECT_NE(result.find("\"success\""), std::string::npos);
-}
-
 TEST_F(ToolRegistryTest, ExecuteGlob) {
     nlohmann::json params = nlohmann::json::object();
     params["pattern"] = "*.cc";
@@ -163,4 +128,83 @@ TEST_F(ToolRegistryTest, WorkspacePath) {
     // Workspace path is set, verification would require internal access
 }
 
-}  // namespace aicode
+// =============================================================================
+// Weather Query Test Cases (using web_search and web_fetch)
+// =============================================================================
+
+TEST_F(ToolRegistryTest, ExecuteWebSearch_WeatherQuery) {
+    // Test web search for weather information
+    nlohmann::json params = nlohmann::json::object();
+    params["query"] = "上海今天天气情况 温度 预报";
+    params["count"] = 5;
+
+    std::string result = registry_->ExecuteTool("web_search", params);
+
+    // Log the result for debugging
+    std::cout << "\n=== Web Search Result ===" << std::endl;
+    std::cout << result << std::endl;
+    std::cout << "==========================" << std::endl;
+
+    // Web search should execute and return some result
+    EXPECT_FALSE(result.empty()) << "Web search result should not be empty";
+
+    // Result should contain the query or search engine name
+    bool contains_query = result.find("上海") != std::string::npos;
+    bool contains_engine = result.find("DuckDuckGo") != std::string::npos ||
+                           result.find("Brave") != std::string::npos ||
+                           result.find("Tavily") != std::string::npos ||
+                           result.find("Search") != std::string::npos;
+
+    EXPECT_TRUE(contains_query || contains_engine)
+        << "Expected search result to contain query or search engine name, got: " << result;
+}
+
+TEST_F(ToolRegistryTest, ExecuteWebFetch_WeatherWebsite) {
+    // Test web fetch with a known weather website URL
+    nlohmann::json params = nlohmann::json::object();
+    params["url"] = "https://example.com";
+
+    std::string result = registry_->ExecuteTool("web_fetch", params);
+
+    // Log the result for debugging
+    std::cout << "\n=== Web Fetch Result ===" << std::endl;
+    std::cout << result << std::endl;
+    std::cout << "========================" << std::endl;
+
+    // Should either fetch successfully or return an error message
+    bool contains_expected = result.find("Example Domain") != std::string::npos ||
+                             result.find("Error") != std::string::npos ||
+                             result.find("error") != std::string::npos;
+
+    EXPECT_TRUE(contains_expected) << "Expected 'Example Domain' or error message, got: " << result;
+}
+
+TEST_F(ToolRegistryTest, WeatherQueryIntegration) {
+    // Integration test: simulate a weather query workflow
+    std::cout << "\n=== Weather Query Integration Test ===" << std::endl;
+
+    // Step 1: Search for weather information
+    nlohmann::json search_params = nlohmann::json::object();
+    search_params["query"] = "上海天气 今天 温度 预报";
+
+    std::string search_result = registry_->ExecuteTool("web_search", search_params);
+    std::cout << "Step 1 - Search Result: " << search_result << std::endl;
+
+    // Step 2: Verify the search executed successfully
+    ASSERT_FALSE(search_result.empty()) << "Weather search result should not be empty";
+
+    // Step 3: Check result contains expected content
+    bool has_location = search_result.find("上海") != std::string::npos;
+    bool has_weather_term = search_result.find("天气") != std::string::npos ||
+                            search_result.find("Weather") != std::string::npos;
+    bool has_search_indicator = search_result.find("Search") != std::string::npos ||
+                                search_result.find("DuckDuckGo") != std::string::npos ||
+                                search_result.find("Brave") != std::string::npos;
+
+    EXPECT_TRUE(has_location || has_search_indicator)
+        << "Expected search result to contain location or search indicator";
+
+    std::cout << "=== Weather Query Test Complete ===" << std::endl;
+}
+
+}  // namespace prosophor

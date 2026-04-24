@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/worktree_manager.h"
@@ -12,7 +12,7 @@
 #include "common/log_wrapper.h"
 #include "common/config.h"
 
-namespace aicode {
+namespace prosophor {
 
 namespace fs = std::filesystem;
 
@@ -25,7 +25,7 @@ void WorktreeManager::Initialize(const std::string& base_dir) {
     std::lock_guard<std::mutex> lock(mutex_);
 
     if (base_dir.empty()) {
-        base_dir_ = (AiCodeConfig::BaseDir() / ".worktrees").string();
+        base_dir_ = (ProsophorConfig::BaseDir() / ".worktrees").string();
     } else {
         base_dir_ = base_dir;
     }
@@ -491,4 +491,4 @@ std::string WorktreeManager::ExtractWorktreeName(const std::string& path) const 
 }
 
 
-}  // namespace aicode
+}  // namespace prosophor

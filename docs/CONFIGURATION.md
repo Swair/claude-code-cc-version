@@ -1,8 +1,8 @@
-# AiCode 配置指南
+# Prosophor 配置指南
 
 ## 配置文件位置
 
-默认配置文件位于 `~/.aicode/config.json`
+默认配置文件位于 `~/.prosophor/config.json`
 
 ---
 
@@ -92,14 +92,14 @@
   },
   
   "skills": {
-    "path": "~/.aicode/skills",
+    "path": "~/.prosophor/skills",
     "auto_approve": [
       "git",
       "search"
     ],
     "load": {
       "extra_dirs": [
-        "/opt/aicode/skills"
+        "/opt/prosophor/skills"
       ]
     }
   }
@@ -168,7 +168,7 @@
 
 | 字段 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
-| `path` | string | "~/.aicode/skills" | 技能目录 |
+| `path` | string | "~/.prosophor/skills" | 技能目录 |
 | `auto_approve` | array | [] | 自动批准的技能列表 |
 | `load.extra_dirs` | array | [] | 额外的技能加载目录 |
 
@@ -180,8 +180,8 @@
 
 | 变量 | 说明 |
 |------|------|
-| `AICODE_CONFIG_PATH` | 自定义配置文件路径 |
-| `AICODE_LOG_LEVEL` | 日志级别 |
+| `PROSOPHOR_CONFIG_PATH` | 自定义配置文件路径 |
+| `PROSOPHOR_LOG_LEVEL` | 日志级别 |
 | `ANTHROPIC_API_KEY` | Anthropic API 密钥 |
 | `QWEN_API_KEY` | 通义千问 API 密钥 |
 
@@ -233,7 +233,7 @@
 
 ## MCP 服务器配置
 
-MCP 服务器配置文件位于 `~/.aicode/mcp_config.json`：
+MCP 服务器配置文件位于 `~/.prosophor/mcp_config.json`：
 
 ```json
 {
@@ -281,7 +281,7 @@ MCP 服务器配置文件位于 `~/.aicode/mcp_config.json`：
 
 ## LSP 服务器配置
 
-LSP 服务器配置在 `~/.aicode/lsp_config.json`：
+LSP 服务器配置在 `~/.prosophor/lsp_config.json`：
 
 ```json
 {
@@ -479,7 +479,7 @@ You are a git expert. Help users with:
 运行以下命令检查配置是否有效：
 
 ```bash
-aicode --check-config
+prosophor --check-config
 ```
 
 ### 常见问题

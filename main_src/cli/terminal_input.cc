@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "cli/input_manager.h"
@@ -9,7 +9,7 @@
 #include <mutex>
 #include <iostream>
 
-namespace aicode {
+namespace prosophor {
 
 class TerminalInput : public InputManager {
 public:
@@ -93,4 +93,4 @@ std::unique_ptr<InputManager> CreateTerminalInput() {
     return std::make_unique<TerminalInput>();
 }
 
-}  // namespace aicode
+}  // namespace prosophor

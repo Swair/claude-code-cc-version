@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -25,7 +25,7 @@
 #include "tools/worktree_tools/worktree_tool.h"
 #include "mcp/mcp_client.h"
 
-namespace aicode {
+namespace prosophor {
 
 
 // struct SkillSchema {
@@ -152,4 +152,4 @@ private:
     std::string workspace_path_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

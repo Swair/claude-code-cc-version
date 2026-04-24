@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -11,7 +11,7 @@
 
 #include "common/config.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// Install method for skill auto-install
 struct SkillInstallInfo {
@@ -135,4 +135,4 @@ class SkillLoader {
     bool IsEnvVarAvailable(const std::string& env_var) const;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

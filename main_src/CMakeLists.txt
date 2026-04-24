@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(aicode_core VERSION 1.0.0 LANGUAGES CXX)
+project(prosophor_core VERSION 1.0.0 LANGUAGES CXX)
 
 
 include(FetchContent)
@@ -67,9 +67,9 @@ file(GLOB_RECURSE CC_FILES_LIST
     ${CMAKE_CURRENT_LIST_DIR}/scene/ui_renderer.cc           # UI renderer
 )
 
-# AICODE_SDL_UI flag
-if(AICODE_SDL_UI)
-    add_compile_definitions(AICODE_SDL_UI)
+# PROSOPHOR_SDL_UI flag
+if(PROSOPHOR_SDL_UI)
+    add_compile_definitions(PROSOPHOR_SDL_UI)
 endif()
 
 # Exclude platform-specific implementation files
@@ -95,20 +95,20 @@ else()
     )
 endif()
 
-add_library(aicode_core STATIC ${CC_FILES_LIST})
+add_library(prosophor_core STATIC ${CC_FILES_LIST})
 
-target_include_directories(aicode_core
+target_include_directories(prosophor_core
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
 )
 
-target_compile_definitions(aicode_core PUBLIC
+target_compile_definitions(prosophor_core PUBLIC
     NOMINMAX
     _CRT_SECURE_NO_WARNINGS
-    AICODE_VERSION="${PROJECT_VERSION}"
+    PROSOPHOR_VERSION="${PROJECT_VERSION}"
 )
 
-target_link_libraries(aicode_core
+target_link_libraries(prosophor_core
     PUBLIC
         media_engine
         spdlog::spdlog
@@ -120,33 +120,33 @@ target_link_libraries(aicode_core
 )
 
 if(WIN32)
-    target_link_libraries(aicode_core PUBLIC ws2_32 bcrypt)
+    target_link_libraries(prosophor_core PUBLIC ws2_32 bcrypt)
 endif()
 
-if(AICODE_SDL_UI)
-    add_executable(aicode WIN32 main.cc)
+if(PROSOPHOR_SDL_UI)
+    add_executable(prosophor WIN32 main.cc)
 else()
-    add_executable(aicode main.cc)
+    add_executable(prosophor main.cc)
 endif()
 
-target_link_libraries(aicode PRIVATE aicode_core)
-target_include_directories(aicode PRIVATE
+target_link_libraries(prosophor PRIVATE prosophor_core)
+target_include_directories(prosophor PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
 # Compiler flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(aicode_core PRIVATE -Wall -Wextra -O2)
-    target_compile_options(aicode PRIVATE -Wall -Wextra -O2)
+    target_compile_options(prosophor_core PRIVATE -Wall -Wextra -O2)
+    target_compile_options(prosophor PRIVATE -Wall -Wextra -O2)
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        target_compile_options(aicode_core PRIVATE /W4 /Od /RTC1 /EHsc)
-        target_compile_options(aicode PRIVATE /W4 /Od /RTC1 /EHsc)
+        target_compile_options(prosophor_core PRIVATE /W4 /Od /RTC1 /EHsc)
+        target_compile_options(prosophor PRIVATE /W4 /Od /RTC1 /EHsc)
     else()
-        target_compile_options(aicode_core PRIVATE /W4 /O2 /EHsc)
-        target_compile_options(aicode PRIVATE /W4 /O2 /EHsc)
+        target_compile_options(prosophor_core PRIVATE /W4 /O2 /EHsc)
+        target_compile_options(prosophor PRIVATE /W4 /O2 /EHsc)
     endif()
 endif()
 
-install(TARGETS aicode DESTINATION bin)
+install(TARGETS prosophor DESTINATION bin)

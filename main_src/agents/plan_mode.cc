@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "agents/plan_mode.h"
@@ -10,7 +10,7 @@
 #include "common/log_wrapper.h"
 #include "common/time_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 PlanModeManager& PlanModeManager::GetInstance() {
     static PlanModeManager instance;
@@ -148,4 +148,4 @@ std::string PlanModeManager::GetPlanAsMarkdown() const {
     return oss.str();
 }
 
-}  // namespace aicode
+}  // namespace prosophor

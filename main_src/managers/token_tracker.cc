@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/token_tracker.h"
@@ -11,7 +11,7 @@
 #include "common/file_utils.h"
 #include "providers/llm_provider.h"
 
-namespace aicode {
+namespace prosophor {
 
 // Default cost rates per 1K tokens (USD)
 std::unordered_map<std::string, std::pair<double, double>> TokenTracker::default_cost_rates_ = {
@@ -479,4 +479,4 @@ std::string TokenTracker::FormatModelUsage() const {
     return oss.str();
 }
 
-}  // namespace aicode
+}  // namespace prosophor

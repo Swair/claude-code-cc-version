@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/log_wrapper.h"
@@ -8,7 +8,7 @@
 #include <windows.h>
 #endif
 
-#ifdef AICODE_SDL_UI
+#ifdef PROSOPHOR_SDL_UI
 #include "scene/sdl_app.h"
 #else
 #include "cli/agent_commander.h"
@@ -24,16 +24,16 @@ int main(int argc, char* argv[]) {
     SetConsoleCP(CP_UTF8);
 #endif
 
-    const auto& config = aicode::AiCodeConfig::GetInstance();
-    aicode::InitLog(config.log_level);
-    LOG_INFO("AiCode v{}", AICODE_VERSION);
+    const auto& config = prosophor::ProsophorConfig::GetInstance();
+    prosophor::InitLog(config.log_level);
+    LOG_INFO("Prosophor v{}", PROSOPHOR_VERSION);
 
     try {
-#ifdef AICODE_SDL_UI
-        return aicode::SdlApp::GetInstance().Run();
+#ifdef PROSOPHOR_SDL_UI
+        return prosophor::SdlApp::GetInstance().Run();
 #else
         // 命令行 Agent 模式
-        return aicode::AgentCommander::GetInstance().Run();
+        return prosophor::AgentCommander::GetInstance().Run();
 #endif
     } catch (const std::exception& e) {
         LOG_ERROR("Fatal error: {}", e.what());

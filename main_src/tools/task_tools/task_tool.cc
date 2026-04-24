@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "task_tool.h"
@@ -6,7 +6,7 @@
 #include "agents/task_manager.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 std::string TaskTool::Execute(const std::string& action, const nlohmann::json& params) {
     try {
@@ -263,4 +263,4 @@ std::string TaskTool::ScanUnclaimedTasks(const nlohmann::json& params) {
     return response.dump(2);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

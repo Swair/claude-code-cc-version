@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "managers/memory_manager.h"
@@ -12,7 +12,7 @@
 #include "common/time_wrapper.h"
 #include "common/file_utils.h"
 
-namespace aicode {
+namespace prosophor {
 
 MemoryManager::MemoryManager(const std::filesystem::path& workspace_path)
     : workspace_path_(workspace_path),
@@ -55,9 +55,9 @@ void MemoryManager::LoadWorkspaceFiles() {
         }
     }
 
-    // 2. Load AICODE.md from each directory (like Claude Code's CLAUDE.md)
+    // 2. Load PROSOPHOR.md from each directory (like Claude Code's CLAUDE.md)
     // These provide directory-specific instructions/norms
-    LoadAicodeFilesRecursively(workspace_path_);
+    LoadprosophorFilesRecursively(workspace_path_);
 
     // 3. Load daily memory files
     auto memory_dir = workspace_path_ / "memory";
@@ -95,20 +95,20 @@ std::string MemoryManager::ReadToolsFile() const {
     return ReadIdentityFile("TOOLS.md");
 }
 
-void MemoryManager::LoadAicodeFilesRecursively(const std::filesystem::path& dir) {
-    // Load AICODE.md from current directory if exists
-    auto aicode_file = dir / "AICODE.md";
-    if (std::filesystem::exists(aicode_file)) {
+void MemoryManager::LoadprosophorFilesRecursively(const std::filesystem::path& dir) {
+    // Load PROSOPHOR.md from current directory if exists
+    auto prosophor_file = dir / "PROSOPHOR.md";
+    if (std::filesystem::exists(prosophor_file)) {
         try {
-            auto content = ReadFileContent(aicode_file);
+            auto content = ReadFileContent(prosophor_file);
             if (!content.empty()) {
                 // Store with relative path prefix for context
                 auto rel_path = std::filesystem::relative(dir, workspace_path_);
                 std::string prefix = rel_path.empty() ? "" : ("[" + rel_path.string() + "] ");
-                LOG_INFO("Loaded {}AICODE.md ({} bytes)", prefix, content.size());
+                LOG_INFO("Loaded {}PROSOPHOR.md ({} bytes)", prefix, content.size());
             }
         } catch (const std::exception& e) {
-            LOG_DEBUG("Failed to load AICODE.md from {}: {}", dir.string(), e.what());
+            LOG_DEBUG("Failed to load PROSOPHOR.md from {}: {}", dir.string(), e.what());
         }
     }
 
@@ -118,7 +118,7 @@ void MemoryManager::LoadAicodeFilesRecursively(const std::filesystem::path& dir)
             if (entry.is_directory() &&
                 !entry.is_symlink() &&
                 entry.path().filename().string()[0] != '.') {
-                LoadAicodeFilesRecursively(entry.path());
+                LoadprosophorFilesRecursively(entry.path());
             }
         }
     } catch (const std::exception& e) {
@@ -301,4 +301,4 @@ void MemoryManager::WriteFileContent(const std::filesystem::path& filepath,
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

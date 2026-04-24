@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "glob_tool.h"
@@ -9,7 +9,7 @@
 
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 namespace fs = std::filesystem;
 
@@ -117,4 +117,4 @@ std::string GlobTool::Execute(const nlohmann::json& params) {
     return result.dump(2);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

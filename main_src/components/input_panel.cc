@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "components/input_panel.h"
 #include "media/imgui_widget.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 InputPanel::InputPanel(float x, float y, float width, float height)
     : width_(width), height_(height) {
@@ -96,4 +96,4 @@ void InputPanel::SetFocus() {
     // TODO: ImGui 聚焦输入框
 }
 
-}  // namespace aicode
+}  // namespace prosophor

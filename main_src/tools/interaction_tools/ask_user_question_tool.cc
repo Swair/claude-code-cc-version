@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ask_user_question_tool.h"
@@ -16,7 +16,7 @@
 #include <unistd.h>
 #endif
 
-namespace aicode {
+namespace prosophor {
 
 AskUserQuestionTool& AskUserQuestionTool::GetInstance() {
     static AskUserQuestionTool instance;
@@ -154,7 +154,7 @@ char AskUserQuestionTool::ReadChar() const {
 }
 
 std::string AskUserQuestionTool::ReadLine() const {
-    return aicode::ReadLine();
+    return prosophor::ReadLine();
 }
 
 AskUserQuestionResult AskUserQuestionTool::Ask(const std::vector<Question>& questions) {
@@ -251,4 +251,4 @@ AskUserQuestionResult AskUserQuestionTool::Ask(const std::vector<Question>& ques
     return result;
 }
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "cli/agent_commander.h"
@@ -34,7 +34,7 @@
 #include "managers/active_interaction_manager.h"
 #include "managers/active_trigger_manager.h"
 
-namespace aicode {
+namespace prosophor {
 
 namespace {
 AgentCommander* g_commander_ptr = nullptr;
@@ -61,12 +61,12 @@ AgentCommander::~AgentCommander() {
 }
 
 void AgentCommander::InitializeComponents() {
-    LOG_INFO("Initializing AiCode components...");
+    LOG_INFO("Initializing Prosophor components...");
 
-    // Get config from singleton (loads from ~/.aicode/settings.json)
-    config_ = aicode::AiCodeConfig::GetInstance();
+    // Get config from singleton (loads from ~/.prosophor/settings.json)
+    config_ = prosophor::ProsophorConfig::GetInstance();
 
-    // Create workspace directory (.aicode/workspace under current directory)
+    // Create workspace directory (.prosophor/workspace under current directory)
     std::filesystem::create_directories(workspace_path_);
 
     // Create AGENTS.md if not exists
@@ -191,7 +191,7 @@ void AgentCommander::InitializeComponents() {
     provider_router_->Initialize(config_);
 
     // LSP Manager (optional code intelligence)
-    auto& lsp_manager = aicode::LspManager::GetInstance();
+    auto& lsp_manager = prosophor::LspManager::GetInstance();
     lsp_manager.Initialize();
     LOG_INFO("LSP integration initialized with {} servers",
              lsp_manager.GetRegisteredServers().size());
@@ -310,7 +310,7 @@ bool AgentCommander::HandleCommand(const std::string& line) {
 
     // Exit commands - these must be handled here as they affect the main loop
     if (cmd_name == "exit" || cmd_name == "quit" || cmd_name == "bye") {
-        LOG_INFO("Exiting AiCode...");
+        LOG_INFO("Exiting Prosophor...");
         interrupted_ = true;
         return true;
     }
@@ -421,7 +421,7 @@ int AgentCommander::Run() {
     // Print banner (terminal mode only)
     if (mode_ == RunMode::Terminal) {
         bool show_buddy = config_.show_buddy;
-        aicode::PrintBanner(AICODE_VERSION, show_buddy);
+        prosophor::PrintBanner(PROSOPHOR_VERSION, show_buddy);
     }
 
     // Set output manager mode
@@ -452,14 +452,14 @@ int AgentCommander::Run() {
         input_manager->Stop();
         input_manager_ = nullptr;
     } else {
-#ifdef AICODE_SDL_UI
+#ifdef PROSOPHOR_SDL_UI
         // SDL mode: input is handled by SdlApp through MediaCore event loop
         // Register input callback with SdlApp
-        aicode::SdlApp::GetInstance().SetInputCallback([this](const InputEvent& event) {
+        prosophor::SdlApp::GetInstance().SetInputCallback([this](const InputEvent& event) {
             HandleInputEvent(event);
         });
 #else
-        LOG_ERROR("SDL mode is not available. Please enable AICODE_SDL_UI option.");
+        LOG_ERROR("SDL mode is not available. Please enable PROSOPHOR_SDL_UI option.");
         return 1;
 #endif
     }
@@ -474,4 +474,4 @@ void AgentCommander::Stop() {
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

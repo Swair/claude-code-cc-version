@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "background_run_tool.h"
@@ -6,7 +6,7 @@
 #include "managers/background_task_manager.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 BackgroundRunTool& BackgroundRunTool::GetInstance() {
     static BackgroundRunTool instance;
@@ -138,4 +138,4 @@ std::string BackgroundRunTool::Drain(const nlohmann::json& params) {
     return result.dump(2);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

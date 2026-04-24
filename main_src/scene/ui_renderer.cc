@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "scene/ui_renderer.h"
@@ -10,7 +10,7 @@
 #include "colors.h"
 #include "common/log_wrapper.h"
 
-namespace aicode {
+namespace prosophor {
 
 UIRenderer& UIRenderer::Instance() {
     static UIRenderer instance;
@@ -176,4 +176,4 @@ void UIRenderer::RenderFloatingText(const std::string& text, float x, float y,
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #include <string>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Agent tool for launching sub-agents and executing skills
 class AgentTool {
@@ -30,4 +30,4 @@ private:
     static std::string SearchTools(const nlohmann::json& params);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

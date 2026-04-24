@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #include <string>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// BackgroundRunTool - Execute commands in background
 class BackgroundRunTool {
@@ -25,4 +25,4 @@ private:
     std::string Drain(const nlohmann::json& params);
 };
 
-}  // namespace aicode
+}  // namespace prosophor

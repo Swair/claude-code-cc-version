@@ -33,7 +33,7 @@ tools_white_list:
 max_iterations: 15
 auto_confirm_tools: true
 
-memory_dir: ~/.aicode/memories/architect
+memory_dir: ~/.prosophor/memories/architect
 ---
 
 # 分析框架

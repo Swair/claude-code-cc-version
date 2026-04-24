@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "common/config.h"
@@ -16,13 +16,13 @@
 #include "common/file_utils.h"
 #include "managers/agent_role_loader.h"
 
-namespace aicode {
+namespace prosophor {
 
-std::string AiCodeConfig::config_path_override_;
-AiCodeConfig* AiCodeConfig::instance_ = nullptr;
+std::string ProsophorConfig::config_path_override_;
+ProsophorConfig* ProsophorConfig::instance_ = nullptr;
 
-AiCodeConfig& AiCodeConfig::GetInstance() {
-    static AiCodeConfig instance;
+ProsophorConfig& ProsophorConfig::GetInstance() {
+    static ProsophorConfig instance;
     static bool initialized = false;
 
     if (!initialized) {
@@ -40,9 +40,9 @@ AiCodeConfig& AiCodeConfig::GetInstance() {
     return instance;
 }
 
-const AgentConfig& AiCodeConfig::GetAgentConfig() const {
+const AgentConfig& ProsophorConfig::GetAgentConfig() const {
     // Load default role to get its provider and agent config
-    std::string role_path = "config/.aicode/roles/" + default_role + ".md";
+    std::string role_path = "config/.prosophor/roles/" + default_role + ".md";
     if (std::filesystem::exists(role_path)) {
         auto& loader = AgentRoleLoader::GetInstance();
         try {
@@ -71,7 +71,7 @@ const AgentConfig& AiCodeConfig::GetAgentConfig() const {
     return fallback_agent;
 }
 
-const ProviderConfig& AiCodeConfig::GetProvider(const std::string& name) const {
+const ProviderConfig& ProsophorConfig::GetProvider(const std::string& name) const {
     auto it = providers.find(name);
     if (it != providers.end()) {
         return it->second;
@@ -302,11 +302,11 @@ SkillsConfig SkillsConfig::FromJson(const nlohmann::json& json) {
     return config;
 }
 
-AiCodeConfig AiCodeConfig::FromJson(const nlohmann::json& json) {
+ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
     nlohmann::json expanded = json;
     ExpandEnvInJson(expanded);
 
-    AiCodeConfig config;
+    ProsophorConfig config;
     config.log_level = json.value("log_level", json.value("logLevel", "info"));
     config.default_role = json.value("default_role", json.value("defaultRole", "default"));
     config.show_buddy = json.value("show_buddy", json.value("showBuddy", true));
@@ -328,7 +328,7 @@ AiCodeConfig AiCodeConfig::FromJson(const nlohmann::json& json) {
     return config;
 }
 
-AiCodeConfig AiCodeConfig::LoadFromFile(const std::string& filepath) {
+ProsophorConfig ProsophorConfig::LoadFromFile(const std::string& filepath) {
     std::string expanded_path = ExpandHome(filepath);
 
     if (!std::filesystem::exists(expanded_path)) {
@@ -350,7 +350,7 @@ AiCodeConfig AiCodeConfig::LoadFromFile(const std::string& filepath) {
     return FromJson(json);
 }
 
-std::string AiCodeConfig::ExpandHome(const std::string& path) {
+std::string ProsophorConfig::ExpandHome(const std::string& path) {
     std::string expanded = path;
     if (expanded.size() >= 2 && expanded.substr(0, 2) == "~/") {
         const char* home = std::getenv("HOME");
@@ -364,31 +364,31 @@ std::string AiCodeConfig::ExpandHome(const std::string& path) {
     return expanded;
 }
 
-std::string AiCodeConfig::DefaultConfigPath() {
+std::string ProsophorConfig::DefaultConfigPath() {
     if (!config_path_override_.empty()) {
         return config_path_override_;
     }
-    // Support environment variable override: export AI_CODE_CONFIG="/path/to/config.json"
-    const char* env_path = std::getenv("AI_CODE_CONFIG");
+    // Support environment variable override: export PROSOPHOR_CONFIG="/path/to/config.json"
+    const char* env_path = std::getenv("PROSOPHOR_CONFIG");
     if (env_path != nullptr && env_path[0] != '\0') {
         return env_path;
     }
     // Cross-platform: use user home directory
-    return ExpandHome("~/.aicode/settings.json");
+    return ExpandHome("~/.prosophor/settings.json");
 }
 
-std::filesystem::path AiCodeConfig::BaseDir() {
+std::filesystem::path ProsophorConfig::BaseDir() {
     // Support environment variable override
-    const char* env_path = std::getenv("AI_CODE_CONFIG");
+    const char* env_path = std::getenv("PROSOPHOR_CONFIG");
     if (env_path != nullptr && env_path[0] != '\0') {
         return std::filesystem::path(env_path).parent_path();
     }
     // Cross-platform: use user home directory
-    return ExpandHome("~/.aicode");
+    return ExpandHome("~/.prosophor");
 }
 
 // Creates a default config file with documentation comments
-void AiCodeConfig::CreateDefaultConfig(const std::string& filepath) {
+void ProsophorConfig::CreateDefaultConfig(const std::string& filepath) {
     std::string expanded_path = ExpandHome(filepath);
 
     // Create directory if it doesn't exist
@@ -400,10 +400,10 @@ void AiCodeConfig::CreateDefaultConfig(const std::string& filepath) {
         return;
     }
 
-    // Check if there's a demo config at config/.aicode/settings.json
-    std::string demo_config_path = "config/.aicode/settings.json";
+    // Check if there's a demo config at config/.prosophor/settings.json
+    std::string demo_config_path = "config/.prosophor/settings.json";
     if (std::filesystem::exists(demo_config_path)) {
-        // Copy demo config to ~/.aicode/settings.json
+        // Copy demo config to ~/.prosophor/settings.json
         try {
             std::filesystem::copy_file(demo_config_path, expanded_path,
                                         std::filesystem::copy_options::overwrite_existing);
@@ -421,12 +421,12 @@ void AiCodeConfig::CreateDefaultConfig(const std::string& filepath) {
     }
 
     // Write config template with comments
-    file << R"(// AiCode Configuration File
-// Path: ~/.aicode/settings.json
+    file << R"(// Prosophor Configuration File
+// Path: ~/.prosophor/settings.json
 //
 // Structure:
 //   providers.<provider_name>.agents.<agent_name> = { model, temperature, ... }
-//   Roles are defined in config/.aicode/roles/*.md
+//   Roles are defined in config/.prosophor/roles/*.md
 //
 // Example:
 //   providers.anthropic.agents.default.model = "qwen3.5-plus"
@@ -490,9 +490,9 @@ int AgentConfig::DynamicMaxIterations() const {
            static_cast<int>(ratio * (kMaxMaxIterations - kMinMaxIterations));
 }
 
-// ==================== AiCodeConfig JSON Serialization ====================
+// ==================== ProsophorConfig JSON Serialization ====================
 
-nlohmann::json AiCodeConfig::ToJson() const {
+nlohmann::json ProsophorConfig::ToJson() const {
     nlohmann::json json = nlohmann::json::object();
 
     json["log_level"] = log_level;
@@ -544,10 +544,10 @@ nlohmann::json AiCodeConfig::ToJson() const {
     return json;
 }
 
-void AiCodeConfig::SaveToFile(const std::string& filepath) const {
+void ProsophorConfig::SaveToFile(const std::string& filepath) const {
     auto json = ToJson();
-    aicode::WriteJson(filepath, json, 2);
+    prosophor::WriteJson(filepath, json, 2);
     LOG_INFO("Configuration saved to {}", filepath);
 }
 
-}  // namespace aicode
+}  // namespace prosophor

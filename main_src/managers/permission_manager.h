@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -9,7 +9,7 @@
 #include <mutex>
 #include <nlohmann/json.hpp>
 
-namespace aicode {
+namespace prosophor {
 
 /// Permission level for tool execution
 enum class PermissionLevel {
@@ -139,4 +139,4 @@ private:
                                 const nlohmann::json& input) const;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

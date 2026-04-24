@@ -30,7 +30,7 @@ tools_white_list:
 max_iterations: 20
 auto_confirm_tools: true
 
-memory_dir: ~/.aicode/memories/coder
+memory_dir: ~/.prosophor/memories/coder
 ---
 
 # 工作流程

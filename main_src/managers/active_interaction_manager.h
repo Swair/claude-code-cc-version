@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
@@ -17,7 +17,7 @@
 #include "managers/agent_session_manager.h"
 #include "providers/llm_provider.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// 主动交互任务类型
 enum class ActiveInteractionType {
@@ -107,4 +107,4 @@ private:
     mutable std::mutex mutex_;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

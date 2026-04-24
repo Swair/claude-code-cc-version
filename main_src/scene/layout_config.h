@@ -1,8 +1,8 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-namespace aicode {
+namespace prosophor {
 
 /// 布局配置 - 统一管理所有 UI 和场景元素的布局
 struct LayoutConfig {
@@ -89,4 +89,4 @@ struct LayoutConfig {
     }
 };
 
-}  // namespace aicode
+}  // namespace prosophor

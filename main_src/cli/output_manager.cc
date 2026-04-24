@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
 #include "cli/output_manager.h"
 #include "common/log_wrapper.h"
 #include <iostream>
 
-namespace aicode {
+namespace prosophor {
 
 OutputManager& OutputManager::GetInstance() {
     static OutputManager instance;
@@ -68,4 +68,4 @@ void OutputManager::ShowPermissionPrompt(const std::string& tool_name, const std
     }
 }
 
-}  // namespace aicode
+}  // namespace prosophor

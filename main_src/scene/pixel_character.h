@@ -1,11 +1,11 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
 #include "media/colors.h"
 #include "scene/character_sprite.h"
 
-namespace aicode {
+namespace prosophor {
 
 /// 像素小人渲染器 - 使用 Drawer 绘制像素风格角色，替代 PNG 精灵图
 class PixelCharacterRenderer {
@@ -31,4 +31,4 @@ private:
     void RenderCharacterSide(float x, float y, int palette_index, CharDirection dir) const;
 };
 
-}  // namespace aicode
+}  // namespace prosophor

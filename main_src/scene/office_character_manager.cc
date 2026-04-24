@@ -1,4 +1,4 @@
-// Copyright 2026 AiCode Contributors
+// Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 #include "scene/office_character_manager.h"
 #include "scene/pixel_character.h"
@@ -10,7 +10,7 @@
 #include <algorithm>
 #include <map>
 
-namespace aicode {
+namespace prosophor {
 
 OfficeCharacterManager& OfficeCharacterManager::Instance() {
     static OfficeCharacterManager instance;
@@ -387,4 +387,4 @@ std::pair<float, float> OfficeCharacterManager::TileCenter(int col, int row) con
     };
 }
 
-}  // namespace aicode
+}  // namespace prosophor
