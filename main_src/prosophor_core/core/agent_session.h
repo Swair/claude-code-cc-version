@@ -37,224 +37,133 @@ using SessionOutputCallback = std::function<void(const std::string& session_id,
                                                   const std::optional<MessageSchema>& reply)>;
 
 /// Agent 会话实例（运行时）
-/// 记录"这个精灵在做什么任务"
-///
-/// 记忆双层设计：
-/// - Role Memory (长期记忆): 角色专属习惯、偏好，跨项目复用 (~/.prosophor/memories/{role_id}/)
-/// - Session History (会话历史): 当前项目的对话历史、上下文、决策 (~/.prosophor/sessions/{session_id}/history/)
-struct AgentSession {
-    // =====================
-    // 输入（AgentCore 的输入参数）
-    // =====================
+class AgentSession {
+public:
+    // ── 输入/配置─────────────────────────────────────────────
+    inline AgentRole* GetRole() const { return role_; }
+    inline void SetRole(AgentRole* r) { role_ = r; }
+    inline bool GetUseTools() const { return use_tools_; }
+    inline void SetUseTools(bool v) { use_tools_ = v; }
+    inline bool GetAutoConfirmTools() const { return auto_confirm_tools_; }
+    inline void SetAutoConfirmTools(bool v) { auto_confirm_tools_ = v; }
+    inline const std::string& GetWorkingDirectory() const { return working_directory_; }
+    inline void SetWorkingDirectory(const std::string& v) { working_directory_ = v; }
 
-    // --- 角色配置 ---
-    AgentRole* role = nullptr;               // 角色指针（初始指向共享定义，切换后指向 mutable_role_）
-    std::optional<AgentRole> mutable_role_; // 运行时可修改的 role 副本（切换 provider/model 时创建）
+    // ── 回调（直接读写）─────────────────────────────────────
+    ToolExecutorCallback tool_executor_;
+    SessionOutputCallback output_callback_;
 
-    // --- 运行时配置 ---
-    bool use_tools = true;                  // 是否使用工具
-    bool auto_confirm_tools = false;        // 是否自动确认工具（per-session，不影响全局）
-    std::string working_directory;          // 工作目录
-    ToolExecutorCallback tool_executor;     // 工具执行器
-    SessionOutputCallback output_callback;  // 输出回调（通知 UI 状态和消息）
+    inline MemoryConsolidationService* GetConsolidationService() const { return consolidation_service_; }
+    inline void SetConsolidationService(MemoryConsolidationService* v) { consolidation_service_ = v; }
+    inline const std::vector<std::string>& GetRelatedFiles() const { return related_files_; }
+    inline void SetRelatedFiles(std::vector<std::string> v) { related_files_ = std::move(v); }
 
-    // --- 运行时依赖（由外部注入）---
-    MemoryConsolidationService* consolidation_service = nullptr;  // 记忆沉淀服务（弱引用）
+    // ── 控制标志 ────────────────────────────────────────────
+    inline bool IsStopRequested() const { return stop_requested_.load(); }
+    inline void RequestStop() { stop_requested_.store(true); }
+    inline void ClearStopRequested() { stop_requested_.store(false); }
 
-    // --- 上下文 ---
-    std::vector<SystemSchema> system_prompt; // System prompt
-    std::vector<MessageSchema> messages;     // 对话历史（含用户输入）
-    std::vector<std::string> related_files;  // 相关文件
+    // ── 元数据 ──────────────────────────────────────────────
+    inline const std::string& GetSessionId() const { return session_id_; }
+    inline const std::string& GetTaskDescription() const { return task_description_; }
+    inline std::shared_ptr<LLMProvider> GetProvider() const { return provider_; }
+    inline void SetProvider(std::shared_ptr<LLMProvider> v) { provider_ = std::move(v); }
+    inline const std::string& GetBaseUrl() const { return base_url_; }
+    inline void SetBaseUrl(const std::string& v) { base_url_ = v; }
+    inline const std::string& GetApiKey() const { return api_key_; }
+    inline void SetApiKey(const std::string& v) { api_key_ = v; }
+    inline int GetTimeout() const { return timeout_; }
+    inline void SetTimeout(int v) { timeout_ = v; }
+    inline const std::string& GetSessionHistoryDir() const { return session_history_dir_; }
+    inline void SetSessionHistoryDir(const std::string& v) { session_history_dir_ = v; }
+    inline SteadyClock::TimePoint GetCreatedAt() const { return created_at_; }
+    inline bool IsActive() const { return is_active_; }
+    inline void SetActive(bool v) { is_active_ = v; }
 
-    // =====================
-    // 输出（AgentCore 的运行结果）
-    // =====================
+    // ── 会话锁 ──────────────────────────────────────────────
+    inline std::unique_lock<std::mutex> ScopedLock() { return std::unique_lock<std::mutex>(session_mutex_); }
 
-    // --- 对话输出 ---
-    // messages 字段同时也是输出（追加 assistant 回复）
+    // ── 活跃时间 ────────────────────────────────────────────
+    inline void UpdateLastActive() { last_active_ = SteadyClock::Now(); }
+    inline SteadyClock::TimePoint GetLastActive() const { return last_active_; }
 
-    // --- 运行状态 ---
-    AgentRuntimeState state = AgentRuntimeState::IDLE;  // 当前运行状态
-    std::string state_message;                           // 状态描述
+    // ── 只读访问器（外部代码通过此处读取内部数据）───────────
+    inline const std::vector<MessageSchema>& GetMessages() const { return messages_; }
+    inline const std::vector<SystemSchema>& GetSystemPrompt() const { return system_prompt_; }
 
-    // --- 控制标志 ---
-    std::atomic<bool> stop_requested{false};  // 中断标志（用户可设置）
+    // ── 线程安全接口（内部持渲染锁）────────────────────────
+    void SetOutput(AgentRuntimeState new_state,
+                   const std::string& state_msg,
+                   const std::optional<MessageSchema>& reply = std::nullopt);
+    RenderSnapshot GetSnapshot() const;
+    void AddUserMessage(const std::string& text);
+    /// 准备开始新 Loop：如果上一个 Loop 被打断留下孤立的 user 消息，清理掉
+    /// 在持 session_mutex 后、ClearStopRequested + Loop 之前调用
+    /// 打断时清除孤立的 user 消息（最后一条是 user 且无 assistant 回复时移除）
+    void CleanupInterruptedLoop();
+    void CompactHistory(const std::vector<MessageSchema>& kept_messages,
+                        const std::string& summary);
+    void SetSystemPrompt(const std::vector<SystemSchema>& prompt);
 
-    // =====================
-    // 元数据（不属于输入/输出）
-    // =====================
-
-    // --- 身份 ---
-    std::string session_id;            // 唯一 ID: "coder-abc123"
-    std::string role_id;               // 关联角色："coder"
-    std::string task_description;      // 任务描述："写排序"
-
-    // --- Provider 实例（运行时依赖）---
-    std::shared_ptr<LLMProvider> provider;  // Provider 实例
-    std::string base_url;                   // Agent base_url（来自 config agents 配置）
-    std::string api_key;                    // Agent api_key（来自 config agents 配置）
-    int timeout = 60;                       // Agent timeout（来自 config agents 配置）
-
-    // --- 记忆管理 ---
-    std::string session_history_dir;   // Session 会话历史目录
-
-    // --- 生命周期 ---
-    SteadyClock::TimePoint created_at;
-    SteadyClock::TimePoint last_active;
-    bool is_active = true;
-
-    // Per-session 锁：确保同一 session 的 Loop 调用串行执行
-    std::mutex session_mutex;
-
-    // === 构造函数 ===
-    AgentSession() {
-        created_at = SteadyClock::Now();
-        last_active = SteadyClock::Now();
+    // ── 构造函数 ────────────────────────────────────────────
+    inline AgentSession() {
+        created_at_ = SteadyClock::Now();
+        last_active_ = SteadyClock::Now();
     }
-
-    AgentSession(const std::string& sid, const std::string& rid,
-                 const std::string& task, AgentRole* r)
-        : role(r), session_id(sid), role_id(rid), task_description(task) {
-        created_at = SteadyClock::Now();
-        last_active = SteadyClock::Now();
-
-        // 初始化运行时状态（从 role 复制配置）
-        if (r) {
-            provider = ProviderRouter::GetInstance().GetProviderByName(r->provider_prot);
-            use_tools = true;
-            working_directory.clear();
-            messages.clear();
-            system_prompt.clear();
-            session_history_dir.clear();
-        }
-    }
-
-    // 显式定义移动操作（因为 std::atomic 和 std::function 需要特殊处理）
-    // 按字段分类顺序：输入 -> 输出 -> 元数据
-    AgentSession(AgentSession&& other) noexcept
-        : role(other.role),
-          mutable_role_(std::move(other.mutable_role_)),
-          use_tools(other.use_tools),
-          auto_confirm_tools(other.auto_confirm_tools),
-          working_directory(std::move(other.working_directory)),
-          tool_executor(std::move(other.tool_executor)),
-          output_callback(std::move(other.output_callback)),
-          consolidation_service(other.consolidation_service),  // 浅拷贝指针
-          system_prompt(std::move(other.system_prompt)),
-          messages(std::move(other.messages)),
-          related_files(std::move(other.related_files)),
-          state(other.state),
-          state_message(std::move(other.state_message)),
-          stop_requested(other.stop_requested.load()),
-          session_id(std::move(other.session_id)),
-          role_id(std::move(other.role_id)),
-          task_description(std::move(other.task_description)),
-          provider(std::move(other.provider)),
-          base_url(std::move(other.base_url)),
-          api_key(std::move(other.api_key)),
-          timeout(other.timeout),
-          session_history_dir(std::move(other.session_history_dir)),
-          created_at(other.created_at),
-          last_active(other.last_active),
-          is_active(other.is_active) {
-    }
-
-    AgentSession& operator=(AgentSession&& other) noexcept {
-        if (this != &other) {
-            // 输入
-            role = other.role;
-            mutable_role_ = std::move(other.mutable_role_);
-            use_tools = other.use_tools;
-            auto_confirm_tools = other.auto_confirm_tools;
-            working_directory = std::move(other.working_directory);
-            tool_executor = std::move(other.tool_executor);
-            output_callback = std::move(other.output_callback);
-            consolidation_service = other.consolidation_service;  // 浅拷贝指针
-            system_prompt = std::move(other.system_prompt);
-            messages = std::move(other.messages);
-            related_files = std::move(other.related_files);
-            // 输出
-            state = other.state;
-            state_message = std::move(other.state_message);
-            stop_requested.store(other.stop_requested.load());
-            // 元数据
-            session_id = std::move(other.session_id);
-            role_id = std::move(other.role_id);
-            task_description = std::move(other.task_description);
-            provider = std::move(other.provider);
-            base_url = std::move(other.base_url);
-            api_key = std::move(other.api_key);
-            timeout = other.timeout;
-            session_history_dir = std::move(other.session_history_dir);
-            created_at = other.created_at;
-            last_active = other.last_active;
-            is_active = other.is_active;
-        }
-        return *this;
-    }
-
+    AgentSession(const std::string& sid,
+                 const std::string& task, AgentRole* r);
+    AgentSession(AgentSession&& other) noexcept;
+    AgentSession& operator=(AgentSession&& other) noexcept;
     AgentSession(const AgentSession&) = delete;
     AgentSession& operator=(const AgentSession&) = delete;
 
-    /// 应用 provider 覆盖（手动切换的优先级高于 role 配置）
-    /// 创建 role 的本地副本，role 指针指向它。BuildRequest 无需任何 override 逻辑。
-    void ApplyProviderOverride(const std::string& provider_name, const std::string& model = "") {
-        auto& router = ProviderRouter::GetInstance();
-        provider = router.GetProviderByName(provider_name);
+    /// 应用 provider 覆盖（内部持 session_mutex）
+    void ApplyProviderOverride(const std::string& provider_name,
+                               const std::string& model = "");
 
-        // 创建 role 本地副本
-        mutable_role_ = *role;
-        role = &mutable_role_.value();
-        role->provider_prot = provider_name;
+    /// Check if provider override has been applied
+    inline bool HasProviderOverride() const { return mutable_role_.has_value(); }
 
-        auto& config = ProsophorConfig::GetInstance();
-        auto prov_it = config.providers.find(provider_name);
-        if (prov_it != config.providers.end()) {
-            auto& agent_map = prov_it->second.agents;
-            const AgentConfig* matched = nullptr;
+private:
+    // ── 输入/配置 ──────────────────────────────────────────
+    AgentRole* role_ = nullptr;
+    bool use_tools_ = true;
+    bool auto_confirm_tools_ = false;
+    std::string working_directory_;
+    MemoryConsolidationService* consolidation_service_ = nullptr;
+    std::vector<std::string> related_files_;
 
-            // Set provider-level defaults first
-            base_url = prov_it->second.base_url;
-            api_key = prov_it->second.api_key;
-            timeout = prov_it->second.timeout;
+    // ── 控制标志 ──────────────────────────────────────────
+    std::atomic<bool> stop_requested_{false};
 
-            // Try 1: model as agent key
-            auto agent_it = agent_map.find(model);
-            if (agent_it != agent_map.end()) {
-                matched = &agent_it->second;
-            } else if (!model.empty()) {
-                // Try 2: model as model name (search all agents)
-                for (auto& [k, v] : agent_map) {
-                    if (v.model == model) {
-                        matched = &v;
-                        break;
-                    }
-                }
-            }
+    // ── 元数据 ────────────────────────────────────────────
+    std::string session_id_;
+    std::string task_description_;
+    std::shared_ptr<LLMProvider> provider_;
+    std::string base_url_;
+    std::string api_key_;
+    int timeout_ = 60;
+    std::string session_history_dir_;
+    bool is_active_ = true;
 
-            if (matched) {
-                role->model = matched->model;
-                // Find the correct entry's base_url/api_key/timeout by searching all entries
-                std::string entry_base_url;
-                std::string entry_api_key;
-                int entry_timeout = 0;
-                if (prov_it->second.FindEntryForModel(provider_name, model, entry_base_url,
-                                                       entry_api_key, entry_timeout)) {
-                    base_url = entry_base_url;
-                    api_key = entry_api_key;
-                    timeout = entry_timeout;
-                }
-                role->temperature = matched->temperature;
-                role->max_tokens = matched->max_tokens;
-                role->thinking = matched->thinking;
-                LOG_DEBUG("Applied provider override: provider={}, model={}, base_url={}",
-                         provider_name, matched->model, base_url);
-            } else {
-                LOG_WARN("No matching agent for '{}' in provider '{}', using provider defaults",
-                         model, provider_name);
-            }
-        }
-    }
+    // ── 会话锁 ────────────────────────────────────────────
+    std::mutex session_mutex_;
+
+    // ── 运行时状态 ────────────────────────────────────────
+    SteadyClock::TimePoint created_at_;
+    SteadyClock::TimePoint last_active_;
+
+    // ── 渲染锁保护的内部数据 ──────────────────────────────
+    std::vector<MessageSchema> messages_;
+    std::vector<SystemSchema> system_prompt_;
+    AgentRuntimeState state_ = AgentRuntimeState::IDLE;
+    std::string state_message_;
+    std::string streaming_text_;
+    std::string streaming_thinking_;
+    mutable std::mutex render_mutex_;
+
+    // ── 内部实现 ──────────────────────────────────────────
+    std::optional<AgentRole> mutable_role_;
 };
 
 }  // namespace prosophor

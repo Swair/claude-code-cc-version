@@ -367,13 +367,4 @@ void GalgameScene::AddDialogue(const std::string& speaker, const std::string& te
     dialogue_scroll_ = std::max(0, static_cast<int>(dialogues_.size()) - kMaxVisibleDialogue);
 }
 
-void GalgameScene::ClearDialogue() {
-    dialogues_.clear();
-    dialogue_scroll_ = 0;
-}
-
-void GalgameScene::SetSpeakerColor(const std::string& speaker, uint8_t r, uint8_t g, uint8_t b) {
-    speaker_colors_[speaker] = Color(r, g, b, 255);
-}
-
 }  // namespace prosophor

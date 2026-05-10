@@ -191,3 +191,6 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     SDL3_ttf::SDL3_ttf
     SDL3::SDL3
 )
+
+find_package(ZLIB REQUIRED)
+target_link_libraries(${PROJECT_NAME} PUBLIC ZLIB::ZLIB)

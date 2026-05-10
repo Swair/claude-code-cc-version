@@ -16,6 +16,19 @@ struct LayoutConfig {
     // 底部状态栏高度
     float status_bar_height = 30.0f;
 
+    // 办公区/像素精灵地砖大小
+    float tile_size = 32.0f;
+
+    // 获取办公区域（屏幕左侧，聊天面板左侧即为办公区右边界）
+    static float GetOfficeX() { return 0.0f; }
+    static float GetOfficeY() { return 0.0f; }
+    static float GetOfficeWidth(float window_width) {
+        return GetChatPanelX(window_width);
+    }
+    static float GetOfficeHeight(float window_height) {
+        return window_height;
+    }
+
     // 获取聊天面板位置
     static float GetChatPanelX(float window_width) {
         return window_width * LayoutConfig{}.chat_panel_x_ratio;

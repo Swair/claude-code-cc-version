@@ -132,11 +132,20 @@ private:
 
     mutable std::mutex mutex_;
 
+    // ── Pending buffer（连续输入合并）─────────────────────
+    std::unordered_map<std::string, std::vector<std::string>> pending_inputs_;
+    std::unordered_map<std::string, bool> task_active_;
+    std::mutex pending_mutex_;
+
     /// 生成唯一 session ID
     std::string GenerateSessionId(const std::string& role_id);
 
     /// 构建 system prompt（组合 Role Memory + Session History + Role 配置）
     std::vector<SystemSchema> BuildSystemPrompt(const AgentSession& session);
+
+    /// 取一条消息提交线程池，在单任务内内联循环处理后续积压
+    void StartChain(const std::string& session_id,
+                    std::shared_ptr<AgentSession> session);
 
     ThreadPool thread_pool_;
 };

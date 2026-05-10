@@ -10,7 +10,4 @@ namespace prosophor {
 /// Print the application banner with ASCII art
 void PrintBanner(const std::string& version);
 
-/// Print help message for available commands
-void PrintHelp();
-
 }  // namespace prosophor

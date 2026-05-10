@@ -103,28 +103,30 @@ void SubagentCoordinator::RunSubagent(Subagent& agent) {
 
         // Create agent session for this subagent
         AgentSession session;
-        session.use_tools = true;
-        session.role = nullptr;
+        session.SetUseTools(true);
+        session.SetRole(nullptr);
         // Set runtime dependencies
-        session.tool_executor =
+        session.tool_executor_ =
             [&tool_registry](const std::string& name, const nlohmann::json& args) {
                 return tool_registry.ExecuteTool(name, args);
             };
 
         // Set provider (use default provider)
         auto& provider_router = ProviderRouter::GetInstance();
-        session.provider = provider_router.GetDefaultProvider();
+        session.SetProvider(provider_router.GetDefaultProvider());
 
         // Build system prompt
         std::string system_prompt_text = subagent_system_prompt_ +
             "\n\nYou are working on: " + agent.description +
             "\n\nYour task: " + agent.task;
 
-        session.system_prompt.push_back({"text", system_prompt_text, false});
+        auto sp_vec = session.GetSystemPrompt();
+        sp_vec.push_back({"text", system_prompt_text, false});
+        session.SetSystemPrompt(sp_vec);
 
         // Run the agent - using static Loop method
         AgentCore::Loop(agent.task, session);
-        agent.messages = session.messages;
+        agent.messages = session.GetMessages();
 
         // Extract result from final message
         if (!agent.messages.empty()) {

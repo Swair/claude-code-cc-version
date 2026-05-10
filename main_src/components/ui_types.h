@@ -4,8 +4,10 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 #include "core/agent_types.h"
+#include "core/messages_schema.h"
 
 namespace prosophor {
 
@@ -17,10 +19,20 @@ struct ChatMessage {
     double timestamp;
 };
 
+/// RGBA 颜色值
+struct StateColor {
+    uint8_t r, g, b, a;
+};
+
 /// 状态视觉属性
 struct StateVisualProps {
     uint8_t r, g, b, a;
     std::string name;
 };
+
+/// 从 StateColor + 名称构造视觉属性
+inline StateVisualProps MakeVisualProps(StateColor c, std::string name) {
+    return {c.r, c.g, c.b, c.a, std::move(name)};
+}
 
 }  // namespace prosophor

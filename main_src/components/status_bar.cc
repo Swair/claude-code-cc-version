@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "components/status_bar.h"
-#include "drawer.h"
 #include "common/log_wrapper.h"
 
 namespace prosophor {
@@ -27,11 +26,13 @@ void StatusBar::Render() const {
 void StatusBar::RenderContent(const std::string& status_text, AgentRuntimeState state) {
     if (!visible_) return;
 
+    constexpr StateColor kFallbackColor{128, 128, 128, 255};
+
     StateVisualProps state_props;
     if (state_props_getter_) {
         state_props = state_props_getter_(state);
     } else {
-        state_props = {128, 128, 128, 255, "Unknown"};
+        state_props = MakeVisualProps(kFallbackColor, "Unknown");
     }
 
     float status_y = panel_->GetY() + 5.0f;
@@ -48,32 +49,24 @@ void StatusBar::RenderContent(const std::string& status_text, AgentRuntimeState 
         default: icon = "○"; break;
     }
 
-    // 绘制状态图标
-    for (size_t i = 0; i < 2 && i < strlen(icon); i++) {
-        ::Drawer::Instance().DrawFillRect(20 + i * 12, status_y, 10, 16,
-            Color(state_props.r, state_props.g, state_props.b, 255));
-    }
+    // 状态图标（用 Unicode 字符通过 SDL_ttf 渲染）
+    static const char* kFontPath = "C:/Windows/Fonts/msyh.ttc";
+    float window_width = panel_->GetWidth();
+    float icon_x = 20;
+    MediaUtil::DrawTextRect(icon, icon_x, status_y, 100, 16,
+                            state_props.r, state_props.g, state_props.b, 255, kFontPath);
 
     // 状态名称
-    const std::string& state_name = state_props.name;
-    for (size_t i = 0; i < state_name.size() && i < 15; i++) {
-        char c = state_name[i];
-        if (c >= 32 && c < 127) {
-            ::Drawer::Instance().DrawFillRect(45 + i * 12, status_y, 8, 14, Colors::LightGray);
-        }
-    }
+    MediaUtil::DrawTextRect(state_props.name, icon_x + 25, status_y, 200, 14,
+                            Colors::LightGray, kFontPath);
 
     // 状态文本
-    for (size_t i = 0; i < status_text.size() && i < 30; i++) {
-        char c = status_text[i];
-        if (c >= 32 && c < 127) {
-            ::Drawer::Instance().DrawFillRect(180 + i * 12, status_y, 8, 14, Colors::Gray);
-        }
-    }
+    MediaUtil::DrawTextRect(status_text, icon_x + 120, status_y, 400, 14,
+                            Colors::Gray, kFontPath);
 
     // ESC 提示
-    float window_width = panel_->GetWidth();
-    ::Drawer::Instance().DrawFillRect(window_width - 100, status_y, 80, 15, Colors::DarkGray);
+    MediaUtil::DrawTextRect("[ESC] Exit", window_width - 100, status_y, 200, 14,
+                            Colors::DarkGray, kFontPath);
 }
 
 void StatusBar::SetStatePropsGetter(StatePropsGetter getter) {

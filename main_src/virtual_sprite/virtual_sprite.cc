@@ -1,14 +1,13 @@
 // Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "sdl_app.h"
+#include "virtual_sprite.h"
 #include "scene/agent_state_observer.h"
 #include "scene/galgame_mode.h"
 #include "scene/ui_renderer.h"
 #include "scene/layout_config.h"
 #include "media_engine/media_engine.h"
 #include "common/log_wrapper.h"
-#include "config/config.h"
 #include "agent_engine.h"
 
 #include <memory>
@@ -75,32 +74,51 @@ void VirtualSprite::Initialize() {
     UIRenderer::Instance().Initialize();
     HomeScreen::GetInstance().Initialize();
 
-    // Set state props getter (used by UIRenderer when in virtual human mode)
-    UIRenderer::Instance().SetStatePropsGetter([](prosophor::AgentRuntimeState state) {
+    // Status bar state color palette
+    constexpr StateColor kStatusIdle{100, 100, 100, 255};
+    constexpr StateColor kStatusThinking{65, 105, 225, 255};
+    constexpr StateColor kStatusExecuting{255, 165, 0, 255};
+    constexpr StateColor kStatusWaiting{255, 255, 0, 255};
+    constexpr StateColor kStatusError{255, 0, 0, 255};
+    constexpr StateColor kStatusComplete{0, 255, 0, 255};
+    constexpr StateColor kStatusDefault{128, 128, 128, 255};
+
+    UIRenderer::Instance().SetStatePropsGetter([](prosophor::AgentRuntimeState state) -> StateVisualProps {
         switch (state) {
             case prosophor::AgentRuntimeState::IDLE:
-                return prosophor::StateVisualProps{100, 100, 100, 255, "Idle"};
+                return MakeVisualProps(kStatusIdle, "Idle");
             case prosophor::AgentRuntimeState::BEGINNING:
-                return prosophor::StateVisualProps{65, 105, 225, 255, "Thinking"};
+                return MakeVisualProps(kStatusThinking, "Thinking");
             case prosophor::AgentRuntimeState::EXECUTING_TOOL:
-                return prosophor::StateVisualProps{255, 165, 0, 255, "Executing"};
+                return MakeVisualProps(kStatusExecuting, "Executing");
             case prosophor::AgentRuntimeState::WAITING_PERMISSION:
-                return prosophor::StateVisualProps{255, 255, 0, 255, "Waiting"};
+                return MakeVisualProps(kStatusWaiting, "Waiting");
             case prosophor::AgentRuntimeState::STATE_ERROR:
-                return prosophor::StateVisualProps{255, 0, 0, 255, "Error"};
+                return MakeVisualProps(kStatusError, "Error");
             case prosophor::AgentRuntimeState::COMPLETE:
-                return prosophor::StateVisualProps{0, 255, 0, 255, "Complete"};
+                return MakeVisualProps(kStatusComplete, "Complete");
             default:
-                return prosophor::StateVisualProps{128, 128, 128, 255, "Idle"};
+                return MakeVisualProps(kStatusDefault, "Idle");
         }
     });
 
-    // Home screen mode select callback
+    // Provide session data for UIRenderer rendering
+    UIRenderer::Instance().SetSnapshotGetter([]() {
+        return AgentEngine::GetInstance().GetFocusedSessionSnapshot();
+    });
+
+    // Route user input to the last active session
+    UIRenderer::Instance().SetOnMessageSubmit([](const std::string& message) {
+        auto snap = AgentEngine::GetInstance().GetFocusedSessionSnapshot();
+        if (snap) {
+            AgentEngine::GetInstance().SendUserMessage(snap->session_id, message);
+        }
+    });
+
     HomeScreen::GetInstance().SetOnModeSelect([this](UIMode mode) {
         SwitchMode(mode);
     });
 
-    // Register event handler for MediaCore events
     MediaCore::Instance().RegEventHandler([this](std::vector<EventType>& event_list) {
         for (const auto& event : event_list) {
             switch (event) {
@@ -129,7 +147,6 @@ void VirtualSprite::Initialize() {
         AgentStateVisualizer::GetInstance().Update(dt);   // default (single-role) instance
         AgentStateVisualizer::UpdateAll(dt);              // all per-role instances
         GalgameScene::Instance().Update(dt);
-        DispatchSessionStates();
     });
 
     MediaCore::Instance().RegRenderHandler([this]() {
@@ -138,10 +155,15 @@ void VirtualSprite::Initialize() {
                 HomeScreen::GetInstance().Render();
                 break;
             case UIMode::VIRTUAL_HUMAN:
-                RenderVirtualHuman();
+                AgentStateVisualizer::GetInstance().Render();
+                AgentStateVisualizer::RenderAll();
+                UIRenderer::Instance().Render();
+                UIRenderer::Instance().RenderImGui();
                 break;
             case UIMode::GALGAME:
-                RenderGalgame();
+                GalgameScene::Instance().Render();
+                UIRenderer::Instance().Render();
+                UIRenderer::Instance().RenderImGui();
                 break;
             case UIMode::TERMINAL:
                 break;
@@ -172,55 +194,6 @@ void VirtualSprite::Stop() {
     MediaCore::Instance().Quit();
 }
 
-void VirtualSprite::RegisterAgentOutputCallback() {
-    AgentEngine::GetInstance().SetOutputCallback(
-        [this](const std::string& session_id, const std::string& role_id,
-               AgentRuntimeState state, const std::string& state_msg,
-               const std::optional<MessageSchema>& reply) {
-            std::lock_guard<std::mutex> lock(session_states_mutex_);
-            auto& s = session_states_[session_id];
-            s.role_id     = role_id;
-            s.agent_state = state;
-            s.pending.push({session_id, role_id, state, state_msg, reply});
-        });
-}
-
-void VirtualSprite::DispatchSessionStates() {
-    std::vector<SessionEvent> to_dispatch;
-    {
-        std::lock_guard<std::mutex> lock(session_states_mutex_);
-        for (auto& [sid, s] : session_states_) {
-            while (!s.pending.empty()) {
-                to_dispatch.push_back(std::move(s.pending.front()));
-                s.pending.pop();
-            }
-        }
-    }
-
-    for (const auto& ev : to_dispatch) {
-        // Route to the per-role visualizer — each character animates independently
-        auto& viz = AgentStateVisualizer::GetOrCreate(ev.role_id);
-        viz.SetAgentState(ev.state, ev.state_msg);
-
-        switch (ev.state) {
-            case AgentRuntimeState::BEGINNING:
-                UIRenderer::Instance().StartAssistantMessage();
-                break;
-            case AgentRuntimeState::STREAM_CONTENT_TYPING:
-                if (ev.reply) UIRenderer::Instance().UpdateLastMessage(ev.reply->text());
-                break;
-            default:
-                break;
-        }
-    }
-}
-
-void VirtualSprite::RegisterMessageSubmitCallback() {
-    UIRenderer::Instance().SetOnMessageSubmit([](const std::string& message) {
-        AgentEngine::GetInstance().ProcessUserMessage(message);
-    });
-}
-
 void VirtualSprite::SwitchMode(UIMode mode) {
     if (current_scene_ == mode) return;
 
@@ -234,9 +207,6 @@ void VirtualSprite::SwitchMode(UIMode mode) {
 
         case UIMode::VIRTUAL_HUMAN: {
             saved_callback_ = input_callback_;
-            RegisterAgentOutputCallback();
-            RegisterMessageSubmitCallback();
-
             UIRenderer::Instance().SetVisible(true);
             AgentStateVisualizer::GetInstance().SetVisible(true);
             break;
@@ -244,8 +214,6 @@ void VirtualSprite::SwitchMode(UIMode mode) {
 
         case UIMode::GALGAME: {
             saved_callback_ = input_callback_;
-            RegisterAgentOutputCallback();
-            RegisterMessageSubmitCallback();
             break;
         }
 
@@ -253,28 +221,6 @@ void VirtualSprite::SwitchMode(UIMode mode) {
             saved_callback_ = input_callback_;
             break;
     }
-}
-
-void VirtualSprite::RenderHome() {
-    HomeScreen::GetInstance().Render();
-}
-
-void VirtualSprite::RenderVirtualHuman() {
-    AgentStateVisualizer::GetInstance().Render();  // default single-role
-    AgentStateVisualizer::RenderAll();             // all per-role instances
-    UIRenderer::Instance().Render();
-    UIRenderer::Instance().RenderImGui();
-}
-
-void VirtualSprite::RenderGalgame() {
-    GalgameScene::Instance().Render();
-    UIRenderer::Instance().Render();
-    UIRenderer::Instance().RenderImGui();
-}
-
-void VirtualSprite::RenderTerminal() {
-    UIRenderer::Instance().Render();
-    UIRenderer::Instance().RenderImGui();
 }
 
 }  // namespace prosophor

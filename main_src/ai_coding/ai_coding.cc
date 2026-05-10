@@ -105,7 +105,7 @@ void AiCoding::RegisterCallbacks() {
 void AiCoding::HandleInputEvent(const InputEvent& event) {
     if (event.IsInterrupt()) {
         interrupted_ = true;
-        AgentEngine::GetInstance().StopCurrentSession();
+        AgentEngine::GetInstance().StopSession(session_id_);
         return;
     }
 
@@ -117,12 +117,12 @@ void AiCoding::HandleInputEvent(const InputEvent& event) {
             interrupted_ = true;
             return;
         }
-        engine.ProcessUserMessage(event.GetCommandText());
+        engine.SendUserMessage(session_id_, event.GetCommandText());
     } else if (event.IsText()) {
         if (platform::kIsWindows) {
             std::cout << "> " << event.GetText() << std::endl;
         }
-        engine.ProcessUserMessage(event.GetText());
+        engine.SendUserMessage(session_id_, event.GetText());
     }
 }
 
@@ -132,6 +132,9 @@ int AiCoding::Run() {
 
     PrintBanner(PROSOPHOR_VERSION);
     RegisterCallbacks();
+
+    session_id_ = AgentEngine::GetInstance().CreateSession(
+        AgentEngine::GetInstance().GetConfig().default_role, "TUI session");
 
     InputHandler input_handler;
 

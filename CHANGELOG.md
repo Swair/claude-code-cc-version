@@ -1,5 +1,69 @@
 # Changelog
 
+## [2026-05-10] - 输入系统重组与引擎 API 简化
+
+### AgentSession 封装与数据隐藏
+- `AgentSession` 从 struct 重构为 class，所有字段私有化，通过 getter/setter 访问
+- 新增 `agent_session.cc` 实现文件（208 行），接管构造函数、move 语义、`SetOutput()`、快照生成
+- `SetOutput()` 从 `AgentCore` 静态方法内聚到 `AgentSession` 成员方法，输出回调、流式文本累积统一由 session 管理
+- `AgentCore` 移除 `SetSessionOutput()` 静态方法，所有调用点改为 `session.SetOutput()`
+- `stop_requested` 原子标志封装为 `RequestStop()` / `IsStopRequested()` / `ClearStopRequested()` 方法
+
+### AgentEngine API 简化
+- 移除 `focused_session_id_` 概念，不再持有 "当前会话" 状态
+- TUI (`AiCoding`) 改为在 `Run()` 时 `CreateSession()` 并自行持有 `session_id_`
+- 旧 API `ProcessUserMessage(text)` / `StopCurrentSession()` 替换为 `SendUserMessage(session_id, text)` / `StopSession(session_id)`
+- 新增 `GetFocusedSessionSnapshot()` 返回 `std::optional<RenderSnapshot>`，UI 每帧无锁取一次渲染快照
+- `SwitchRole` 签名改为 `(session_id, new_role_id)`，会话可原地切换角色
+
+### 连续输入合并（pending buffer）
+- `AgentSessionManager::SendToSessionAsync` 引入生产-消费模式：所有消息追加到 `pending_inputs_` buffer
+- 单 task 内循环 swap 消费，buffer 空即结束，连续输入合并为一次 LLM 调用
+- 新增 `StartChain()` 方法管理单线程内的积压处理循环
+- 输入流时序：`输入 A → 提交 StartChain → 输入 B/C 追加 → Loop(A) → drain [B,C] 合并 → Loop("B\n\nC")`
+
+### 主动触发管理迁移
+- `ActiveTriggerManager` 初始化从 `AgentSessionManager` 迁移到 `AgentEngine::InitializeComponents()`
+- `AgentSessionManager` 移除 `ActiveTriggerManager` 和 `ActiveInteractionManager` 依赖
+
+### 删除 ActiveInteractionManager
+- 移除 `active_interaction_manager.cc/h`（共 392 行）
+- 主动交互逻辑（基于会话事件的 LLM 回调）不再维护
+
+### SDL/UI 渲染重构
+- `VirtualSprite` 移除 `RegisterAgentOutputCallback()` / `DispatchSessionStates()` / `RegisterMessageSubmitCallback()`，状态路由改为快照驱动
+- 静态方法 `RenderHome` / `RenderVirtualHuman` / `RenderGalgame` / `RenderTerminal` 内联到 `Render()` switch 分支，不再作为独立方法
+- 移除 `session_states_` 队列和 `session_states_mutex_` 线程安全队列（由 RenderSnapshot 替代）
+- `UIRenderer` 精简：移除 `SendToChatPanel / StartAssistantMessage / UpdateLastMessage / SubmitUserMessage / ClearHistory / SetAgentState` 等 7 个方法
+- 新增 `SetSnapshotGetter()`，渲染器在 `RenderImGui()` 时通过回调取最新快照，不再持有状态副本
+- `StatusBar` 从 `Drawer` 点阵绘制改为 `MediaUtil::DrawTextRect` 字体渲染，移除 `Drawer` 依赖
+- 新增 `StateColor` 结构体和 `MakeVisualProps()` 工具函数，状态颜色定义集中到各自的 cpp 文件
+
+### 角色状态可视化增强
+- `agent_state_observer.cc` 新增 `GetStateVisualProps()` 本地函数，细化 13 种 AgentRuntimeState → 视觉属性映射（含 scarf/aura 颜色）
+- 新增 streaming/deep thinking 状态颜色支持
+
+### 未使用方法清理
+- 移除 `galgame_mode.cc` 的 `ClearDialogue()` / `SetSpeakerColor()`
+- 移除 `home_screen.h` 的 `DrawTitle()` / `DrawModeButtons()` / `DrawFooter()` 私有方法
+- 移除 `banner.cc` 的 `PrintHelp()` 方法（`/help` 命令由 CommandRegistry 处理）
+- 移除 `character_state_observer.cc` 中未使用的 `MapToCharacterState` 调用
+
+### 其他
+- `agent_types.h` 新增 `RenderSnapshot` 快照结构体（含 session_id / role_id / state / messages / streaming_text / streaming_thinking）
+- `agent_core.h` 移除已废弃的静态方法声明
+- `media_engine/CMakeLists.txt` 新增 ZLIB 链接依赖
+- `layout_config.h` 新增办公区地砖尺寸常量和区域计算方法
+- README.md 更新「输入模型与中断策略」章节，文档化 pending buffer 模式
+
+### 文件统计
+- 变更文件：31 个
+- 新增：+871 行
+- 删除：-1,303 行
+- 净变化：-432 行（持续精简）
+
+---
+
 ## [2026-05-07] - 会话系统重构与多角色渲染
 
 ### 引擎多会话 API

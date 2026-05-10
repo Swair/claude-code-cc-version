@@ -25,10 +25,6 @@ public:
 
     /// 对话管理
     void AddDialogue(const std::string& speaker, const std::string& text);
-    void ClearDialogue();
-
-    /// 设置对话颜色
-    void SetSpeakerColor(const std::string& speaker, uint8_t r, uint8_t g, uint8_t b);
 
 private:
     GalgameScene() = default;

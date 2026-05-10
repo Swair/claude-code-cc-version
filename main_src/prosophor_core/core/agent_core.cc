@@ -49,31 +49,6 @@ static std::string TruncateToolResult(const std::string& result,
     return truncated;
 }
 
-/// Set session output (state + state_message + optional reply message)
-/// Calls session output callback to notify UI
-void AgentCore::SetSessionOutput(AgentSession& session, AgentRuntimeState state,
-                                  const std::string& state_msg,
-                                  const std::optional<MessageSchema>& reply) {
-    session.state = state;
-    session.state_message = state_msg;
-
-    // Add message to history if provided (skip streaming intermediate states)
-    if (reply && (
-        state == AgentRuntimeState::STREAM_MODE_COMPLETE ||
-        state == AgentRuntimeState::COMPLETE ||
-        state == AgentRuntimeState::TOOL_USE ||
-        state == AgentRuntimeState::STATE_ERROR)) {
-        session.messages.push_back(*reply);
-    }
-    
-    // Call session output callback if set
-    if (session.output_callback) {
-        session.output_callback(session.session_id, session.role_id, state, state_msg, reply);
-    } else {
-        LOG_DEBUG("[SetSessionOutput] output_callback is NOT set!");
-    }
-}
-
 /// Execute tool calls and build messages - shared by CloseLoop and CloseLoopStream
 bool AgentCore::ExecuteToolCalls(const std::vector<ToolUseSchema>& tool_calls,
                                   AgentSession& session,
@@ -92,40 +67,34 @@ bool AgentCore::ExecuteToolCalls(const std::vector<ToolUseSchema>& tool_calls,
     bool has_tool_error = false;
 
     for (const auto& tc : tool_calls) {
-        // Check for interrupt during tool execution
-        if (session.stop_requested) {
-            SetSessionOutput(session, AgentRuntimeState::STATE_ERROR, "Interrupted by user");
-            throw std::runtime_error("Interrupted by user");
-        }
-
         // Add tool call to assistant message
         assistant_msg.AddToolUseContent(tc.id, tc.name, tc.arguments);
-        SetSessionOutput(session, AgentRuntimeState::EXECUTING_TOOL, std::string("Tool using: ") + tc.name + ", args: " + tc.arguments.dump());
+        session.SetOutput(AgentRuntimeState::EXECUTING_TOOL, std::string("Tool using: ") + tc.name + ", args: " + tc.arguments.dump());
         try {
-            auto result = session.tool_executor(tc.name, tc.arguments);
+            auto result = session.tool_executor_(tc.name, tc.arguments);
             // Only truncate successful results, keep error output intact
             result = TruncateToolResult(result, kToolResultMaxChars, kToolResultKeepLines);
-            SetSessionOutput(session, AgentRuntimeState::EXECUTING_TOOL, std::string("Tool using: ") + tc.name + ", result: " + result);
+            session.SetOutput(AgentRuntimeState::EXECUTING_TOOL, std::string("Tool using: ") + tc.name + ", result: " + result);
             results_msg.AddToolResultContent(tc.id, result);
         } catch (const std::exception& e) {
             // Tool execution failed - DON'T truncate error message
             // Full error context is critical for LLM to diagnose and fix the issue
             has_tool_error = true;
             std::string error_result = e.what();
-            SetSessionOutput(session, AgentRuntimeState::STATE_ERROR, std::string("Tool using: ") + tc.name + ", error_result: " + error_result);
+            session.SetOutput(AgentRuntimeState::STATE_ERROR, std::string("Tool using: ") + tc.name + ", error_result: " + error_result);
             results_msg.AddToolResultContent(tc.id, error_result);
         }
     }
 
     // Set EXECUTING_TOOL state and add messages to history
-    SetSessionOutput(session, AgentRuntimeState::TOOL_USE, "", assistant_msg);
-    SetSessionOutput(session, AgentRuntimeState::TOOL_USE, "", results_msg);
+    session.SetOutput(AgentRuntimeState::TOOL_USE, "", assistant_msg);
+    session.SetOutput(AgentRuntimeState::TOOL_USE, "", results_msg);
 
     iterations++;
 
     // If tool had errors, LLM will see the error and can decide what to do next
     if (has_tool_error) {
-        SetSessionOutput(session, AgentRuntimeState::STATE_ERROR, "Tool execution had errors, continuing to let LLM handle");
+        session.SetOutput(AgentRuntimeState::STATE_ERROR, "Tool execution had errors, continuing to let LLM handle");
     }
 
     // Clear accumulated text after tool execution
@@ -141,7 +110,7 @@ std::string AgentCore::ProcessFileRefs(const std::string& message, const AgentSe
         return processed_message;
     }
 
-    auto file_refs = ReferenceParser::ParseFileRefs(message, session.working_directory);
+    auto file_refs = ReferenceParser::ParseFileRefs(message, session.GetWorkingDirectory());
 
     // Load file contents
     for (auto& ref : file_refs) {
@@ -161,7 +130,7 @@ std::string AgentCore::ProcessFileRefs(const std::string& message, const AgentSe
 void AgentCore::MaybeCompact(AgentSession& session) {
     auto& compact_service = CompactService::GetInstance();
 
-    if (!compact_service.NeedsCompaction(session.messages)) {
+    if (!compact_service.NeedsCompaction(session.GetMessages())) {
         return;
     }
 
@@ -169,28 +138,22 @@ void AgentCore::MaybeCompact(AgentSession& session) {
 
     auto llm_callback = [&session](const std::string& prompt) -> std::string {
         ChatRequest req;
-        if (session.role) {
-            req.model = session.role->model;
-            req.temperature = session.role->temperature;
+        if (session.GetRole()) {
+            req.model = session.GetRole()->model;
+            req.temperature = session.GetRole()->temperature;
             req.max_tokens = 4096;
         }
-        if (!session.base_url.empty()) {
-            req.base_url = session.base_url;
+        if (!session.GetBaseUrl().empty()) {
+            req.base_url = session.GetBaseUrl();
         }
-        req.api_key = session.api_key;
-        req.timeout = session.timeout;
+        req.api_key = session.GetApiKey();
+        req.timeout = session.GetTimeout();
         req.AddUserMessage(prompt);
-        return session.provider->Chat(req).content_text;
+        return session.GetProvider()->Chat(req).content_text;
     };
 
-    auto compact_result = compact_service.Compact(session.messages, llm_callback);
-    session.messages = compact_result.kept_messages;
-
-    // Add summary to system prompt
-    if (!compact_result.summary.empty()) {
-        session.system_prompt.clear();
-        session.system_prompt.push_back({"text", compact_result.summary, false});
-    }
+    auto compact_result = compact_service.Compact(session.GetMessages(), llm_callback);
+    session.CompactHistory(compact_result.kept_messages, compact_result.summary);
 
     LOG_INFO("Compaction complete: removed {} messages, saved ~{} tokens",
              compact_result.messages_removed, compact_result.tokens_saved);
@@ -199,49 +162,34 @@ void AgentCore::MaybeCompact(AgentSession& session) {
 ChatRequest AgentCore::BuildRequest(const AgentSession& session) {
     ChatRequest req;
 
-    // session.role 由 session_manager 在创建/切换时保证非空
-    if (!session.role) {
-        LOG_FATAL("session.role is null");
-        throw std::runtime_error("session.role must not be null");
-    }
-    if (session.base_url.empty()) {
-        LOG_FATAL("session.base_url is empty for session {} (role: {})",
-                  session.session_id, session.role_id);
-        throw std::runtime_error("session.base_url must not be empty");
-    }
-    bool is_local = session.base_url.find("localhost") != std::string::npos
-        || session.base_url.find("127.0.0.1") != std::string::npos;
-    if (session.api_key.empty() && !is_local) {
-        LOG_FATAL("session.api_key is empty for session {} (role: {}, provider: '{}')",
-                  session.session_id, session.role_id,
-                  session.role ? session.role->provider_prot : "N/A");
-        throw std::runtime_error(
-            "API key is empty. Please check your provider config in settings.json "
-            "(api_key field) or set the corresponding environment variable.");
-    }
-    if (session.timeout <= 0) {
-        LOG_WARN("session.timeout is invalid ({}), using default 60s", session.timeout);
+    if (!session.GetRole()) { LOG_FATAL("session.GetRole() is null"); abort(); }
+    if (session.GetBaseUrl().empty()) { LOG_FATAL("session.GetBaseUrl() is empty"); abort(); }
+    bool _local = session.GetBaseUrl().find("localhost") != std::string::npos
+        || session.GetBaseUrl().find("127.0.0.1") != std::string::npos;
+    if (!_local && session.GetApiKey().empty()) { LOG_FATAL("session.GetApiKey() is empty"); abort(); }
+    if (session.GetTimeout() <= 0) {
+        LOG_WARN("session.GetTimeout() is invalid ({}), using default 60s", session.GetTimeout());
         req.timeout = 60;
     } else {
-        req.timeout = session.timeout;
+        req.timeout = session.GetTimeout();
     }
-    req.model = session.role->model;
-    req.temperature = session.role->temperature;
-    req.max_tokens = session.role->max_tokens;
-    req.thinking = session.role->thinking;
-    req.base_url = session.base_url;
-    req.api_key = session.api_key;
+    req.model = session.GetRole()->model;
+    req.temperature = session.GetRole()->temperature;
+    req.max_tokens = session.GetRole()->max_tokens;
+    req.thinking = session.GetRole()->thinking;
+    req.base_url = session.GetBaseUrl();
+    req.api_key = session.GetApiKey();
 
-    req.messages = session.messages;
-    req.system = session.system_prompt;
+    req.messages = session.GetMessages();
+    req.system = session.GetSystemPrompt();
     // 根据 role.tools 是否为空来判断是否发送工具（tools_white_list 字段配置了才发送）
-    req.tools = session.use_tools && session.role && !session.role->tools.empty()
-                ? session.role->tools : std::vector<ToolsSchema>{};
-    req.tool_choice_auto = session.use_tools && session.role && !session.role->tools.empty();
+    req.tools = session.GetUseTools() && session.GetRole() && !session.GetRole()->tools.empty()
+                ? session.GetRole()->tools : std::vector<ToolsSchema>{};
+    req.tool_choice_auto = session.GetUseTools() && session.GetRole() && !session.GetRole()->tools.empty();
 
     LOG_DEBUG("BuildRequest: use_tools={}, role->tools.size()={}, req.tools.size()={}",
-             session.use_tools,
-             session.role ? session.role->tools.size() : 0,
+             session.GetUseTools(),
+             session.GetRole() ? session.GetRole()->tools.size() : 0,
              req.tools.size());
     LOG_DEBUG("BuildRequest: model='{}', base_url='{}', timeout={}s, api_key={}",
              req.model, req.base_url, req.timeout,
@@ -252,24 +200,24 @@ ChatRequest AgentCore::BuildRequest(const AgentSession& session) {
 }
 
 int AgentCore::GetMaxIterations(const AgentSession& session) {
-    return session.role ? session.role->max_iterations : 15;
+    return session.GetRole() ? session.GetRole()->max_iterations : 15;
 }
 
 void AgentCore::Loop(const std::string& message, AgentSession& session) {
     // Determine streaming mode from role configuration
-    bool streaming = session.role && session.role->enable_streaming;
+    bool streaming = session.GetRole() && session.GetRole()->enable_streaming;
     LOG_DEBUG("Processing message (streaming={})", streaming);
 
     // Set initial THINKING state
-    SetSessionOutput(session, AgentRuntimeState::BEGINNING, "Processing...");
+    session.SetOutput(AgentRuntimeState::BEGINNING, "Processing...");
 
     // Process message - resolve @file references
     std::string processed_message = ProcessFileRefs(message, session);
 
     // Add user message (with resolved references)
-    if (!processed_message.empty()) {
-        session.messages.emplace_back("user", processed_message);
-    }
+	if (!processed_message.empty()) {
+	    session.AddUserMessage(processed_message);
+	}
 
     // Check if compaction is needed
     MaybeCompact(session);
@@ -277,48 +225,55 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
     int iterations = 0;
     int max_iterations = GetMaxIterations(session);
 
-    while (iterations < max_iterations && !session.stop_requested) {
+    while (iterations < max_iterations) {
+        // 打断点：只在完整对话轮次之间检查，确保 messages 始终成对
+        if (session.IsStopRequested()) {
+            if (iterations == 0) {
+                session.CleanupInterruptedLoop();  // 尚未产生任何 assistant 回复，移除孤立的 user 消息
+            }
+            return;
+        }
         ChatRequest request = BuildRequest(session);
         request.stream = streaming;
 
         // Call LLM - streaming or non-streaming
         ChatResponse response;
         if (streaming) {
-            response = session.provider->ChatStream(
+            response = session.GetProvider()->ChatStream(
                 request, [&session](StreamEvent event, std::string content) {
                     switch (event) {
                         case StreamEvent::kThinkingStart:
-                            SetSessionOutput(session, AgentRuntimeState::STREAM_THINKING_START, "", std::nullopt);
+                            session.SetOutput(AgentRuntimeState::STREAM_THINKING_START, "", std::nullopt);
                             break;
                         case StreamEvent::kThinkingDelta: {
                             MessageSchema thinking_msg;
                             thinking_msg.role = "assistant";
                             thinking_msg.AddThinkingContent(content);
-                            SetSessionOutput(session, AgentRuntimeState::STREAM_THINKING, "", thinking_msg);
+                            session.SetOutput(AgentRuntimeState::STREAM_THINKING, "", thinking_msg);
                             break;
                         }
                         case StreamEvent::kThinkingEnd:
-                            SetSessionOutput(session, AgentRuntimeState::STREAM_THINKING_END, "", std::nullopt);
+                            session.SetOutput(AgentRuntimeState::STREAM_THINKING_END, "", std::nullopt);
                             break;
                         case StreamEvent::kContentStart:
-                            SetSessionOutput(session, AgentRuntimeState::STREAM_CONTENT_START, "", std::nullopt);
+                            session.SetOutput(AgentRuntimeState::STREAM_CONTENT_START, "", std::nullopt);
                             break;
                         case StreamEvent::kContentDelta: {
                             MessageSchema chunk_msg;
                             chunk_msg.role = "assistant";
                             chunk_msg.AddTextContent(content);
-                            SetSessionOutput(session, AgentRuntimeState::STREAM_CONTENT_TYPING, "", chunk_msg);
+                            session.SetOutput(AgentRuntimeState::STREAM_CONTENT_TYPING, "", chunk_msg);
                             break;
                         }
                         case StreamEvent::kContentEnd:
-                            SetSessionOutput(session, AgentRuntimeState::STREAM_CONTENT_END, "", std::nullopt);
+                            session.SetOutput(AgentRuntimeState::STREAM_CONTENT_END, "", std::nullopt);
                             break;
                         default:
                             break;
                     }
                 });
         } else {
-            response = session.provider->Chat(request);
+            response = session.GetProvider()->Chat(request);
         }
 
         // Record token usage for both streaming and non-streaming paths
@@ -332,7 +287,7 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
             MessageSchema error_msg;
             error_msg.role = "assistant";
             error_msg.AddTextContent("[API Error] " + response.error_msg);
-            SetSessionOutput(session, AgentRuntimeState::STATE_ERROR, response.error_msg, error_msg);
+            session.SetOutput(AgentRuntimeState::STATE_ERROR, response.error_msg, error_msg);
             return;
         }
 
@@ -355,30 +310,19 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
             assistant_msg.AddTextContent(response.content_text);
 
             if (streaming) {
-                SetSessionOutput(session, AgentRuntimeState::STREAM_MODE_COMPLETE, "Done.", assistant_msg);
+                session.SetOutput(AgentRuntimeState::STREAM_MODE_COMPLETE, "Done.", assistant_msg);
             } else {
-                SetSessionOutput(session, AgentRuntimeState::COMPLETE, "Done.", assistant_msg);
+                session.SetOutput(AgentRuntimeState::COMPLETE, "Done.", assistant_msg);
             }
             return;
         }
 
-        if (session.stop_requested) {
-            assistant_msg.role = "assistant";
-            assistant_msg.AddTextContent("[Agent turn stopped by user]");
-            SetSessionOutput(session, AgentRuntimeState::STATE_ERROR, "Stopped by user", assistant_msg);
-            return;
-        }
-
-        SetSessionOutput(session, AgentRuntimeState::STATE_ERROR, "Unexpected LLM response format");
+        session.SetOutput(AgentRuntimeState::STATE_ERROR, "Unexpected LLM response format");
         break;
     }
 
-    // Max iterations or stopped
-    std::string stop_text =
-        session.stop_requested ? "[Stopped]" : "[Max iterations reached]";
-    SetSessionOutput(session, AgentRuntimeState::STATE_ERROR, stop_text);
-    throw std::runtime_error("Failed to get valid response after " +
-                             std::to_string(max_iterations) + " iterations");
+    // Max iterations (unexpected — LLM didn't complete in time)
+    session.SetOutput(AgentRuntimeState::STATE_ERROR, "[Max iterations reached]");
 }
 
 }  // namespace prosophor

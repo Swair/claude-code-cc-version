@@ -14,6 +14,7 @@
 #include "config/config.h"
 #include "core/messages_schema.h"
 #include "core/agent_types.h"
+#include "components/ui_types.h"
 
 namespace prosophor {
 
@@ -26,13 +27,12 @@ class CommandRegistry;
 
 /// AgentEngine: core business logic shared by all frontends (Terminal, SDL, etc.)
 /// Manages sessions, tools, providers, and commands.
-/// Frontends register callbacks to receive output and handle permissions.
+/// Frontends register callbacks to receive output and handle permissions
+/// and hold session_ids to manage multi-character conversations.
 class AgentEngine : public Noncopyable {
  public:
     static AgentEngine& GetInstance();
 
-    /// Called by the frontend when an agent response state changes.
-    /// Now includes session_id and role_id so multi-character UIs can route correctly.
     using OutputCallback = std::function<void(
         const std::string& session_id,
         const std::string& role_id,
@@ -40,45 +40,39 @@ class AgentEngine : public Noncopyable {
         const std::string& state_msg,
         const std::optional<MessageSchema>& reply)>;
 
-    /// Called by the engine when a tool requires user permission.
-    /// Returns true to allow, false to deny.
     using PermissionCallback = std::function<bool(
         const std::string& tool_name,
         const nlohmann::json& input,
         const std::string& reason)>;
 
-    /// Register the output callback (replaces any previous registration).
     void SetOutputCallback(OutputCallback cb);
     void SetPermissionCallback(PermissionCallback cb);
 
-    // ── Multi-session API (server / multi-character) ──────────────────────
+    // ── Session API (session_id owned by caller) ────────────────────────────
     /// Create a new session for the given role; returns its session_id.
     std::string CreateSession(const std::string& role_id, const std::string& task_desc = "");
 
-    /// Send a message to a specific session (async).
-    void SendMessage(const std::string& session_id, const std::string& text);
+    /// Send a user message to a specific session (handles /slash commands internally).
+    void SendUserMessage(const std::string& session_id, const std::string& text);
 
     /// Stop a specific session.
     void StopSession(const std::string& session_id);
 
-    // ── Single-session convenience (TUI / SDL) ────────────────────────────
-    /// Send a message to the focused session (or handle as slash command).
-    void ProcessUserMessage(const std::string& text);
+    /// Switch an existing session to a different role (preserves history).
+    void SwitchRole(const std::string& session_id, const std::string& new_role_id);
 
-    /// Execute a slash command. Returns true if the command was handled.
-    bool HandleCommand(const std::string& line);
+    /// Get a snapshot of the focused (last active) session for UI rendering.
+    std::optional<RenderSnapshot> GetFocusedSessionSnapshot();
 
-    /// Switch the focused session to a different role.
-    void SwitchRole(const std::string& role_id);
+    // ── Commands ────────────────────────────────────────────────────────────
+    /// Execute a slash command in the context of the given session.
+    bool HandleCommand(const std::string& line, const std::string& session_id);
 
-    /// Stop the focused session.
-    void StopCurrentSession();
-
+    // ── Info ────────────────────────────────────────────────────────────────
     std::vector<std::string> ListRoles() const;
     std::vector<std::string> ListSessions() const;
 
     const ProsophorConfig& GetConfig() const { return config_; }
-    const std::string& GetCurrentSessionId() const { return focused_session_id_; }
 
  private:
     AgentEngine();
@@ -89,8 +83,6 @@ class AgentEngine : public Noncopyable {
     ProsophorConfig config_;
     AgentConfig agent_config_;
     std::string workspace_path_;
-    std::string focused_session_id_;   // focused session for TUI/SDL single-session convenience API
-    std::atomic<int64_t> last_interaction_time_{0};
 
     std::shared_ptr<MemoryManager> memory_manager_;
     ToolRegistry*        tool_registry_   = nullptr;
@@ -98,8 +90,6 @@ class AgentEngine : public Noncopyable {
     ProviderRouter*      provider_router_ = nullptr;
     CommandRegistry*     command_registry_ = nullptr;
 
-    OutputCallback     output_callback_;
-    PermissionCallback permission_callback_;
 };
 
 }  // namespace prosophor

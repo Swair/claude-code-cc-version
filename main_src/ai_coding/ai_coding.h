@@ -4,6 +4,7 @@
 #pragma once
 
 #include <atomic>
+#include <string>
 #include "common/noncopyable.h"
 #include "common/input_event.h"
 
@@ -25,6 +26,7 @@ class AiCoding : public Noncopyable {
     void RegisterCallbacks();
     void HandleInputEvent(const InputEvent& event);
 
+    std::string session_id_;
     std::atomic<bool> interrupted_{false};
 };
 

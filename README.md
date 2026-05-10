@@ -148,8 +148,31 @@ Prosophor 的架构建立在**引擎与表现层的清晰分离**之上。`proso
 **关键设计决策**：
 - **流式优先**：启用流式时，循环推送细粒度的流事件（`kThinkingStart/Delta/End`、`kContentStart/Delta/End`），实现实时 UI 渲染
 - **工具结果截断**：大工具输出智能截断，保留首尾行，中间显示 `[... N lines omitted]`
-- **随时停止**：`stop_requested` 原子标志允许立即中断并正确传播错误
 - **自动压缩**：当消息超出可配置阈值时，每次 LLM 调用前触发上下文压缩
+
+### 输入模型与中断策略
+
+连续输入走 **pending buffer 生产-消费模式**：所有消息追加到 buffer，单 task 内循环 swap 消费，buffer 空即结束：
+
+```
+输入 A → buffer=[A] → task_active=true → 提交 StartChain
+输入 B → buffer=[B] → task_active=true → 追加
+输入 C → buffer=[B,C] → task_active=true → 追加
+                           StartChain task: swap([A]) → 合 → Loop("A")
+                                            swap([B,C]) → 合 → Loop("B\n\nC")
+                                            buffer 空 → task_active=false
+```
+
+中断只通过 Ctrl+C `/stop` 触发，且只在**完整对话轮次边界**生效：
+
+```
+[User, Asst] ← 完整成对
+               ↓ 检查 IsStopRequested()
+               是 → 干净返回（messages 成对，cache prefix 可用）
+               否 → 下一轮
+```
+
+禁止中断点：流式推理中、工具执行中。保证 `messages_` 始终 `[User, Asst]` 成对，不产生孤立的 user 消息，不影响 prompt cache。
 
 ### 供应商系统与路由
 

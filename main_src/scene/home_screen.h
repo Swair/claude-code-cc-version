@@ -33,10 +33,6 @@ class HomeScreen : public Noncopyable {
  private:
     HomeScreen() = default;
 
-    void DrawTitle();
-    void DrawModeButtons();
-    void DrawFooter();
-
     ModeSelectCallback on_mode_select_;
     float animation_time_ = 0.0f;
 };

@@ -32,10 +32,10 @@ ConsolidationResult MemoryConsolidationService::ConsolidateSegmentAndSave(
     llm_callback_ = llm_callback;
 
     // Consolidate segment
-    auto result = ConsolidateSegment(session.messages, start_index, end_index);
+    auto result = ConsolidateSegment(session.GetMessages(), start_index, end_index);
 
     // Save to Role Memory if has result
-    if (!result.summary.empty() && session.role) {
+    if (!result.summary.empty() && session.GetRole()) {
         AppendToRoleMemory(session, result, "segments");
     }
 
@@ -130,33 +130,33 @@ ConsolidationResult MemoryConsolidationService::ConsolidateSessionExit(
 
     ConsolidationResult result;
 
-    if (session.messages.empty()) {
+    if (session.GetMessages().empty()) {
         LOG_DEBUG("Empty session, skipping exit consolidation");
         return result;
     }
 
-    LOG_INFO("Consolidating session exit: {} messages", session.messages.size());
+    LOG_INFO("Consolidating session exit: {} messages", session.GetMessages().size());
 
-    result.messages_processed = static_cast<int>(session.messages.size());
+    result.messages_processed = static_cast<int>(session.GetMessages().size());
 
     // Set callback temporarily for this call
     auto old_callback = llm_callback_;
     llm_callback_ = llm_callback;
 
     // Extract key decisions from entire session
-    result.decisions = ExtractKeyDecisions(session.messages);
+    result.decisions = ExtractKeyDecisions(session.GetMessages());
 
     // Generate session summary
     if (llm_callback_) {
         try {
-            std::string prompt = BuildSessionSummaryPrompt(session.messages);
+            std::string prompt = BuildSessionSummaryPrompt(session.GetMessages());
             result.summary = llm_callback_(prompt);
             LOG_INFO("Generated session exit summary");
         } catch (const std::exception& e) {
             LOG_ERROR("Failed to generate session exit summary: {}", e.what());
             std::ostringstream fallback;
-            fallback << "[Session " << session.session_id
-                     << " with " << session.messages.size() << " messages]";
+            fallback << "[Session " << session.GetSessionId()
+                     << " with " << session.GetMessages().size() << " messages]";
             result.summary = fallback.str();
         }
     }
@@ -166,7 +166,7 @@ ConsolidationResult MemoryConsolidationService::ConsolidateSessionExit(
 
     // Estimate tokens
     int total_chars = 0;
-    for (const auto& msg : session.messages) {
+    for (const auto& msg : session.GetMessages()) {
         for (const auto& block : msg.content) {
             if (block.type == "text" || block.type == "thinking") {
                 total_chars += block.text.size();
@@ -176,7 +176,7 @@ ConsolidationResult MemoryConsolidationService::ConsolidateSessionExit(
     result.tokens_estimated = total_chars / 4;
 
     // Save to Role Memory
-    if (session.role && !session.role->memory_dir.empty()) {
+    if (session.GetRole() && !session.GetRole()->memory_dir.empty()) {
         AppendToRoleMemory(session, result, "exit_summary");
     }
 
@@ -370,7 +370,7 @@ void MemoryConsolidationService::AppendToRoleMemory(
     const ConsolidationResult& result,
     const std::string& category) {
 
-    if (!session.role || session.role->memory_dir.empty()) {
+    if (!session.GetRole() || session.GetRole()->memory_dir.empty()) {
         LOG_WARN("No role memory directory available");
         return;
     }
@@ -379,7 +379,7 @@ void MemoryConsolidationService::AppendToRoleMemory(
     std::string timestamp_str = SystemClock::GetCurrentTimestamp();
 
     // Create category subdirectory
-    auto memory_dir = std::filesystem::path(session.role->memory_dir) / category;
+    auto memory_dir = std::filesystem::path(session.GetRole()->memory_dir) / category;
     std::filesystem::create_directories(memory_dir);
 
     // Build memory entry

@@ -163,6 +163,49 @@ void AgentStateVisualizer::DrawBlackboard() {
                                        12, 6, Color(255, 255, 255, 180));
 }
 
+// ── 状态→视觉属性映射 ──────────────────────────────────────────────
+// Character scarf / aura color palette
+namespace {
+    constexpr StateColor kCharIdle{128, 128, 128, 255};
+    constexpr StateColor kCharThinking{255, 200, 50, 255};
+    constexpr StateColor kCharToolUse{100, 200, 255, 255};
+    constexpr StateColor kCharWaiting{255, 160, 50, 255};
+    constexpr StateColor kCharError{255, 60, 60, 255};
+    constexpr StateColor kCharDone{80, 220, 120, 255};
+    constexpr StateColor kCharStreaming{50, 180, 255, 255};
+    constexpr StateColor kCharDeepThinking{180, 140, 255, 255};
+    constexpr StateColor kCharUnknown{128, 128, 128, 255};
+
+StateVisualProps GetStateVisualProps(AgentRuntimeState state) {
+    switch (state) {
+        case AgentRuntimeState::IDLE:
+            return MakeVisualProps(kCharIdle, "idle");
+        case AgentRuntimeState::BEGINNING:
+        case AgentRuntimeState::EXECUTING_TOOL:
+            return MakeVisualProps(kCharThinking, "thinking");
+        case AgentRuntimeState::TOOL_USE:
+            return MakeVisualProps(kCharToolUse, "using tool");
+        case AgentRuntimeState::WAITING_PERMISSION:
+            return MakeVisualProps(kCharWaiting, "waiting");
+        case AgentRuntimeState::STATE_ERROR:
+            return MakeVisualProps(kCharError, "error");
+        case AgentRuntimeState::COMPLETE:
+            return MakeVisualProps(kCharDone, "done");
+        case AgentRuntimeState::STREAM_CONTENT_TYPING:
+        case AgentRuntimeState::STREAM_CONTENT_START:
+        case AgentRuntimeState::STREAM_CONTENT_END:
+            return MakeVisualProps(kCharStreaming, "streaming");
+        case AgentRuntimeState::STREAM_THINKING_START:
+        case AgentRuntimeState::STREAM_THINKING:
+        case AgentRuntimeState::STREAM_THINKING_END:
+            return MakeVisualProps(kCharDeepThinking, "deep thinking");
+        case AgentRuntimeState::STREAM_MODE_COMPLETE:
+            return MakeVisualProps(kCharDone, "done");
+    }
+    return MakeVisualProps(kCharUnknown, "unknown");
+}
+}
+
 void AgentStateVisualizer::DrawVirtualHumanCharacter() {
     int win_w = MediaCore::Instance().GetWindowWidth();
     int win_h = MediaCore::Instance().GetWindowHeight();

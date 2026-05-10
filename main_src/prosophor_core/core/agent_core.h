@@ -38,12 +38,6 @@ class AgentCore {
     /// Get max iterations from role or default
     static int GetMaxIterations(const AgentSession& session);
 
-    /// Set session output (state + state_message + optional reply message)
-    /// Calls session output callback to notify UI
-    static void SetSessionOutput(AgentSession& session, AgentRuntimeState state,
-                                 const std::string& state_msg,
-                                 const std::optional<MessageSchema>& reply = std::nullopt);
-
     /// Execute tool calls and append to the given assistant message
     static bool ExecuteToolCalls(const std::vector<ToolUseSchema>& tool_calls,
                                  AgentSession& session,

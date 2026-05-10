@@ -14,8 +14,6 @@
 #include "common/file_utils.h"
 #include "managers/permission_manager.h"
 #include "core/memory_consolidation_service.h"
-#include "managers/active_interaction_manager.h"
-#include "managers/active_trigger_manager.h"
 #include "providers/provider_router.h"
 
 namespace prosophor {
@@ -32,109 +30,6 @@ void AgentSessionManager::Initialize(ToolExecutorCallback tool_executor) {
     // Load roles from ~/.prosophor/roles/
     auto roles_dir = prosophor::ProsophorConfig::BaseDir() / "roles";
     LoadRolesFromDirectory(roles_dir.string());
-
-    // 初始化主动交互管理器（基于会话事件的主动交互）
-    auto& active_interaction = ActiveInteractionManager::GetInstance();
-    active_interaction.Initialize(this);
-
-    // 设置 LLM 执行回调（用于后台执行提词）
-    active_interaction.SetLlmExecuteCallback(
-        [this](const std::string& session_id, const std::string& prompt) -> std::string {
-            auto* session = this->GetSession(session_id);
-            if (!session) {
-                LOG_ERROR("Session not found for active interaction: {}", session_id);
-                return "";
-            }
-
-            ChatRequest req;
-            if (session->role) {
-                req.model = session->role->model;
-                req.temperature = session->role->temperature;
-                req.max_tokens = 4096;
-            }
-            if (!session->base_url.empty()) {
-                req.base_url = session->base_url;
-            }
-
-            // 构建上下文：包含会话历史
-            std::ostringstream context;
-            context << "以下是当前会话的历史记录：\n\n";
-            for (size_t i = 0; i < session->messages.size() && i < 20; ++i) {
-                const auto& msg = session->messages[i];
-                context << (msg.role == "user" ? "用户" : "助手") << ": " << msg.text() << "\n";
-            }
-            context << "\n" << prompt;
-
-            req.AddUserMessage(context.str());
-            return session->provider->Chat(req).content_text;
-        });
-
-    LOG_DEBUG("ActiveInteractionManager initialized with LLM callback");
-
-    // 初始化主动触发管理器（基于插件的主动触发）
-    auto& active_trigger = ActiveTriggerManager::GetInstance();
-    active_trigger.Initialize("~/.prosophor/active");
-
-    // 设置 LLM 执行回调（用于插件触发后的 LLM 响应）
-    active_trigger.SetLlmExecuteCallback(
-        [this](const std::string& /*session_id*/, const std::string& trigger_reason,
-               const std::string& prompt_md) -> std::string {
-            // 从配置获取默认 provider 的 endpoint 信息
-            auto& config = ProsophorConfig::GetInstance();
-            auto& provider_router = ProviderRouter::GetInstance();
-            auto provider = provider_router.GetDefaultProvider();
-            if (!provider) {
-                LOG_ERROR("No default provider available for active trigger");
-                return "";
-            }
-
-            std::string default_provider_name = provider_router.GetProviderName("");
-            auto prov_it = config.providers.find(default_provider_name);
-            if (prov_it == config.providers.end()) {
-                LOG_ERROR("Default provider '{}' not found in config", default_provider_name);
-                return "";
-            }
-
-            const auto& agent_config = prov_it->second.GetDefaultAgent();
-            ChatRequest req;
-            req.model = agent_config.model;
-            req.temperature = agent_config.temperature;
-            req.max_tokens = agent_config.max_tokens;
-            req.base_url = prov_it->second.base_url;
-            req.api_key = prov_it->second.api_key;
-            req.timeout = prov_it->second.timeout;
-
-            std::string user_message = "触发事件：" + trigger_reason + "\n\n" + prompt_md;
-            req.AddUserMessage(user_message);
-
-            return provider->Chat(req).content_text;
-        });
-
-    // 设置用户交互回调（用于空闲检测）
-    // 返回 true=用户活跃，false=用户空闲
-    active_trigger.SetUserInteractionCallback([this]() -> bool {
-        // 检查最近 5 分钟内是否有用户交互
-        auto now_secs = std::chrono::duration_cast<std::chrono::seconds>(
-            std::chrono::steady_clock::now().time_since_epoch()).count();
-
-        std::lock_guard<std::mutex> lock(mutex_);
-        for (const auto& [id, session] : sessions_) {
-            auto last_active_secs = std::chrono::duration_cast<std::chrono::seconds>(
-                session->last_active.time_since_epoch()).count();
-            if (last_active_secs > now_secs - 300) {  // 5 分钟
-                return true;  // 用户活跃
-            }
-        }
-        return false;  // 用户空闲
-    });
-
-    // 设置会话管理器引用
-    active_trigger.SetSessionManager(this);
-
-    // 启动主动触发调度器
-    active_trigger.Start();
-
-    LOG_DEBUG("ActiveTriggerManager initialized and started");
 }
 
 void AgentSessionManager::SetToolExecutor(ToolExecutorCallback tool_executor) {
@@ -196,13 +91,13 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
     AgentRole& role = it->second;
     std::string session_id = GenerateSessionId(role_id);
 
-    AgentSession session(session_id, role_id, task_desc, &role);
-    session.auto_confirm_tools = role.auto_confirm_tools;
+    AgentSession session(session_id, task_desc, &role);
+    session.SetAutoConfirmTools(role.auto_confirm_tools);
     // Per-session tool executor: temporarily elevates permission when auto_confirm is set
     {
-        bool auto_confirm = session.auto_confirm_tools;
+        bool auto_confirm = session.GetAutoConfirmTools();
         ToolExecutorCallback base_executor = tool_executor_;
-        session.tool_executor = [auto_confirm, base_executor](
+        session.tool_executor_ = [auto_confirm, base_executor](
                 const std::string& tool_name, const nlohmann::json& args) -> std::string {
             if (auto_confirm) {
                 auto& perm = PermissionManager::GetInstance();
@@ -218,15 +113,15 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
     // Per-session output callback: set after map insert (see below)
 
     // Inject memory consolidation service (singleton instance)
-    session.consolidation_service = &MemoryConsolidationService::GetInstance();
+    session.SetConsolidationService(&MemoryConsolidationService::GetInstance());
 
     // 初始化 Session History 目录
     auto base_dir = prosophor::ProsophorConfig::BaseDir();
-    session.session_history_dir = (base_dir / "sessions" / session_id / "history").string();
-    std::filesystem::create_directories(session.session_history_dir);
+    session.SetSessionHistoryDir((base_dir / "sessions" / session_id / "history").string());
+    std::filesystem::create_directories(session.GetSessionHistoryDir());
 
     // 初始化工作目录（默认为当前工作目录）
-    session.working_directory = std::filesystem::current_path().string();
+    session.SetWorkingDirectory(std::filesystem::current_path().string());
 
     // 初始化 base_url/api_key/timeout（从 provider entry 中按 model 查找）
     {
@@ -239,9 +134,9 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
             int entry_timeout = 0;
             if (prov_it->second.FindEntryForModel(role.provider_prot, role.model,
                                                     entry_base_url, entry_api_key, entry_timeout)) {
-                session.base_url = entry_base_url;
-                session.api_key = entry_api_key;
-                session.timeout = entry_timeout;
+                session.SetBaseUrl(entry_base_url);
+                session.SetApiKey(entry_api_key);
+                session.SetTimeout(entry_timeout);
                 LOG_INFO("Found model-specific config: url='{}', api_key='{}...', timeout={}s",
                          entry_base_url,
                          entry_api_key.size() > 8 ? entry_api_key.substr(0, 8) : entry_api_key,
@@ -251,30 +146,30 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
                          role.model, role.provider_prot);
             }
             // Fallback to provider-level config if model-specific lookup fails
-            if (session.base_url.empty() && !prov_it->second.base_url.empty()) {
-                session.base_url = prov_it->second.base_url;
-                LOG_INFO("Fallback to provider-level base_url='{}'", session.base_url);
+            if (session.GetBaseUrl().empty() && !prov_it->second.base_url.empty()) {
+                session.SetBaseUrl(prov_it->second.base_url);
+                LOG_INFO("Fallback to provider-level base_url='{}'", session.GetBaseUrl());
             }
-            if (session.api_key.empty() && !prov_it->second.api_key.empty()) {
-                session.api_key = prov_it->second.api_key;
+            if (session.GetApiKey().empty() && !prov_it->second.api_key.empty()) {
+                session.SetApiKey(prov_it->second.api_key);
                 LOG_INFO("Fallback to provider-level api_key='{}...'",
-                         session.api_key.size() > 8 ? session.api_key.substr(0, 8) : session.api_key);
+                         session.GetApiKey().size() > 8 ? session.GetApiKey().substr(0, 8) : session.GetApiKey());
             }
-            if (session.timeout <= 0 && prov_it->second.timeout > 0) {
-                session.timeout = prov_it->second.timeout;
+            if (session.GetTimeout() <= 0 && prov_it->second.timeout > 0) {
+                session.SetTimeout(prov_it->second.timeout);
             }
         } else {
             LOG_ERROR("Provider '{}' not found in config for session '{}'",
                       role.provider_prot, session_id);
         }
         // Final validation
-        if (session.base_url.empty()) {
+        if (session.GetBaseUrl().empty()) {
             LOG_FATAL("Failed to set base_url for session '{}' (role: {}, provider: '{}')",
                       session_id, role_id, role.provider_prot);
         }
-        bool is_local = session.base_url.find("localhost") != std::string::npos
-                        || session.base_url.find("127.0.0.1") != std::string::npos;
-        if (session.api_key.empty() && !is_local) {
+        bool is_local = session.GetBaseUrl().find("localhost") != std::string::npos
+                        || session.GetBaseUrl().find("127.0.0.1") != std::string::npos;
+        if (session.GetApiKey().empty() && !is_local) {
             LOG_FATAL("Failed to set api_key for session '{}' (role: {}, provider: '{}'). "
                       "Please check your settings.json provider configuration.",
                       session_id, role_id, role.provider_prot);
@@ -282,26 +177,17 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
     }
 
     // 构建 system prompt
-    session.system_prompt = BuildSystemPrompt(session);
+    session.SetSystemPrompt(BuildSystemPrompt(session));
 
     sessions_[session_id] = std::make_unique<AgentSession>(std::move(session));
 
     // Set output_callback after map insert: raw pointer is now stable for the session's lifetime
-    {
-        AgentSession* raw = sessions_[session_id].get();
-        SessionOutputCallback global_cb = output_callback_;
-        raw->output_callback = [raw, global_cb](
-                const std::string& sid, const std::string& rid,
-                AgentRuntimeState state, const std::string& msg,
-                const std::optional<MessageSchema>& reply) {
-            if (global_cb) global_cb(sid, rid, state, msg, reply);
-        };
-    }
+    sessions_[session_id]->output_callback_ = output_callback_;
 
     LOG_DEBUG("Created session: {} for role: {} (task: {})",
              session_id, role_id, task_desc);
     LOG_DEBUG("  Role Memory: {}", role.memory_dir);
-    LOG_DEBUG("  Session History: {}", sessions_[session_id]->session_history_dir);
+    LOG_DEBUG("  Session History: {}", sessions_[session_id]->GetSessionHistoryDir());
 
     return session_id;
 }
@@ -313,16 +199,16 @@ std::string AgentSessionManager::SendToSession(const std::string& session_id,
         throw std::runtime_error("Session not found: " + session_id);
     }
 
-    session->last_active = SteadyClock::Now();
-    ActiveInteractionManager::GetInstance().OnUserMessage(session_id, message);
+    session->UpdateLastActive();
     {
-        std::lock_guard<std::mutex> lock(session->session_mutex);
+        auto lock = session->ScopedLock();
         AgentCore::Loop(message, *session);
     }
 
     // 返回最后一条消息（assistant 回复）
-    if (!session->messages.empty()) {
-        return session->messages.back().text();
+    const auto& msgs = session->GetMessages();
+    if (!msgs.empty()) {
+        return msgs.back().text();
     }
 
     return "";
@@ -330,10 +216,28 @@ std::string AgentSessionManager::SendToSession(const std::string& session_id,
 
 void AgentSessionManager::SendToSessionAsync(const std::string& session_id,
                                              const std::string& message) {
+    // pending buffer 模式 —— 连续输入合并为一次 LLM 调用
+    //
+    // 时序:
+    //   输入 A → 追加 → task_active=false → 提交 StartChain（只取 A，跑 Loop(A)）
+    //   输入 B → 追加 → task_active=true  → return
+    //   输入 C → 追加 → task_active=true  → return
+    //   Loop(A) 完成后 → ContinueChain → drain [B,C] 合并 → Loop("B\n\nC")
+    bool should_start;
+    {
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        pending_inputs_[session_id].push_back(message);
+        should_start = !task_active_[session_id];
+        task_active_[session_id] = true;
+    }
+    if (!should_start) return;
+
     auto session = GetSessionShared(session_id);
     if (!session) {
         LOG_ERROR("Session not found for async task: {}", session_id);
-        // 通过 output_callback 通知错误
+        std::lock_guard<std::mutex> lock(pending_mutex_);
+        pending_inputs_.erase(session_id);
+        task_active_.erase(session_id);
         if (output_callback_) {
             output_callback_(session_id, "", AgentRuntimeState::STATE_ERROR,
                             "Session not found: " + session_id, std::nullopt);
@@ -341,20 +245,35 @@ void AgentSessionManager::SendToSessionAsync(const std::string& session_id,
         return;
     }
 
-    session->last_active = SteadyClock::Now();
-    ActiveInteractionManager::GetInstance().OnUserMessage(session_id, message);
+    StartChain(session_id, std::move(session));
+}
 
-    thread_pool_.Submit([this, session, message]() {
-        std::lock_guard<std::mutex> lock(session->session_mutex);
-        try {
-            AgentCore::Loop(message, *session);
-        } catch (const std::exception& e) {
-            // 通过 output_callback 通知错误
-            if (output_callback_) {
-                output_callback_(session->session_id, session->role_id,
-                                AgentRuntimeState::STATE_ERROR, e.what(), std::nullopt);
+void AgentSessionManager::StartChain(const std::string& session_id,
+                                      std::shared_ptr<AgentSession> session) {
+    thread_pool_.Submit([this, session_id, session]() {
+        // 生产-消费循环：每次 swap 一批 → 持锁 Loop，中间释放锁
+        for (;;) {
+            std::vector<std::string> batch;
+            {
+                std::lock_guard<std::mutex> plock(pending_mutex_);
+                auto& buf = pending_inputs_[session_id];
+                if (buf.empty()) {
+                    task_active_[session_id] = false;
+                    break;
+                }
+                std::swap(batch, buf);  // O(1) 取出全部，不持锁迭代
             }
-            LOG_ERROR("SendToSessionAsync error for session {}: {}", session->session_id, e.what());
+            std::string merged;
+            for (auto& m : batch) {
+                if (!merged.empty()) merged += "\n\n";
+                merged += std::move(m);
+            }
+            session->UpdateLastActive();
+            {
+                auto lock = session->ScopedLock();
+                session->ClearStopRequested();
+                AgentCore::Loop(merged, *session);
+            }
         }
     });
 }
@@ -386,7 +305,7 @@ std::vector<AgentSession*> AgentSessionManager::GetSessionsByRole(const std::str
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<AgentSession*> result;
     for (auto& [id, session] : sessions_) {
-        if (session->role_id == role_id && session->is_active) {
+        if (session->GetRole()->id == role_id && session->IsActive()) {
             result.push_back(session.get());
         }
     }
@@ -397,7 +316,7 @@ std::vector<const AgentSession*> AgentSessionManager::GetSessionsByRole(const st
     std::lock_guard<std::mutex> lock(mutex_);
     std::vector<const AgentSession*> result;
     for (const auto& [id, session] : sessions_) {
-        if (session->role_id == role_id && session->is_active) {
+        if (session->GetRole()->id == role_id && session->IsActive()) {
             result.push_back(session.get());
         }
     }
@@ -410,7 +329,7 @@ std::vector<AgentSession*> AgentSessionManager::GetActiveSessions(int minutes) {
 
     std::vector<AgentSession*> result;
     for (auto& [id, session] : sessions_) {
-        if (session->is_active && (now - session->last_active) < threshold) {
+        if (session->IsActive() && (now - session->GetLastActive()) < threshold) {
             result.push_back(session.get());
         }
     }
@@ -422,42 +341,51 @@ void AgentSessionManager::CloseSession(const std::string& session_id) {
 
     auto it = sessions_.find(session_id);
     if (it != sessions_.end()) {
-        ActiveInteractionManager::GetInstance().CancelSessionTasks(session_id);
+        AgentSession& session = *it->second;
 
-        auto* consolidation_service = it->second->consolidation_service;
+        {   // session_mutex: 确保与 Loop 路径不并发读写 session 状态
+            auto session_lock = session.ScopedLock();
 
-        if (consolidation_service) {
-            auto llm_callback = [session = it->second.get()](const std::string& prompt) -> std::string {
-                ChatRequest req;
-                if (session->role) {
-                    req.model = session->role->model;
-                    req.temperature = session->role->temperature;
-                    req.max_tokens = 4096;
+            auto* consolidation_service = session.GetConsolidationService();
+
+            if (consolidation_service) {
+                auto llm_callback = [&session](const std::string& prompt) -> std::string {
+                    ChatRequest req;
+                    if (session.GetRole()) {
+                        req.model = session.GetRole()->model;
+                        req.temperature = session.GetRole()->temperature;
+                        req.max_tokens = 4096;
+                    }
+                    if (!session.GetBaseUrl().empty()) {
+                        req.base_url = session.GetBaseUrl();
+                    }
+                    req.AddUserMessage(prompt);
+                    return session.GetProvider()->Chat(req).content_text;
+                };
+
+                auto result = consolidation_service->ConsolidateSessionExit(session, llm_callback);
+
+                if (!result.summary.empty()) {
+                    LOG_DEBUG("Session exit consolidation completed for {}: {} decisions saved",
+                             session_id, result.decisions.size());
                 }
-                if (!session->base_url.empty()) {
-                    req.base_url = session->base_url;
-                }
-                req.AddUserMessage(prompt);
-                return session->provider->Chat(req).content_text;
-            };
-
-            auto result = consolidation_service->ConsolidateSessionExit(*it->second, llm_callback);
-
-            if (!result.summary.empty()) {
-                LOG_DEBUG("Session exit consolidation completed for {}: {} decisions saved",
-                         session_id, result.decisions.size());
             }
-        }
 
-        it->second->is_active = false;
+            session.SetActive(false);
+        }
         LOG_INFO("Closed session: {}", session_id);
     }
+
+    // 清理 pending buffer
+    std::lock_guard<std::mutex> plock(pending_mutex_);
+    pending_inputs_.erase(session_id);
+    task_active_.erase(session_id);
 }
 
 std::vector<std::string> AgentSessionManager::ListSessions() const {
     std::vector<std::string> session_ids;
     for (const auto& [id, session] : sessions_) {
-        if (session->is_active) {
+        if (session->IsActive()) {
             session_ids.push_back(id);
         }
     }
@@ -469,7 +397,7 @@ std::string AgentSessionManager::GetLastSessionId() const {
 
     std::string last_id;
     for (const auto& [id, session] : sessions_) {
-        if (session->is_active) {
+        if (session->IsActive()) {
             last_id = id;
         }
     }
@@ -484,7 +412,7 @@ std::string AgentSessionManager::GetOrCreateSession(const std::string& role_id,
     // 简单策略：复用最近的活跃会话
     // TODO: 可以用语义相似度判断是否相关
     if (!sessions.empty()) {
-        return sessions.back()->session_id;
+        return sessions.back()->GetSessionId();
     }
 
     // 没有活跃会话，创建新的
@@ -508,8 +436,8 @@ void AgentSessionManager::BroadcastToRole(
     std::vector<std::string> session_ids;
 
     for (auto* session : sessions) {
-        if (session->role_id == role_id) {
-            session_ids.push_back(session->session_id);
+        if (session->GetRole()->id == role_id) {
+            session_ids.push_back(session->GetSessionId());
         }
     }
 
@@ -532,43 +460,43 @@ void AgentSessionManager::SwitchRoleForSession(const std::string& session_id,
 
     AgentSession& session = *it->second;
 
-    session.role = &role_it->second;
-    session.role_id = new_role_id;
-    session.provider = ProviderRouter::GetInstance().GetProviderByName(session.role->provider_prot);
+    {   // session_mutex: 与 Loop 路径不并发读写 role/provider/base_url/system_prompt
+        auto session_lock = session.ScopedLock();
+        session.SetRole(&role_it->second);
+        session.SetProvider(ProviderRouter::GetInstance().GetProviderByName(session.GetRole()->provider_prot));
 
-    {
         auto& config = ProsophorConfig::GetInstance();
-        auto prov_it = config.providers.find(session.role->provider_prot);
+        auto prov_it = config.providers.find(session.GetRole()->provider_prot);
         if (prov_it != config.providers.end()) {
-            session.base_url = prov_it->second.base_url;
+            session.SetBaseUrl(prov_it->second.base_url);
         }
+
+        session.SetSystemPrompt(BuildSystemPrompt(session));
     }
 
-    session.system_prompt = BuildSystemPrompt(session);
-
     LOG_INFO("Switched session {} to role: {}", session_id, new_role_id);
-    LOG_INFO("  Role Memory (from new role): {}", session.role->memory_dir);
-    LOG_INFO("  Session History (unchanged): {}", session.session_history_dir);
+    LOG_INFO("  Role Memory (from new role): {}", session.GetRole()->memory_dir);
+    LOG_INFO("  Session History (unchanged): {}", session.GetSessionHistoryDir());
 }
 
 std::vector<SystemSchema> AgentSessionManager::BuildSystemPrompt(const AgentSession& session) {
     std::ostringstream prompt;
 
     // 1. Role Memory (长期记忆 - 习惯/偏好) - 从 AgentRole 封装方法加载
-    if (session.role) {
-        std::string memory_content = session.role->LoadMemoryContent();
+    if (session.GetRole()) {
+        std::string memory_content = session.GetRole()->LoadMemoryContent();
         if (!memory_content.empty()) {
             prompt << memory_content;
         }
     }
 
     // 2. Session History (项目上下文 - 决策/待办)
-    if (!session.session_history_dir.empty() &&
-        std::filesystem::exists(session.session_history_dir)) {
+    if (!session.GetSessionHistoryDir().empty() &&
+        std::filesystem::exists(session.GetSessionHistoryDir())) {
         prompt << "## 项目上下文\n\n";
 
         // 加载 Session History 文件
-        for (const auto& entry : std::filesystem::directory_iterator(session.session_history_dir)) {
+        for (const auto& entry : std::filesystem::directory_iterator(session.GetSessionHistoryDir())) {
             if (entry.is_regular_file() && entry.path().extension() == ".md") {
                 auto content = ReadFile(entry.path().string());
                 if (content.has_value()) {
@@ -580,8 +508,8 @@ std::vector<SystemSchema> AgentSessionManager::BuildSystemPrompt(const AgentSess
     }
 
     // 3. Role 基础 Prompt（System Prompt + Personality）
-    if (session.role) {
-        std::string role_prompt = session.role->BuildPrompt();
+    if (session.GetRole()) {
+        std::string role_prompt = session.GetRole()->BuildPrompt();
         if (!role_prompt.empty()) {
             prompt << role_prompt << "\n";
         }

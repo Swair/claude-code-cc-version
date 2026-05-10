@@ -13,6 +13,7 @@
 #include "managers/agent_session_manager.h"
 #include "managers/agent_role_loader.h"
 #include "managers/local_model_manager.h"
+#include "managers/active_trigger_manager.h"
 #include "command_registry.h"
 #include "tools/tool_registry.h"
 #include "providers/provider_router.h"
@@ -53,18 +54,6 @@ void AgentEngine::InitializeComponents() {
     tool_registry_ = &ToolRegistry::GetInstance();
     tool_registry_->SetWorkspace(workspace_path_);
 
-    // Permission callback: frontends override this via SetPermissionCallback().
-    // Default denies all to avoid silent approvals when no frontend is attached.
-    tool_registry_->SetPermissionConfirmCallback(
-        [this](const std::string& tool_name, const nlohmann::json& input,
-               const std::string& reason) -> bool {
-            if (permission_callback_) {
-                return permission_callback_(tool_name, input, reason);
-            }
-            LOG_WARN("No permission callback registered; denying tool '{}'", tool_name);
-            return false;
-        });
-
     session_manager_ = &AgentSessionManager::GetInstance();
 
     ToolExecutorCallback tool_executor =
@@ -73,17 +62,6 @@ void AgentEngine::InitializeComponents() {
         };
 
     session_manager_->Initialize(tool_executor);
-
-    // Route session output to the registered output callback.
-    // session_id and role_id are now passed through (no longer discarded).
-    session_manager_->SetOutputCallback(
-        [this](const std::string& session_id, const std::string& role_id,
-               AgentRuntimeState state, const std::string& state_msg,
-               const std::optional<MessageSchema>& reply) {
-            if (output_callback_) {
-                output_callback_(session_id, role_id, state, state_msg, reply);
-            }
-        });
 
     provider_router_ = &ProviderRouter::GetInstance();
     provider_router_->Initialize(config_);
@@ -96,20 +74,51 @@ void AgentEngine::InitializeComponents() {
     command_registry_ = &CommandRegistry::GetInstance();
     command_registry_->Initialize();
 
-    std::string default_role_id = config_.default_role;
-    if (!session_manager_->GetRole(default_role_id)) {
-        LOG_WARN("Default role '{}' not found, using first available role", default_role_id);
-        auto roles = session_manager_->ListRoles();
-        if (!roles.empty()) {
-            default_role_id = roles[0];
-        } else {
-            LOG_ERROR("No roles available, using hardcoded 'default'");
-            default_role_id = "default";
-        }
-    }
+    // ── 主动触发管理器 ──────────────────────────────────────────
+    auto& active_trigger = ActiveTriggerManager::GetInstance();
+    active_trigger.Initialize("~/.prosophor/active");
 
-    focused_session_id_ = session_manager_->CreateSession(default_role_id, "Default session");
-    LOG_DEBUG("AgentEngine initialized, session={} role={}", focused_session_id_, default_role_id);
+    active_trigger.SetLlmExecuteCallback(
+        [this](const std::string& /*session_id*/, const std::string& trigger_reason,
+               const std::string& prompt_md) -> std::string {
+            auto& config = ProsophorConfig::GetInstance();
+            auto provider = provider_router_->GetDefaultProvider();
+            if (!provider) {
+                LOG_ERROR("No default provider available for active trigger");
+                return "";
+            }
+
+            std::string default_provider_name = provider_router_->GetProviderName("");
+            auto prov_it = config.providers.find(default_provider_name);
+            if (prov_it == config.providers.end()) {
+                LOG_ERROR("Default provider '{}' not found in config", default_provider_name);
+                return "";
+            }
+
+            const auto& agent_config = prov_it->second.GetDefaultAgent();
+            ChatRequest req;
+            req.model = agent_config.model;
+            req.temperature = agent_config.temperature;
+            req.max_tokens = agent_config.max_tokens;
+            req.base_url = prov_it->second.base_url;
+            req.api_key = prov_it->second.api_key;
+            req.timeout = prov_it->second.timeout;
+
+            std::string user_message = "触发事件：" + trigger_reason + "\n\n" + prompt_md;
+            req.AddUserMessage(user_message);
+
+            return provider->Chat(req).content_text;
+        });
+
+    active_trigger.SetUserInteractionCallback([this]() -> bool {
+        return !session_manager_->GetActiveSessions(5).empty();
+    });
+
+    active_trigger.SetSessionManager(session_manager_);
+    active_trigger.Start();
+
+    LOG_DEBUG("ActiveTriggerManager initialized and started");
+    LOG_DEBUG("AgentEngine initialized");
 
     if (!config_.local_models.empty() && config_.local_models[0].auto_start) {
         auto& lm = config_.local_models[0];
@@ -122,27 +131,26 @@ void AgentEngine::InitializeComponents() {
 }
 
 void AgentEngine::SetOutputCallback(OutputCallback cb) {
-    output_callback_ = std::move(cb);
+    session_manager_->SetOutputCallback(std::move(cb));
 }
 
 void AgentEngine::SetPermissionCallback(PermissionCallback cb) {
-    permission_callback_ = std::move(cb);
+    tool_registry_->SetPermissionConfirmCallback(std::move(cb));
 }
 
-void AgentEngine::ProcessUserMessage(const std::string& text) {
+void AgentEngine::SendUserMessage(const std::string& session_id, const std::string& text) {
     if (!text.empty() && text[0] == '/') {
-        HandleCommand(text);
+        HandleCommand(text, session_id);
         return;
     }
     try {
-        last_interaction_time_ = std::time(nullptr);
-        session_manager_->SendToSessionAsync(focused_session_id_, text);
+        session_manager_->SendToSessionAsync(session_id, text);
     } catch (const std::exception& e) {
-        LOG_ERROR("ProcessUserMessage error: {}", e.what());
+        LOG_ERROR("SendUserMessage error (session={}): {}", session_id, e.what());
     }
 }
 
-bool AgentEngine::HandleCommand(const std::string& line) {
+bool AgentEngine::HandleCommand(const std::string& line, const std::string& session_id) {
     if (line.empty() || line[0] != '/') {
         return false;
     }
@@ -156,15 +164,15 @@ bool AgentEngine::HandleCommand(const std::string& line) {
     std::vector<std::string> cmd_args(args.begin() + 1, args.end());
 
     if (cmd_name == "role" && !cmd_args.empty()) {
-        SwitchRole(cmd_args[0]);
+        SwitchRole(session_id, cmd_args[0]);
         return true;
     }
 
     CommandContext ctx;
     ctx.workspace   = workspace_path_;
-    ctx.session_id  = focused_session_id_;
+    ctx.session_id  = session_id;
     ctx.user_data   = this;
-    ctx.agent_session = session_manager_->GetSession(focused_session_id_);
+    ctx.agent_session = session_manager_->GetSession(session_id);
 
     auto result = CommandRegistry::GetInstance().ExecuteCommand(cmd_name, cmd_args, ctx);
     if (!result.output.empty()) {
@@ -175,46 +183,30 @@ bool AgentEngine::HandleCommand(const std::string& line) {
     return true;
 }
 
-void AgentEngine::SwitchRole(const std::string& role_id) {
-    const AgentRole* role = session_manager_->GetRole(role_id);
-    if (!role) {
-        std::cout << "Role not found: " << role_id << "\nAvailable: ";
-        for (const auto& r : session_manager_->ListRoles()) {
-            std::cout << r << " ";
-        }
-        std::cout << "\n";
-        return;
-    }
-    focused_session_id_ = session_manager_->CreateSession(role->id, "Switched to " + role->name);
-    LOG_INFO("Switched to role: {} (session: {})", role->id, focused_session_id_);
-}
-
-void AgentEngine::StopCurrentSession() {
-    auto* session = session_manager_->GetSession(focused_session_id_);
-    if (session) {
-        session->stop_requested = true;
-    }
-}
-
 std::string AgentEngine::CreateSession(const std::string& role_id,
                                         const std::string& task_desc) {
     return session_manager_->CreateSession(role_id, task_desc);
 }
 
-void AgentEngine::SendMessage(const std::string& session_id, const std::string& text) {
-    try {
-        last_interaction_time_ = std::time(nullptr);
-        session_manager_->SendToSessionAsync(session_id, text);
-    } catch (const std::exception& e) {
-        LOG_ERROR("SendMessage error (session={}): {}", session_id, e.what());
-    }
+std::optional<RenderSnapshot> AgentEngine::GetFocusedSessionSnapshot() {
+    auto session_id = session_manager_->GetLastSessionId();
+    if (session_id.empty()) return std::nullopt;
+
+    auto* session = session_manager_->GetSession(session_id);
+    if (!session) return std::nullopt;
+
+    return session->GetSnapshot();
 }
 
 void AgentEngine::StopSession(const std::string& session_id) {
     auto* session = session_manager_->GetSession(session_id);
     if (session) {
-        session->stop_requested = true;
+        session->RequestStop();
     }
+}
+
+void AgentEngine::SwitchRole(const std::string& session_id, const std::string& new_role_id) {
+    session_manager_->SwitchRoleForSession(session_id, new_role_id);
 }
 
 std::vector<std::string> AgentEngine::ListRoles() const {

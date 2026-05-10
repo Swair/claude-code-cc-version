@@ -1123,11 +1123,11 @@ CommandResult CommandRegistry::CmdResume(const CommandContext&, const std::vecto
 
     const auto* session = session_mgr.GetSession(session_id);
     if (session) {
-        oss << "Resumed session: " << session->session_id << "\n";
-        oss << "  Role: " << session->role_id << "\n";
-        oss << "  Messages: " << session->messages.size() << "\n";
-        if (!session->task_description.empty()) {
-            oss << "  Task: " << session->task_description << "\n";
+        oss << "Resumed session: " << session->GetSessionId() << "\n";
+        oss << "  Role: " << session->GetRole()->id << "\n";
+        oss << "  Messages: " << session->GetMessages().size() << "\n";
+        if (!session->GetTaskDescription().empty()) {
+            oss << "  Task: " << session->GetTaskDescription() << "\n";
         }
         return CommandResult::Ok(oss.str());
     }
@@ -1149,11 +1149,11 @@ CommandResult CommandRegistry::CmdSessions(const CommandContext&, const std::vec
         const auto* s = session_mgr.GetSession(sessions[i]);
         if (!s) continue;
         std::string marker = (i == 0) ? "* " : "  ";
-        oss << marker << s->session_id << "\n";
-        oss << "       Role: " << s->role_id << "\n";
-        oss << "       Messages: " << s->messages.size() << "\n";
-        if (!s->task_description.empty()) {
-            oss << "       Task: " << s->task_description << "\n";
+        oss << marker << s->GetSessionId() << "\n";
+        oss << "       Role: " << s->GetRole()->id << "\n";
+        oss << "       Messages: " << s->GetMessages().size() << "\n";
+        if (!s->GetTaskDescription().empty()) {
+            oss << "       Task: " << s->GetTaskDescription() << "\n";
         }
         oss << "\n";
     }
@@ -1909,18 +1909,18 @@ CommandResult CommandRegistry::CmdSummary(const CommandContext& ctx, const std::
     }
 
     oss << "=== Session Summary ===\n\n";
-    oss << "Session ID: " << session->session_id << "\n";
-    oss << "Role: " << session->role_id << "\n";
-    oss << "Task: " << session->task_description << "\n";
+    oss << "Session ID: " << session->GetSessionId() << "\n";
+    oss << "Role: " << session->GetRole()->id << "\n";
+    oss << "Task: " << session->GetTaskDescription() << "\n";
 
-    if (!session->working_directory.empty()) {
-        oss << "Working Directory: " << session->working_directory << "\n";
+    if (!session->GetWorkingDirectory().empty()) {
+        oss << "Working Directory: " << session->GetWorkingDirectory() << "\n";
     }
 
     // Count statistics
     int user_messages = 0, assistant_messages = 0, tool_calls = 0;
 
-    for (const auto& msg : session->messages) {
+    for (const auto& msg : session->GetMessages()) {
         if (msg.role == "user") {
             user_messages++;
         } else if (msg.role == "assistant") {
@@ -1948,11 +1948,11 @@ CommandResult CommandRegistry::CmdSummary(const CommandContext& ctx, const std::
     oss << "  Total tokens: " << total_stats.total_tokens << "\n";
     oss << "  Cost: $" << std::fixed << std::setprecision(4) << tracker.GetTotalEstimatedCost() << "\n";
 
-    if (detailed && !session->messages.empty()) {
+    if (detailed && !session->GetMessages().empty()) {
         oss << "\n=== Recent Messages ===\n\n";
-        int start = std::max(0, static_cast<int>(session->messages.size()) - 10);
-        for (size_t i = start; i < session->messages.size(); ++i) {
-            const auto& msg = session->messages[i];
+        int start = std::max(0, static_cast<int>(session->GetMessages().size()) - 10);
+        for (size_t i = start; i < session->GetMessages().size(); ++i) {
+            const auto& msg = session->GetMessages()[i];
             oss << "[" << msg.role << "]: ";
             if (!msg.content.empty() && msg.content[0].type == "text") {
                 std::string text = msg.content[0].text;
@@ -2003,12 +2003,12 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
         oss << "  Default role: " << config.default_role << "\n";
 
         // Show actual runtime config from AgentSession
-        if (ctx.agent_session && ctx.agent_session->role) {
-            oss << "\n  Current session role: " << ctx.agent_session->role->id << "\n";
-            oss << "    Provider: " << ctx.agent_session->role->provider_prot << "\n";
-            oss << "    Model: " << ctx.agent_session->role->model << "\n";
-            oss << "    Temperature: " << ctx.agent_session->role->temperature << "\n";
-            oss << "    Max tokens: " << ctx.agent_session->role->max_tokens << "\n";
+        if (ctx.agent_session && ctx.agent_session->GetRole()) {
+            oss << "\n  Current session role: " << ctx.agent_session->GetRole()->id << "\n";
+            oss << "    Provider: " << ctx.agent_session->GetRole()->provider_prot << "\n";
+            oss << "    Model: " << ctx.agent_session->GetRole()->model << "\n";
+            oss << "    Temperature: " << ctx.agent_session->GetRole()->temperature << "\n";
+            oss << "    Max tokens: " << ctx.agent_session->GetRole()->max_tokens << "\n";
         }
 
         // List available roles
@@ -2061,21 +2061,21 @@ CommandResult CommandRegistry::CmdModel(const CommandContext& ctx, const std::ve
 
         if (ctx.agent_session) {
             // Show session-level config
-            bool overridden = ctx.agent_session->mutable_role_.has_value();
+            bool overridden = ctx.agent_session->HasProviderOverride();
             if (overridden) {
-                oss << "  Session provider: " << ctx.agent_session->role->provider_prot
+                oss << "  Session provider: " << ctx.agent_session->GetRole()->provider_prot
                     << " (switched)" << "\n";
-                oss << "  Session model: " << ctx.agent_session->role->model
+                oss << "  Session model: " << ctx.agent_session->GetRole()->model
                     << " (switched)" << "\n";
-            } else if (ctx.agent_session->role) {
-                oss << "  Session provider: " << ctx.agent_session->role->provider_prot
+            } else if (ctx.agent_session->GetRole()) {
+                oss << "  Session provider: " << ctx.agent_session->GetRole()->provider_prot
                     << " (from role)" << "\n";
-                oss << "  Session model: " << ctx.agent_session->role->model
+                oss << "  Session model: " << ctx.agent_session->GetRole()->model
                     << " (from role)" << "\n";
             }
 
-            oss << "\n  Current session: " << ctx.agent_session->session_id << "\n";
-            oss << "  Role: " << ctx.agent_session->role_id << "\n";
+            oss << "\n  Current session: " << ctx.agent_session->GetSessionId() << "\n";
+            oss << "  Role: " << ctx.agent_session->GetRole()->id << "\n";
         }
 
         // Build indexed list of all provider/model combinations
@@ -2253,12 +2253,12 @@ CommandResult CommandRegistry::CmdHistory(const CommandContext&, const std::vect
     for (int i = 0; i < display_count; ++i) {
         const auto* session = session_mgr.GetSession(sessions[i]);
         if (!session) continue;
-        oss << "  " << (i + 1) << ". " << session->session_id;
-        oss << " (role: " << session->role_id << ")";
-        if (!session->task_description.empty()) {
-            oss << " - " << session->task_description;
+        oss << "  " << (i + 1) << ". " << session->GetSessionId();
+        oss << " (role: " << session->GetRole()->id << ")";
+        if (!session->GetTaskDescription().empty()) {
+            oss << " - " << session->GetTaskDescription();
         }
-        oss << " (" << session->messages.size() << " messages)\n";
+        oss << " (" << session->GetMessages().size() << " messages)\n";
     }
 
     return CommandResult::Ok(oss.str());

@@ -21,9 +21,6 @@ void CharacterStateObserver::OnAgentStateChanged(const std::string& session_id,
     LOG_DEBUG("Agent state changed: role={}, state={}, details={}",
               role_id, static_cast<int>(new_state), details);
 
-    // Map agent state to character state
-    CharacterState char_state = MapToCharacterState(new_state);
-
     // Get character and update
     auto& char_mgr = OfficeCharacterManager::Instance();
 
