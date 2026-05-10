@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "components/status_bar.h"
+#include "platform/platform.h"
 #include "common/log_wrapper.h"
 
 namespace prosophor {
@@ -50,23 +51,23 @@ void StatusBar::RenderContent(const std::string& status_text, AgentRuntimeState 
     }
 
     // 状态图标（用 Unicode 字符通过 SDL_ttf 渲染）
-    static const char* kFontPath = "C:/Windows/Fonts/msyh.ttc";
     float window_width = panel_->GetWidth();
     float icon_x = 20;
     MediaUtil::DrawTextRect(icon, icon_x, status_y, 100, 16,
-                            state_props.r, state_props.g, state_props.b, 255, kFontPath);
+                            Color(state_props.r, state_props.g, state_props.b, 255),
+                            platform::kDefaultFontPath);
 
     // 状态名称
     MediaUtil::DrawTextRect(state_props.name, icon_x + 25, status_y, 200, 14,
-                            Colors::LightGray, kFontPath);
+                            Colors::LightGray, platform::kDefaultFontPath);
 
     // 状态文本
     MediaUtil::DrawTextRect(status_text, icon_x + 120, status_y, 400, 14,
-                            Colors::Gray, kFontPath);
+                            Colors::Gray, platform::kDefaultFontPath);
 
     // ESC 提示
     MediaUtil::DrawTextRect("[ESC] Exit", window_width - 100, status_y, 200, 14,
-                            Colors::DarkGray, kFontPath);
+                            Colors::DarkGray, platform::kDefaultFontPath);
 }
 
 void StatusBar::SetStatePropsGetter(StatePropsGetter getter) {

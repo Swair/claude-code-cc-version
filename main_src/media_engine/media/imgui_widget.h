@@ -246,22 +246,34 @@ private:
 // ImGui 工具函数封装 - 避免外部文件直接 include imgui.h
 // ============================================================================
 
-// ImGui 窗口标志（常用）
-constexpr int ImGuiWindowFlags_NoDecoration = 1 << 1;
-constexpr int ImGuiWindowFlags_NoMove = 1 << 2;
-constexpr int ImGuiWindowFlags_NoSavedSettings = 1 << 5;
-constexpr int ImGuiWindowFlags_NoFocusOnAppearing = 1 << 6;
-constexpr int ImGuiWindowFlags_NoScrollbar = 1 << 7;
-constexpr int ImGuiWindowFlags_NoScrollWithMouse = 1 << 8;
-constexpr int ImGuiWindowFlags_AlwaysVerticalScrollbar = 1 << 9;
+// ImGui 窗口标志（常用）— 值匹配 ImGui 1.92.8
 constexpr int ImGuiWindowFlags_None = 0;
+constexpr int ImGuiWindowFlags_NoTitleBar = 1 << 0;
+constexpr int ImGuiWindowFlags_NoResize = 1 << 1;
+constexpr int ImGuiWindowFlags_NoMove = 1 << 2;
+constexpr int ImGuiWindowFlags_NoScrollbar = 1 << 3;
+constexpr int ImGuiWindowFlags_NoScrollWithMouse = 1 << 4;
+constexpr int ImGuiWindowFlags_NoCollapse = 1 << 5;
+constexpr int ImGuiWindowFlags_AlwaysAutoResize = 1 << 6;
+constexpr int ImGuiWindowFlags_NoBackground = 1 << 7;
+constexpr int ImGuiWindowFlags_NoSavedSettings = 1 << 8;
+constexpr int ImGuiWindowFlags_NoMouseInputs = 1 << 9;
+constexpr int ImGuiWindowFlags_MenuBar = 1 << 10;
+constexpr int ImGuiWindowFlags_HorizontalScrollbar = 1 << 11;
+constexpr int ImGuiWindowFlags_NoFocusOnAppearing = 1 << 12;
+constexpr int ImGuiWindowFlags_NoBringToFrontOnFocus = 1 << 13;
+constexpr int ImGuiWindowFlags_AlwaysVerticalScrollbar = 1 << 14;
+constexpr int ImGuiWindowFlags_AlwaysHorizontalScrollbar = 1 << 15;
+constexpr int ImGuiWindowFlags_NoDecoration =
+    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
 
-// ImGui Child 标志
+// ImGui Child 标志 — 值匹配 ImGui 1.92.8
 constexpr int ImGuiChildFlags_None = 0;
-constexpr int ImGuiChildFlags_Borders = 1 << 1;
+constexpr int ImGuiChildFlags_Borders = 1 << 0;     // bit 0 必须为 1（兼容旧版 bool 参数）
 
-// ImGui 样式颜色
-constexpr int ImGuiCol_ChildBg = 2;
+// ImGui 样式颜色枚举值 — 值匹配 ImGui 1.92.8
+constexpr int ImGuiCol_ChildBg = 3;
 constexpr int ImGuiCol_Border = 5;
 
 // Color → IM_COL32 (RGBA packed 32-bit, 用于 draw list 函数)
@@ -414,7 +426,6 @@ private:
     float x_, y_;
     float width_, height_;
     bool scroll_to_bottom_ = false;
-    bool has_title_color_ = false;  // 记录是否设置了标题颜色
 };
 
 } // namespace imgui_widget

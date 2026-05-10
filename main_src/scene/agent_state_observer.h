@@ -61,7 +61,7 @@ class AgentStateVisualizer : public Noncopyable {
     /// Default singleton (backward-compat for single-role modes)
     static AgentStateVisualizer& GetInstance();
 
-    /// Per-role instance — creates on first call, returns existing on subsequent calls.
+    /// Per-role instance ï¿½ creates on first call, returns existing on subsequent calls.
     /// role_id="" falls back to GetInstance().
     static AgentStateVisualizer& GetOrCreate(const std::string& role_id);
 
@@ -100,6 +100,9 @@ class AgentStateVisualizer : public Noncopyable {
     /// Draw blackboard background
     void DrawBlackboard();
 
+    /// Load background texture from JPG
+    void LoadBackground();
+
     /// Draw virtual human anime character with animations
     void DrawVirtualHumanCharacter();
 
@@ -110,6 +113,7 @@ class AgentStateVisualizer : public Noncopyable {
     float animation_time_ = 0.0f;
     float pulse_alpha_ = 1.0f;
     std::string state_details_;
+    std::unique_ptr<Texture> bg_texture_;
 };
 
 }  // namespace prosophor

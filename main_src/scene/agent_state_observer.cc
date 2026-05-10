@@ -5,9 +5,11 @@
 #include "scene/anime_character.h"
 #include "scene/ui_renderer.h"
 #include "scene/layout_config.h"
+#include "scene/asset_define.h"
 
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 
 #include "media_engine/media_engine.h"
 #include "common/log_wrapper.h"
@@ -78,6 +80,7 @@ AgentStateVisualizer& AgentStateVisualizer::GetOrCreate(const std::string& role_
     if (it == g_registry.end()) {
         auto viz = std::unique_ptr<AgentStateVisualizer>(new AgentStateVisualizer());
         viz->Initialize();
+        viz->SetCharacterType(AnimeCharacterTypeFromRoleId(role_id));
         it = g_registry.emplace(role_id, std::move(viz)).first;
     }
     return *it->second;
@@ -98,7 +101,18 @@ void AgentStateVisualizer::RenderAll() {
 }
 
 void AgentStateVisualizer::Initialize() {
+    LoadBackground();
     LOG_INFO("AgentStateVisualizer initialized.");
+}
+
+void AgentStateVisualizer::LoadBackground() {
+    std::string bg_path = BackwallDir() + "solitude.jpg";
+    if (std::filesystem::exists(bg_path)) {
+        bg_texture_ = std::make_unique<Texture>(bg_path);
+        LOG_INFO("Loaded background: {}", bg_path);
+    } else {
+        LOG_WARN("Background not found: {}", bg_path);
+    }
 }
 
 void AgentStateVisualizer::Update(float delta_time) {
@@ -110,57 +124,6 @@ void AgentStateVisualizer::Render() {
 
     DrawBlackboard();
     DrawVirtualHumanCharacter();
-}
-
-void AgentStateVisualizer::DrawBlackboard() {
-    int win_w = MediaCore::Instance().GetWindowWidth();
-    int win_h = MediaCore::Instance().GetWindowHeight();
-
-    float board_w = win_w * 0.63f;
-    float board_h = win_h * 0.94f;
-    float board_x = board_w * 0.01f;
-    float board_y = board_h * 0.03f;
-
-    // 木质外框
-    float frame_thick = 12.0f;
-    Color wood(139, 105, 48, 255);
-    ::Drawer::Instance().DrawFillRect(board_x - frame_thick, board_y - frame_thick,
-                                       board_w + frame_thick * 2, frame_thick, wood);
-    ::Drawer::Instance().DrawFillRect(board_x - frame_thick, board_y + board_h + frame_thick,
-                                       board_w + frame_thick * 2, frame_thick, wood);
-    ::Drawer::Instance().DrawFillRect(board_x - frame_thick, board_y,
-                                       frame_thick, board_h, wood);
-    ::Drawer::Instance().DrawFillRect(board_x + board_w, board_y,
-                                       frame_thick, board_h, wood);
-
-    // 黑板面（深绿到墨绿渐变 - 用多行矩形模拟）
-    Color board_top(45, 74, 45, 255);
-    Color board_bot(26, 58, 26, 255);
-    int steps = 10;
-    for (int i = 0; i < steps; i++) {
-        float t = static_cast<float>(i) / steps;
-        uint8_t r = static_cast<uint8_t>(board_top.r + (board_bot.r - board_top.r) * t);
-        uint8_t g = static_cast<uint8_t>(board_top.g + (board_bot.g - board_top.g) * t);
-        uint8_t b = static_cast<uint8_t>(board_top.b + (board_bot.b - board_top.b) * t);
-        float y = board_y + board_h * t;
-        float h = board_h / steps + 1;
-        ::Drawer::Instance().DrawFillRect(board_x, y, board_w, h, Color(r, g, b, 255));
-    }
-
-    // 粉笔字装饰
-    Color chalk(255, 255, 240, 80);
-    float text_y = board_y + board_h * 0.12f;
-    std::string status_text = "AI AGENT";
-    UIRenderer::Instance().RenderFloatingText(
-        status_text, board_x + 30, text_y, 255, 255, 240, 0.25f);
-
-    // 右下角粉笔槽
-    float chalk_tray_x = board_x + board_w - 120;
-    float chalk_tray_y = board_y + board_h - 15;
-    ::Drawer::Instance().DrawFillRect(chalk_tray_x, chalk_tray_y, 100, 8,
-                                       Color(160, 120, 60, 200));
-    ::Drawer::Instance().DrawFillRect(chalk_tray_x + 10, chalk_tray_y + 1,
-                                       12, 6, Color(255, 255, 255, 180));
 }
 
 // ── 状态→视觉属性映射 ──────────────────────────────────────────────
@@ -206,6 +169,32 @@ StateVisualProps GetStateVisualProps(AgentRuntimeState state) {
 }
 }
 
+void AgentStateVisualizer::DrawBlackboard() {
+    int win_w = MediaCore::Instance().GetWindowWidth();
+    int win_h = MediaCore::Instance().GetWindowHeight();
+
+    if (bg_texture_ && bg_texture_->GetOriginWidth() > 0) {
+        float tw = bg_texture_->GetOriginWidth();
+        float th = bg_texture_->GetOriginHeight();
+
+        if (tw >= win_w && th >= win_h) {
+            // 壁纸比窗口大或相等：直接拉伸铺满
+            bg_texture_->RenderTexture(0.0f, 0.0f, static_cast<float>(win_w), static_cast<float>(win_h));
+        } else {
+            // 壁纸比窗口小：平铺
+            for (float y = 0; y < win_h; y += th) {
+                for (float x = 0; x < win_w; x += tw) {
+                    bg_texture_->RenderTexture(0.0f, 0.0f, tw, th, x, y, tw, th, false, false);
+                }
+            }
+        }
+    } else {
+        // Fallback: solid dark background
+        ::Drawer::Instance().DrawFillRect(0, 0, static_cast<float>(win_w), static_cast<float>(win_h),
+                                           Color(20, 20, 35, 255));
+    }
+}
+
 void AgentStateVisualizer::DrawVirtualHumanCharacter() {
     int win_w = MediaCore::Instance().GetWindowWidth();
     int win_h = MediaCore::Instance().GetWindowHeight();
@@ -240,13 +229,13 @@ void AgentStateVisualizer::DrawVirtualHumanCharacter() {
         pulse_alpha = 0.88f + 0.12f * std::sin(animation_time_ * 8.0f);
     }
 
-    float scale = 2.5f * breathe_s;
+    float scale = 7.5f * breathe_s;
 
     AnimeCharacterRenderer::Instance().Render(
         character_type_, base_x, base_y + breathe_y, agent_state_, scarf_color, scale, pulse_alpha, is_blinking);
 
     // 状态名称文本
-    float name_y = base_y + 80 * scale;
+    float name_y = base_y + 30.0f * scale;
     UIRenderer::Instance().RenderFloatingText(
         props.name, base_x - 30, name_y, 204, 204, 204, pulse_alpha);
 

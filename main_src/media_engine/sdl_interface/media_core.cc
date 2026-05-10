@@ -350,6 +350,15 @@ void MediaCore::EventProcess() {
             case SDL_EVENT_QUIT:
                 Quit();
                 break;
+            case SDL_EVENT_WINDOW_RESIZED: {
+                window_width_ = event.window.data1;
+                window_height_ = event.window.data2;
+                SDL_SetRenderLogicalPresentation(
+                    SdlResource::Instance().GetRender(),
+                    window_width_, window_height_,
+                    SDL_LOGICAL_PRESENTATION_LETTERBOX);
+                break;
+            }
         }
 
         EventType event_type = EventConvert(event);

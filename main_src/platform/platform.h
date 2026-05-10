@@ -89,6 +89,13 @@ std::string RunShellCommand(const char* cmd);
 /// Return platform null device path ("/dev/null" on POSIX, "NUL" on Windows)
 const char* NullDevice();
 
+/// Default Chinese font path (platform-specific)
+#ifdef _WIN32
+constexpr const char* kDefaultFontPath = "C:/Windows/Fonts/msyh.ttc";
+#else
+constexpr const char* kDefaultFontPath = "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf";
+#endif
+
 // Pipe operations - abstract POSIX APIs for LSP/MCP server communication
 struct PipePair {
     int read_fd = -1;

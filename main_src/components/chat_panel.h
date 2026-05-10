@@ -4,8 +4,8 @@
 
 #include "media_engine/media_engine.h"
 #include "ui_types.h"
+#include <functional>
 #include <string>
-#include <vector>
 #include <memory>
 
 namespace prosophor {
@@ -20,12 +20,7 @@ public:
     void SetSize(float width, float height);
 
     void Render() const;
-    void RenderContent();
-
-    void AddMessage(const std::string& role, const std::string& content);
-    void StartAssistantMessage();  // 开始流式响应时创建空消息
-    void UpdateLastMessage(const std::string& content);
-    void ClearMessages();
+    void RenderContent(const RenderSnapshot& snapshot);
 
     void ScrollToBottom();
     bool IsScrolledToBottom() const;
@@ -36,10 +31,9 @@ public:
 private:
     std::unique_ptr<UIContainer> container_;
     std::unique_ptr<imgui_widget::ScrollWindow> scroll_window_;
-    std::vector<ChatMessage> messages_;
     bool visible_ = true;
 
-    void RenderMessage(const ChatMessage& msg, size_t index);
+    void RenderMessage(const std::string& role, const std::string& content, size_t index);
 };
 
 }  // namespace prosophor

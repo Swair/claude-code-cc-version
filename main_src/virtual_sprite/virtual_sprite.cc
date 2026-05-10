@@ -3,7 +3,6 @@
 
 #include "virtual_sprite.h"
 #include "scene/agent_state_observer.h"
-#include "scene/galgame_mode.h"
 #include "scene/ui_renderer.h"
 #include "scene/layout_config.h"
 #include "media_engine/media_engine.h"
@@ -36,10 +35,6 @@ void VirtualSprite::HandleTextInput(const char* text) {
 }
 
 void VirtualSprite::HandleKeyDown(int key_code) {
-    if (current_scene_ == UIMode::GALGAME) {
-        GalgameScene::Instance().HandleKeyDown(key_code);
-        return;
-    }
     if (input_callback_) {
         InputEvent event;
         event.source = InputSource::SDL;
@@ -70,9 +65,7 @@ void VirtualSprite::Initialize() {
     MediaCore::Instance().SetFPS(60);
 
     AgentStateVisualizer::GetInstance().Initialize();
-    GalgameScene::Instance().Initialize();
     UIRenderer::Instance().Initialize();
-    HomeScreen::GetInstance().Initialize();
 
     // Status bar state color palette
     constexpr StateColor kStatusIdle{100, 100, 100, 255};
@@ -107,28 +100,22 @@ void VirtualSprite::Initialize() {
         return AgentEngine::GetInstance().GetFocusedSessionSnapshot();
     });
 
-    // Route user input to the last active session
+    // Route user input to the last active session (auto-create if none exists)
     UIRenderer::Instance().SetOnMessageSubmit([](const std::string& message) {
-        auto snap = AgentEngine::GetInstance().GetFocusedSessionSnapshot();
+        auto& engine = AgentEngine::GetInstance();
+        auto snap = engine.GetFocusedSessionSnapshot();
+        std::string session_id;
         if (snap) {
-            AgentEngine::GetInstance().SendUserMessage(snap->session_id, message);
+            session_id = snap->session_id;
+        } else {
+            session_id = engine.CreateSession(engine.GetConfig().default_role, "");
         }
-    });
-
-    HomeScreen::GetInstance().SetOnModeSelect([this](UIMode mode) {
-        SwitchMode(mode);
+        engine.SendUserMessage(session_id, message);
     });
 
     MediaCore::Instance().RegEventHandler([this](std::vector<EventType>& event_list) {
         for (const auto& event : event_list) {
             switch (event) {
-                case EventType::ESCAPE:
-                    if (current_scene_ != UIMode::HOME) {
-                        SwitchMode(UIMode::HOME);
-                    } else {
-                        HandleKeyDown(0);
-                    }
-                    break;
                 case EventType::ENTER:
                 case EventType::KP_ENTER:
                     HandleKeyDown('\n');
@@ -144,31 +131,26 @@ void VirtualSprite::Initialize() {
 
     MediaCore::Instance().RegUpdateHandler([this]() {
         float dt = MediaCore::Instance().GetDeltaTimeS();
-        AgentStateVisualizer::GetInstance().Update(dt);   // default (single-role) instance
-        AgentStateVisualizer::UpdateAll(dt);              // all per-role instances
-        GalgameScene::Instance().Update(dt);
+        AgentStateVisualizer::GetInstance().Update(dt);
+        AgentStateVisualizer::UpdateAll(dt);
     });
 
     MediaCore::Instance().RegRenderHandler([this]() {
-        switch (current_scene_) {
-            case UIMode::HOME:
-                HomeScreen::GetInstance().Render();
-                break;
-            case UIMode::VIRTUAL_HUMAN:
-                AgentStateVisualizer::GetInstance().Render();
-                AgentStateVisualizer::RenderAll();
-                UIRenderer::Instance().Render();
-                UIRenderer::Instance().RenderImGui();
-                break;
-            case UIMode::GALGAME:
-                GalgameScene::Instance().Render();
-                UIRenderer::Instance().Render();
-                UIRenderer::Instance().RenderImGui();
-                break;
-            case UIMode::TERMINAL:
-                break;
-        }
+        AgentStateVisualizer::GetInstance().Render();
+        AgentStateVisualizer::RenderAll();
+        UIRenderer::Instance().Render();
+        UIRenderer::Instance().RenderImGui();
     });
+
+    // Ensure a default session exists so the UI shows a ready state
+    auto& engine = AgentEngine::GetInstance();
+    if (!engine.GetFocusedSessionSnapshot()) {
+        engine.CreateSession(engine.GetConfig().default_role, "");
+    }
+
+    // Set character portrait type based on default role
+    AgentStateVisualizer::GetInstance().SetCharacterType(
+        AnimeCharacterTypeFromRoleId(engine.GetConfig().default_role));
 
     LOG_INFO("SDL application initialized successfully.");
 }
@@ -192,35 +174,6 @@ int VirtualSprite::Run() {
 
 void VirtualSprite::Stop() {
     MediaCore::Instance().Quit();
-}
-
-void VirtualSprite::SwitchMode(UIMode mode) {
-    if (current_scene_ == mode) return;
-
-    LOG_INFO("Switching mode: {} -> {}", static_cast<int>(current_scene_), static_cast<int>(mode));
-    current_scene_ = mode;
-
-    switch (mode) {
-        case UIMode::HOME:
-            input_callback_ = saved_callback_;
-            break;
-
-        case UIMode::VIRTUAL_HUMAN: {
-            saved_callback_ = input_callback_;
-            UIRenderer::Instance().SetVisible(true);
-            AgentStateVisualizer::GetInstance().SetVisible(true);
-            break;
-        }
-
-        case UIMode::GALGAME: {
-            saved_callback_ = input_callback_;
-            break;
-        }
-
-        case UIMode::TERMINAL:
-            saved_callback_ = input_callback_;
-            break;
-    }
 }
 
 }  // namespace prosophor

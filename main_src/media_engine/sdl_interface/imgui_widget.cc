@@ -971,31 +971,12 @@ imgui_widget::ScrollWindow::~ScrollWindow() = default;
  * @param title_color 标题颜色（可选，nullptr 表示不使用自定义颜色）
  * @return true 表示窗口打开成功
  */
-bool imgui_widget::ScrollWindow::Begin(const std::string& name, const Color* title_color) {
-    // 设置窗口位置和大小
-    SetImGuiNextWindowPos(x_, y_);
-    SetImGuiNextWindowSize(width_, height_);
-    SetImGuiNextWindowBgAlpha(0.0f);  // 背景透明
-
-    // 设置标题颜色（如果提供）
-    has_title_color_ = (title_color != nullptr);
-    if (has_title_color_) {
-        ImGuiPushStyleColor_TitleText(*title_color);
-    }
-
-    // 窗口标志：
-    // - NoResize: 不可调整大小
-    // - NoMove: 不可移动
-    // - NoBackground: 不绘制背景（包括边框）
-    // - NoSavedSettings: 不保存窗口设置
-    // - NoFocusOnAppearing: 出现时不聚焦
-    // - AlwaysVerticalScrollbar: 始终显示垂直滚动条
-    ImGuiBegin(name.c_str(), nullptr,
-        ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove |
-        ImGuiWindowFlags_NoBackground |
-        ImGuiWindowFlags_NoSavedSettings |
-        ImGuiWindowFlags_NoFocusOnAppearing |
+bool imgui_widget::ScrollWindow::Begin(const std::string& name, const Color* /*title_color*/) {
+    // 使用 BeginChild 创建可滚动区域（而非 Begin），
+    // 因为 ScrollWindow 总是嵌套在父窗口（UIContainer）内部。
+    // BeginChild 是 ImGui 中创建可滚动子区域的正确方式。
+    ImGuiSetCursorScreenPos(x_, y_);
+    BeginChild(name.c_str(), width_, height_, ImGuiChildFlags_None,
         ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
     ImGuiPushStyleVar_ItemSpacing(4, 4);  // 设置内容间距
@@ -1014,10 +995,7 @@ void imgui_widget::ScrollWindow::End() {
     }
 
     ImGuiPopStyleVar();  // 恢复间距样式
-    if (has_title_color_) {
-        ImGuiPopStyleColor_TitleText();  // 恢复标题颜色
-    }
-    ImGuiEnd();
+    EndChild();
 }
 
 /**
