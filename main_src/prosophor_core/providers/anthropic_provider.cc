@@ -370,7 +370,7 @@ ChatResponse AnthropicProvider::ChatStream(const ChatRequest& request, std::func
         stream_handler.accumulated_response.error_msg = stream_handler.error_msg;
         stream_handler.stream_callback(StreamEvent::kError, stream_handler.error_msg);
     } else if (http_resp.failed()) {
-        std::string err = "Anthropic API error (HTTP " +
+        std::string err = "AnthropicProvider::ChatStream (HTTP " +
                           std::to_string(http_resp.status_code) + "): " + http_resp.error_msg;
         LOG_ERROR("{}", err);
         stream_handler.accumulated_response.error_msg = err;

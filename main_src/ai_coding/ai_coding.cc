@@ -75,8 +75,10 @@ void AiCoding::RegisterCallbacks() {
                     if (reply) std::cout << "< " << reply->text() << std::endl;
                     break;
                 case AgentRuntimeState::STATE_ERROR:
-                    LOG_ERROR("Error: {}", state_msg);
-                    if (reply) LOG_ERROR("Details: {}", reply->text());
+                    if (reply) {
+                        LOG_ERROR("[STATE_ERROR] {}", reply->text());
+                        std::cout << "< " << reply->text() << std::endl;
+                    }    
                     break;
                 default:
                     break;

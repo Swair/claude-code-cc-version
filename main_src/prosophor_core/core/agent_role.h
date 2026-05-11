@@ -31,6 +31,7 @@ struct AgentRole {
     double temperature = 0.7;
     int max_tokens = 8192;
     bool enable_streaming = true;      // 是否启用流式输出
+    bool enable_summary = true;        // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
     bool thinking = false;
 
     // === 性格配置 ===

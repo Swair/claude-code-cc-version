@@ -454,6 +454,27 @@ Agent 状态观察器将运行时状态映射到视觉属性：`THINKING` 触发
 
 通过**关键决策提取**提供结构化记忆管理——将对话解析为结构化记录，包含类型（设计决策、代码变更、未解决问题、经验教训）、内容描述、相关文件和时间戳。还生成**会话退出摘要**，保存到角色记忆以实现跨会话连续性。
 
+### 对话摘要 (Dialog Summarization)
+
+零额外 API 调用的贝尔曼衰减摘要循环：
+
+```
+ApplyDialogStrategy (pre-request):
+  [ts]
+  [摘要]  ← 上一轮 running_summary（如有）
+  {message}
+
+  → LLM 回复末尾自动生成 [摘要]
+
+ExtractDialogSummary (post-response):
+  assistant.summary = [摘要] 内容  → 下一轮注入
+  [摘要] 保留在 content 中          → cache prefix 不中断
+```
+
+**递推公式**：`每轮摘要 = 本轮内容 + γ × 上轮摘要`，关键决策不衰减。
+
+**配置**：`settings.json` 根字段 `"enable_summary": false` 关闭摘要模式，回退为纯对话模式。
+
 ### Token 追踪器
 
 记录每个模型和聚合的：token 用量（输入、输出、缓存读/写）、API 计时和重试次数、带可配置模型定价的成本估算、工具调用指标、网络搜索请求、以及代码变更统计。

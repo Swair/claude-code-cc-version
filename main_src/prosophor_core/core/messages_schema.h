@@ -31,6 +31,7 @@ struct SystemSchema {
 struct MessageSchema {
     std::string role;
     std::vector<ContentSchema> content;
+    std::string summary;  // Running summary carried across requests (updated by LLM on each turn)
 
     MessageSchema() = default;
     MessageSchema(std::string r, std::string text) : role(std::move(r)) {

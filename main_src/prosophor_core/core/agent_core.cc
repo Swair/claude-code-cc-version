@@ -16,6 +16,7 @@
 #include "core/compact_service.h"
 #include "managers/token_tracker.h"
 #include "core/reference_parser.h"
+#include "common/time_wrapper.h"
 #include "tools/tool_registry.h"
 
 namespace prosophor {
@@ -127,36 +128,43 @@ std::string AgentCore::ProcessFileRefs(const std::string& message, const AgentSe
     return processed_message;
 }
 
-void AgentCore::MaybeCompact(AgentSession& session) {
-    auto& compact_service = CompactService::GetInstance();
+void AgentCore::ApplyDialogStrategy(const std::string& processed_message, AgentSession& session) {
+    if (processed_message.empty()) return;
 
-    if (!compact_service.NeedsCompaction(session.GetMessages())) {
-        return;
+    std::string ts = SystemClock::GetCurrentTimestamp();
+    std::string user_content = "[" + ts + "]\n";
+
+    if (session.GetRole() && session.GetRole()->enable_summary) {
+        // Find latest summary from previous assistant messages
+        std::string running_summary;
+        const auto& msgs = session.GetMessages();
+        for (int i = static_cast<int>(msgs.size()) - 1; i >= 0; i--) {
+            if (msgs[i].role == "assistant" && !msgs[i].summary.empty()) {
+                running_summary = msgs[i].summary;
+                break;
+            }
+        }
+
+        if (!running_summary.empty()) {
+            user_content += "[摘要]\n" + running_summary + "\n\n";
+        }
+        user_content += processed_message;
+        user_content += "\n\n[总结要求]\n请按贝尔曼衰减方式生成对话摘要：本轮新内容详细保留（高权重 γ→1），历史摘要随时间衰减（低权重 γ^n），关键决策和未解决问题不衰减。将完整摘要放在回复末尾的[摘要]中。";
+    } else {
+        user_content += processed_message;
     }
 
-    LOG_INFO("Context compaction triggered");
+    session.AddUserMessage(user_content);
+}
 
-    auto llm_callback = [&session](const std::string& prompt) -> std::string {
-        ChatRequest req;
-        if (session.GetRole()) {
-            req.model = session.GetRole()->model;
-            req.temperature = session.GetRole()->temperature;
-            req.max_tokens = 4096;
-        }
-        if (!session.GetBaseUrl().empty()) {
-            req.base_url = session.GetBaseUrl();
-        }
-        req.api_key = session.GetApiKey();
-        req.timeout = session.GetTimeout();
-        req.AddUserMessage(prompt);
-        return session.GetProvider()->Chat(req).content_text;
-    };
+void AgentCore::ExtractDialogSummary(const std::string& response_text, MessageSchema& assistant_msg) {
+    auto pos = response_text.rfind("[摘要]");
+    if (pos == std::string::npos) return;
 
-    auto compact_result = compact_service.Compact(session.GetMessages(), llm_callback);
-    session.CompactHistory(compact_result.kept_messages, compact_result.summary);
-
-    LOG_INFO("Compaction complete: removed {} messages, saved ~{} tokens",
-             compact_result.messages_removed, compact_result.tokens_saved);
+    assistant_msg.summary = response_text.substr(pos + 4);
+    if (!assistant_msg.summary.empty() && assistant_msg.summary[0] == '\n')
+        assistant_msg.summary = assistant_msg.summary.substr(1);
+    // Keep full response text including [摘要] — LLM needs to see it for cache continuity
 }
 
 ChatRequest AgentCore::BuildRequest(const AgentSession& session) {
@@ -214,13 +222,8 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
     // Process message - resolve @file references
     std::string processed_message = ProcessFileRefs(message, session);
 
-    // Add user message (with resolved references)
-	if (!processed_message.empty()) {
-	    session.AddUserMessage(processed_message);
-	}
-
-    // Check if compaction is needed
-    MaybeCompact(session);
+    // Apply dialog strategy: summary injection + timestamp + summarization prompt
+    ApplyDialogStrategy(processed_message, session);
 
     int iterations = 0;
     int max_iterations = GetMaxIterations(session);
@@ -283,11 +286,8 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
 
         // Check for API error
         if (!response.error_msg.empty()) {
-            LOG_ERROR("API error: {}", response.error_msg);
-            MessageSchema error_msg;
-            error_msg.role = "assistant";
-            error_msg.AddTextContent("[API Error] " + response.error_msg);
-            session.SetOutput(AgentRuntimeState::STATE_ERROR, response.error_msg, error_msg);
+            session.CleanupInterruptedLoop();  // 移除孤立的 user 消息
+            session.SetOutput(AgentRuntimeState::STATE_ERROR, response.error_msg);
             return;
         }
 
@@ -307,12 +307,23 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
 
         // No tool calls - check for text response
         if (!response.content_text.empty()) {
+            if (session.GetRole() && session.GetRole()->enable_summary) {
+                ExtractDialogSummary(response.content_text, assistant_msg);
+            }
             assistant_msg.AddTextContent(response.content_text);
 
             if (streaming) {
                 session.SetOutput(AgentRuntimeState::STREAM_MODE_COMPLETE, "Done.", assistant_msg);
             } else {
                 session.SetOutput(AgentRuntimeState::COMPLETE, "Done.", assistant_msg);
+            }
+
+            // 上下文过大时截断，只保留最近 2 条（默认1轮user+assistant）
+            if (CompactService::GetInstance().NeedsCompaction(session.GetMessages())) {
+                auto kept = CompactService::GetInstance().KeepRecentMessages(
+                    session.GetMessages(), 2);
+                session.CompactHistory(kept, "");
+                LOG_INFO("Compaction: kept 2 messages (last round)");
             }
             return;
         }

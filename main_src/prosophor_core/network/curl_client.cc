@@ -280,8 +280,7 @@ HttpResponse HttpClient::Post(const HttpRequest& request) {
     response.status_code = static_cast<int>(code);
 
     if (res != CURLE_OK) {
-        response.error_msg = "CURL request failed: " + std::string(curl_easy_strerror(res));
-        LOG_ERROR("{}", response.error_msg);
+        response.error_msg = "HttpClient::Post failed: " + std::string(curl_easy_strerror(res));
         return response;
     }
 
@@ -380,7 +379,7 @@ size_t StreamWriteCallback(void* contents, size_t size, size_t nmemb, void* user
     std::string& buffer = handler->Buffer();
     buffer += chunk;
 
-    LOG_DEBUG("res StreamCallback = {}", buffer);
+    // LOG_DEBUG("res StreamCallback = {}", buffer);
 
     size_t pos;
     while ((pos = buffer.find('\n')) != std::string::npos) {

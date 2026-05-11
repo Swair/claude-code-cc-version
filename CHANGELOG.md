@@ -1,5 +1,86 @@
 # Changelog
 
+## [2026-05-11] - 对话摘要系统与上下文压缩重构
+
+### 新增
+- **对话摘要系统**: 零额外 API 调用的贝尔曼衰减摘要循环
+  - `ApplyDialogStrategy()` 在每轮请求前注入时间戳 + 历史摘要 + 摘要生成指令
+  - `ExtractDialogSummary()` 在响应后提取 `[摘要]` 标签内容存入 `MessageSchema::summary`
+  - 递推公式：`每轮摘要 = 本轮内容 + γ × 上轮摘要`，关键决策不衰减
+  - 新增 `enable_summary` 配置开关（settings.json 根字段 + role 元数据），可在 settings.json 全局关闭
+  - system prompt 新增摘要生成指令模板
+
+### 重构
+- **上下文压缩策略替换**: 从 LLM 调用压缩（`MaybeCompact`）改为对话摘要 + 简单截断
+  - 移除 `AgentCore::MaybeCompact()`（曾额外调用 LLM 生成摘要）
+  - 新增 `AgentCore::ApplyDialogStrategy()` / `ExtractDialogSummary()` 替代 LLM 压缩
+  - 上下文过大时仅保留最近 2 条消息（1 轮完整 user+assistant），不再调用 LLM 压缩
+
+### 改进
+- **API 错误处理优化**:
+  - `agent_core.cc`: API 错误时调用 `CleanupInterruptedLoop()` 移除孤立 user 消息
+  - `ai_coding.cc`: STATE_ERROR 状态输出具体错误内容到终端
+  - `curl_client.cc`: 移除重复的 `LOG_ERROR`，错误信息由调用方统一处理
+  - Provider 错误信息格式统一（`AnthropicProvider::ChatStream` / `OpenAIProvider::ChatStream`）
+- **配置**: `settings.json` 新增 `enable_summary: false`，`auto_start` 默认关闭
+
+### 文件统计
+- 变更文件：14 个
+- 新增：+104 行
+- 删除：-47 行
+- 净变化：+57 行
+
+---
+
+## [2026-05-10] - 清理 scene 界面
+
+### 重构
+- **角色渲染系统重构**: `AnimeCharacterRenderer` 从纯程序化绘制（DrawHair/DrawBody/DrawEyes 等多方法）重构为 PNG 立绘优先 + Q 版胸像回退的双层架构
+  - 新增 `Texture` 纹理缓存和 `LoadPortraitTexture` 懒加载机制
+  - 新增 `GetPalette` 统一调色板、`RenderWithTexture` 纹理渲染、`DrawFallback*` 回退绘制子方法
+  - PNG 立绘支持呼吸浮动、脉冲缩放、状态色调覆盖、Error 红 X 覆盖、眨眼覆盖
+  - Q 版回退从全身像精简为胸像（大眼可爱风格），移除了腿部/手臂/配件等全身绘制逻辑
+  - 移除了 ~1500 行程序化绘制代码（5 角色 x 全身各部位）
+- **场景模式精简**: 移除多模式 UI 系统（HOME/GALGAME/VIRTUAL_HUMAN/TERMINAL），固定为虚拟人交互模式
+  - 删除 `HomeScreen`, `GalgameScene`, `OfficeBackground`, `OfficeCharacterManager`, `CharacterSpriteRenderer`, `CharacterStateObserver`, `PixelCharacterRenderer` 及其头文件（7 对文件）
+  - 删除模式切换逻辑 `SwitchMode()`、ESC 快捷键切换、`saved_callback_` 保存/恢复
+  - 删除 GALGAME 模式的像素风格角色绘制、教室背景、对话系统和 WASD 操作
+  - 删除办公室 2D 俯视场景（地板/墙壁/门/窗/桌子/电脑/椅子/盆栽绘制）
+  - 删除 BFS 寻路、角色状态机（IDLE/WALK/TYPE/READ）、瓷砖地图、精灵图 PNG 加载与帧裁剪
+  - 删除 `CharacterStateObserver` 的 AgentRuntimeState→CharacterState 映射和 SetCurrentTool
+  - 删除 `UIMode` 枚举及相关回调
+- **聊天面板采用快照驱动**: `ChatPanel` 从内部消息存储（`messages_`、`AddMessage`/`UpdateLastMessage`/`ClearMessages`/`StartAssistantMessage`）重构为外部 `RenderSnapshot` 驱动
+  - 支持 thinking 块渲染（先显示 thinking 再显示 text）
+  - 支持流式 thinking/text 实时渲染
+  - `RenderContent()` 签名改为 `RenderContent(const RenderSnapshot&)`
+- **UI 渲染器解耦**: `UIRenderer` 移除对 `ChatPanel` 的直接消息操作转发，改为 `SnapshotGetter` 回调获取渲染快照
+  - 移除了 `SubmitUserMessage()`, `SendToChatPanel()`, `UpdateLastMessage()`, `StartAssistantMessage()`, `ClearHistory()`
+  - 移除了 `SetAgentState()`，改为从 snapshot 获取 state
+- **场景背景重构**: `AgentStateVisualizer::DrawBlackboard()` 从程序化黑板绘制（木框+深绿渐变+粉笔字+粉笔槽）改为 JPG 壁纸渲染（支持拉伸/平铺/纯色 fallback）
+  - 新增 `LoadBackground()` 从 `BackwallDir()` 加载 `solitude.jpg`
+  - 新增 `bg_texture_` 纹理成员
+- **自动创建会话**: VirtualSprite 初始化时自动创建默认会话，确保 UI 启动即就绪
+
+### 改进
+- **ImGui 标志更新**: 窗口/子窗口标志常量更新为 ImGui 1.92.8 标准值，新增完整标志位定义
+- **ScrollWindow 嵌套修复**: 从 `ImGuiBegin()` 改为 `BeginChild()`，正确处理在父窗口内的嵌套滚动
+- **窗口最大化**: `SDL_CreateWindowAndRenderer` 增加 `SDL_WINDOW_MAXIMIZED` 标志，启动时窗口最大化
+- **窗口缩放响应**: 新增 `SDL_EVENT_WINDOW_RESIZED` 事件处理，自动更新逻辑尺寸和 Letterbox
+- **字体路径平台化**: `platform.h` 新增跨平台 `kDefaultFontPath` 常量（Windows `msyh.ttc` / Linux `DroidSansFallbackFull.ttf`）
+  - 所有硬编码 `"C:/Windows/Fonts/msyh.ttc"` 引用替换为 `platform::kDefaultFontPath`
+- **Color 结构体传参**: `MediaUtil::DrawTextRect` 及相关函数从分离的 r/g/b/a 参数改为 `Color` 结构体传参
+- **资源路径统一**: `asset_define.h` 从 `AssetDefine` 单例模式简化为内联辅助函数，使用 `PROSOPHOR_SOURCE_DIR` CMake 编译定义
+  - 移除了 EMSCRIPTEN 平台条件编译
+  - 新增 `AssetBase()`, `PortraitDir()`, `BackwallDir()`, `ImageDir()`, `SoundDir()`, `MusicDir()`, `FontDir()`, `EffectDir()` 函数
+- **字符类型从角色 ID 映射**: 新增 `AnimeCharacterTypeFromRoleId()` 内联函数，按 role_id 字符串选择立绘类型
+- **agent_state_observer**: 在 `GetOrCreate` 时根据 role_id 设置角色类型
+
+### 清理
+- 移除约 3000+ 行废弃代码（旧场景系统、旧渲染器、模式切换、精灵图系统）
+- 移除中文注释噪音（不必要的块注释）
+
+---
+
 ## [2026-05-10] - 输入系统重组与引擎 API 简化
 
 ### AgentSession 封装与数据隐藏

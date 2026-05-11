@@ -175,6 +175,8 @@ struct ProsophorConfig {
     std::string log_level = "info";
     std::string default_role = "default";  // Default role to use when not specified
 
+    bool enable_summary = true;      // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
+
     SecurityConfig security;
     std::unordered_map<std::string, ProviderConfig> providers;
     ToolConfig tools;

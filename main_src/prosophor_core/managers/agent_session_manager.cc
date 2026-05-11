@@ -91,6 +91,9 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
     AgentRole& role = it->second;
     std::string session_id = GenerateSessionId(role_id);
 
+    // settings.json 的 enable_summary 为最终确定值，覆盖 role 的配置
+    role.enable_summary = ProsophorConfig::GetInstance().enable_summary;
+
     AgentSession session(session_id, task_desc, &role);
     session.SetAutoConfirmTools(role.auto_confirm_tools);
     // Per-session tool executor: temporarily elevates permission when auto_confirm is set
@@ -513,6 +516,17 @@ std::vector<SystemSchema> AgentSessionManager::BuildSystemPrompt(const AgentSess
         if (!role_prompt.empty()) {
             prompt << role_prompt << "\n";
         }
+    }
+
+    // 4. 对话摘要指令
+    if (session.GetRole() && session.GetRole()->enable_summary) {
+        prompt << "\n每次对话结束时，请在回复末尾添加 [摘要] 标签，然后是对本轮及历史对话的摘要。\n"
+               << "摘要按贝尔曼衰减方式生成：\n"
+               << "- 本轮新内容：详细保留（高权重 γ→1）\n"
+               << "- 历史摘要：随时间衰减，越久远的越简略（低权重 γ^n）\n"
+               << "- 关键决策、未解决问题、重要结论：不衰减，始终保留\n"
+               << "- 每轮摘要 ≈ 本轮内容 + γ × 上轮摘要\n"
+               << "- 将完整摘要放在回复末尾的 [摘要] 标签中。\n";
     }
 
     return {{"text", prompt.str(), false}};

@@ -262,6 +262,7 @@ AgentRole AgentRoleLoader::ParseMarkdownFile(const std::filesystem::path& file) 
     role.max_iterations = metadata.value("max_iterations", 15);
     role.auto_confirm_tools = metadata.value("auto_confirm_tools", false);
     role.enable_streaming = metadata.value("enable_streaming", true);
+    role.enable_summary = metadata.value("enable_summary", true);
 
     role.memory_dir = metadata.value("memory_dir", std::string(""));
 

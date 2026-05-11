@@ -1,6 +1,7 @@
 {
   "default_role": "default",
   "log_level": "info",
+  "enable_summary": false,
   "providers": {
     "anthropic": [
       {
@@ -127,7 +128,7 @@
       "port": 8080,
       "n_gpu_layers": 0,
       "n_threads": 0,
-      "auto_start": true,
+      "auto_start": false,
       "start_timeout_ms": 150000         
     }
   ],

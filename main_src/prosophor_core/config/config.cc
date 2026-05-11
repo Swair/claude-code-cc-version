@@ -390,6 +390,7 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
     ProsophorConfig config;
     config.log_level = json.value("log_level", json.value("logLevel", "info"));
     config.default_role = json.value("default_role", json.value("defaultRole", "default"));
+    config.enable_summary = json.value("enable_summary", true);
 
     if (json.contains("providers") && json["providers"].is_object()) {
         for (const auto& [key, value] : json["providers"].items()) {
@@ -630,6 +631,7 @@ nlohmann::json ProsophorConfig::ToJson() const {
 
     json["log_level"] = log_level;
     json["default_role"] = default_role;
+    json["enable_summary"] = enable_summary;
 
     // Serialize providers
     nlohmann::json providers_json = nlohmann::json::object();

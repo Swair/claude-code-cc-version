@@ -32,8 +32,11 @@ class AgentCore {
     /// Process @file references in user message
     static std::string ProcessFileRefs(const std::string& message, const AgentSession& session);
 
-    /// Check and perform context compaction if needed
-    static void MaybeCompact(AgentSession& session);
+    /// Apply dialog strategy: inject running summary + timestamp + summarization prompt
+    static void ApplyDialogStrategy(const std::string& processed_message, AgentSession& session);
+
+    /// Extract [摘要] from LLM response into assistant_msg.summary
+    static void ExtractDialogSummary(const std::string& response_text, MessageSchema& assistant_msg);
 
     /// Get max iterations from role or default
     static int GetMaxIterations(const AgentSession& session);
