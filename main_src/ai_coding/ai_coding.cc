@@ -8,6 +8,7 @@
 #include <sstream>
 #include "banner.h"
 #include "agent_engine.h"
+#include "common/constants.h"
 #include "common/log_wrapper.h"
 #include "platform/platform.h"
 #include "platform/input_handler.h"
@@ -15,6 +16,7 @@
 namespace prosophor {
 
 namespace {
+
 AiCoding* g_tui_ptr = nullptr;
 
 void SignalHandler(int /*sig*/) {
@@ -48,37 +50,34 @@ void AiCoding::RegisterCallbacks() {
                 case AgentRuntimeState::BEGINNING:
                     break;
                 case AgentRuntimeState::STREAM_THINKING_START:
-                    std::cout << "\n<thinking> " << std::flush;
+                    std::cout << ColorCode::kCyan << "\n<thinking> " << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::STREAM_THINKING:
-                    std::cout << (reply ? reply->text() : "") << std::flush;
+                    std::cout << ColorCode::kGray << (reply ? reply->text() : "") << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::STREAM_THINKING_END:
-                    std::cout << " </thinking>\n" << std::flush;
+                    std::cout << ColorCode::kCyan << " </thinking>\n" << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::STREAM_CONTENT_START:
-                    std::cout << "< " << std::flush;
+                    std::cout << ColorCode::kGreen << "● " << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::STREAM_CONTENT_TYPING:
                     std::cout << (reply ? reply->text() : "") << std::flush;
                     break;
                 case AgentRuntimeState::STREAM_CONTENT_END:
-                    std::cout << " " << std::flush;
+                    std::cout << ColorCode::kGray << "\n●" << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::EXECUTING_TOOL:
-                    std::cout << "<executing tool> " << state_msg << std::endl;
+                    std::cout << ColorCode::kCyan << "<executing tool> " << ColorCode::kReset << ColorCode::kGray << state_msg << ColorCode::kReset << std::endl;
                     break;
                 case AgentRuntimeState::STREAM_MODE_COMPLETE:
-                    std::cout << "\n> " << std::flush;
+                    std::cout << ColorCode::kRed << "\n> " << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::COMPLETE:
-                    if (reply) std::cout << "< " << reply->text() << std::endl;
+                    if (reply) std::cout << ColorCode::kGreen << "● " << ColorCode::kReset << reply->text() << std::endl;
                     break;
                 case AgentRuntimeState::STATE_ERROR:
-                    if (reply) {
-                        LOG_ERROR("[STATE_ERROR] {}", reply->text());
-                        std::cout << "< " << reply->text() << std::endl;
-                    }    
+                    std::cout << ColorCode::kRed << "● " << state_msg.c_str() << ColorCode::kReset << std::endl;
                     break;
                 default:
                     break;

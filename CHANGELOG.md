@@ -1,5 +1,70 @@
 # Changelog
 
+## [2026-05-16] - 桌面宠物精灵窗口系统与多窗口架构
+
+### 新增
+- **桌面宠物精灵窗口系统**：Sprite 独立窗口，替代旧式场景渲染
+  - `Sprite` 类：独立 SDL 窗口 + ImGui 上下文，拥有自己的 session、pet spritesheet 渲染、拖拽、动画循环
+  - `Spritesheet` 精灵表渲染：9 种动作（IDLE/RUN/WAVE/JUMP/FAILED/WAIT/SPRINT/REVIEW），帧动画播放
+  - `SpeechBubble` 漫画式气对话框：气泡主体 + 三角尾巴 + 标题栏 + 输入区 + 缩放手柄，支持 compact/maximized 模式
+  - `SpriteManager` 多精灵实例管理：`CreateSprite`/`FindBySessionId`/`UpdateAll`
+  - 支持拖拽移动、双击切换中央窗口、自动漫游（IDLE 时左右走）
+  - `agent_state_observer`/`anime_character` 替换为精灵系统的状态 → 动作映射
+- **聊天窗口独立化**：`ChatWindow` 独立 SDL 窗口，与精灵窗口分离
+  - 使用 `ChatPanel` + `InputPanel` 构建完整聊天 UI
+  - 支持显示/隐藏、托盘图标切换
+- **新命令**：
+  - `/workspace`（别名 `/ws`）— 设置/查看当前工作区路径
+  - `/skills` — 列出和查看可用的技能文件（`/skills list` / `skills show <name>`）
+  - 动态技能命令注册（从 `~/.prosophor/skills/` 自动加载）
+
+### 重构
+- **多窗口架构**：`media_engine::Window` 完整窗口抽象
+  - SDL_Window + Renderer + ImGui 上下文三合一封装
+  - `WindowConfig` 支持透明背景、无边框、跳过任务栏、置顶等模式
+  - `MediaCore` 升级为多窗口管理器，支持独立帧循环
+  - 消除旧版单窗口假设，Window 通过 `BeginFrame`/`EndFrame`/`RenderFrame` 全包/分步渲染
+  - 新增 `sdl_interface/window.cc` 实现（225 行）
+- **VirtualSprite 精简**：从 monolithic 单体重塑为 `SpriteManager` + `ChatWindow` 协调者
+  - 移除 `scene/agent_state_observer.cc/h`（由精灵状态映射替代）
+  - 移除 `scene/anime_character.cc/h`（由 Spritesheet 精灵表替代）
+  - 移除 `scene/character_sprite.cc/h`、`scene/galgame_mode.cc/h`、`scene/home_screen.cc/h`、`scene/office_*.cc/h`、`scene/pixel_character.cc/h`
+  - 移除 `scene/character_state_observer.cc/h`
+- **Widget 百分比布局树**：新增 `media_engine::Widget` 基类替代 `UIContainer`
+  - 全百分比坐标系统：`SetRoot(px,py)` / `SetPosition(x%,y%,w%,h%)`
+  - 父尺寸变化自动级联 ResolveSelf 至整棵布局树
+  - 新增 `Label`（像素文本标签）、`NavBar`（底部导航栏）子类
+  - 移除 `ui_container.cc/h`（由 Widget 替代）
+- **ImGui Widget 大幅精简**：`imgui_widget` 从全组件库精简为仅保留 Button
+  - 命名空间 `imgui_widget::` → `media_engine::`
+  - 移除：`IconButton`、`Slider`、`Checkbox`、`ColorPicker`、`ComboBox`、`ProgressBar`、`Image`、`InputText`
+  - `imgui_widget.cc` 从 ~1052 行减至约 ~400 行，去除 ~650 行冗余 ImGui 包装
+- **`imgui_widget.h` 平台无关化**：所有实现移至 `sdl_interface/`，media 层仅保留 `VoidCallback`/`StringCallback` 类型别名和有限的前置声明
+- **LayoutConfig 重构**：移除废弃的办公区/场景布局方法，新增精灵窗口尺寸、宠物配置、托盘配置字段
+- **`ui_renderer.cc/h` 精简**：适配新架构，移除场景渲染残余
+
+### 改进
+- **Colors 增强**：新增 `Color::Slot` ImGui 样式颜色槽索引枚举；扩展灰度色板（GrayBlack/GrayNearBlack/GrayDarkest/Gray20 等）；所有颜色纳入 `media_engine` 命名空间
+- **ChatPanel 增强**：新增 `RenderContentInRect()` 方法，支持在指定矩形区域内渲染消息（供 SpeechBubble 使用）
+- **HeaderBar/InputPanel/UIPanel 重构**：接入 Widget 布局树，移除硬编码坐标
+- **AgentEngine 增强**：多会话 continue 支持，session 状态管理优化
+- **配置**：`enable_summary` 默认开启 (`true`)
+- **构建**：`Makefile` 新增 `release` 打包目标、`run_llamacpp_server`/`stop_llamacpp_server` 目标；`CMakeLists.txt` 适配新文件结构
+- **命令注册**：`command_registry.cc` 新增 `/workspace`、`/skills` 命令及动态技能命令加载
+
+### 清理
+- 移除约 3000+ 行废弃代码（旧场景系统、旧角色渲染器、旧布局系统、冗余 ImGui 包装）
+- 移除 `time_wrapper.h` 中废弃的函数声明
+- 移除 `ui_container.cc/h`
+
+### 文件统计
+- 变更文件：76 个
+- 新增：+3,708 行
+- 删除：-3,380 行
+- 净变化：+328 行
+
+---
+
 ## [2026-05-11] - 对话摘要系统与上下文压缩重构
 
 ### 新增

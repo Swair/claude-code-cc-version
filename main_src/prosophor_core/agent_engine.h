@@ -45,6 +45,9 @@ class AgentEngine : public Noncopyable {
         const nlohmann::json& input,
         const std::string& reason)>;
 
+    /// Change workspace path at runtime
+    void ChangeWorkspace(const std::string& new_path);
+
     void SetOutputCallback(OutputCallback cb);
     void SetPermissionCallback(PermissionCallback cb);
 
@@ -63,6 +66,10 @@ class AgentEngine : public Noncopyable {
 
     /// Get a snapshot of the focused (last active) session for UI rendering.
     std::optional<RenderSnapshot> GetFocusedSessionSnapshot();
+
+    /// Get a snapshot of a specific session (for per-sprite rendering).
+    std::optional<RenderSnapshot> GetSessionSnapshot(const std::string& session_id);
+
 
     // ── Commands ────────────────────────────────────────────────────────────
     /// Execute a slash command in the context of the given session.

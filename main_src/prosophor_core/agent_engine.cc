@@ -4,11 +4,12 @@
 #include "agent_engine.h"
 
 #include <iostream>
+#include <filesystem>
 
+#include "common/constants.h"
 #include "common/log_wrapper.h"
 #include "common/string_utils.h"
 #include "common/file_utils.h"
-#include <filesystem>
 #include "managers/memory_manager.h"
 #include "managers/agent_session_manager.h"
 #include "managers/agent_role_loader.h"
@@ -174,11 +175,15 @@ bool AgentEngine::HandleCommand(const std::string& line, const std::string& sess
     ctx.user_data   = this;
     ctx.agent_session = session_manager_->GetSession(session_id);
 
+    std::cout << ColorCode::kGreen << "/" << cmd_name;
+    for (const auto& a : cmd_args) std::cout << " " << a;
+    std::cout << ColorCode::kReset << std::endl;
+
     auto result = CommandRegistry::GetInstance().ExecuteCommand(cmd_name, cmd_args, ctx);
     if (!result.output.empty()) {
-        std::cout << result.output << std::endl;
+        std::cout << ColorCode::kGray << result.output << ColorCode::kReset << std::endl;
     } else if (!result.success) {
-        std::cout << result.error << "\n";
+        std::cout << ColorCode::kRed << result.error << ColorCode::kReset << "\n";
     }
     return true;
 }
@@ -189,12 +194,12 @@ std::string AgentEngine::CreateSession(const std::string& role_id,
 }
 
 std::optional<RenderSnapshot> AgentEngine::GetFocusedSessionSnapshot() {
-    auto session_id = session_manager_->GetLastSessionId();
-    if (session_id.empty()) return std::nullopt;
+    return GetSessionSnapshot(session_manager_->GetLastSessionId());
+}
 
+std::optional<RenderSnapshot> AgentEngine::GetSessionSnapshot(const std::string& session_id) {
     auto* session = session_manager_->GetSession(session_id);
     if (!session) return std::nullopt;
-
     return session->GetSnapshot();
 }
 
@@ -203,6 +208,29 @@ void AgentEngine::StopSession(const std::string& session_id) {
     if (session) {
         session->RequestStop();
     }
+}
+
+void AgentEngine::ChangeWorkspace(const std::string& new_path) {
+    if (!std::filesystem::exists(new_path)) {
+        LOG_ERROR("Workspace path does not exist: {}", new_path);
+        return;
+    }
+
+    if (memory_manager_) {
+        memory_manager_->StopFileWatcher();
+    }
+
+    workspace_path_ = new_path;
+    EnsureDirectory(workspace_path_);
+
+    // Re-create memory manager with new path
+    memory_manager_ = std::make_shared<MemoryManager>(workspace_path_);
+    memory_manager_->LoadWorkspaceFiles();
+    memory_manager_->StartFileWatcher();
+
+    tool_registry_->SetWorkspace(workspace_path_);
+
+    LOG_INFO("Workspace changed to: {}", workspace_path_);
 }
 
 void AgentEngine::SwitchRole(const std::string& session_id, const std::string& new_role_id) {

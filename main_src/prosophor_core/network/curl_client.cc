@@ -55,7 +55,7 @@ CURL* HttpClient::AcquireHandle(const std::string& url) {
     if (it != handle_pool_.end() && !it->second.empty()) {
         auto& vec = it->second;
         auto& entry = vec.back();
-        if (ElapsedSeconds(entry.last_used) < kPooledHandleMaxIdleSec) {
+        if (SteadyClock::ElapsedSeconds(entry.last_used) < kPooledHandleMaxIdleSec) {
             CURL* handle = entry.handle;
             vec.pop_back();
             if (vec.empty()) {

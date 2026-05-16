@@ -116,34 +116,4 @@ public:
     }
 };
 
-// ============================================================================
-// 便捷别名（向后兼容）
-// ============================================================================
-
-using TimePoint = SteadyClock::TimePoint;
-
-inline TimePoint Now() {
-    return SteadyClock::Now();
-}
-
-inline int64_t ToMillis(std::chrono::steady_clock::duration duration) {
-    return SteadyClock::ToMillis(duration);
-}
-
-inline int64_t ElapsedMillis(TimePoint since) {
-    return SteadyClock::ElapsedMillis(since);
-}
-
-inline double ElapsedSeconds(TimePoint since) {
-    return SteadyClock::ElapsedSeconds(since);
-}
-
-inline bool IsExpired(TimePoint since, int64_t threshold_ms) {
-    return SteadyClock::IsExpired(since, threshold_ms);
-}
-
-inline bool IsExpired(TimePoint since, double threshold_s) {
-    return SteadyClock::IsExpired(since, threshold_s);
-}
-
 }  // namespace prosophor

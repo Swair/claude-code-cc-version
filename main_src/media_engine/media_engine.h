@@ -8,12 +8,16 @@
 // instead of individual media_engine/xxx.h files.
 // ============================================================================
 
+#include "ui_component/widget.h"
 #include "media/colors.h"
 #include "media/media_core.h"
 #include "media/drawer.h"
 #include "media/texture.h"
 #include "media/audior.h"
 #include "media/imgui_widget.h"
+#include "media/window.h"
 #include "ui_component/ui_panel.h"
-#include "ui_component/ui_container.h"
 #include "ui_component/header_bar.h"
+#include "ui_component/input_panel.h"
+#include "ui_component/nav_bar.h"
+#include "ui_component/label.h"

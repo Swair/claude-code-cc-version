@@ -7,16 +7,14 @@
 
 namespace prosophor {
 
-StatusBar::StatusBar(float x, float y, float width, float height) {
-    panel_ = std::make_unique<UIPanel>(x, y, width, height, PanelStyle::StatusBar());
+StatusBar::StatusBar(float x, float y, float width, float height)
+    : media_engine::Widget(x, y, width, height) {
+    panel_ = std::make_unique<media_engine::UIPanel>(0, 0, 100, 100, media_engine::PanelStyle::StatusBar());
+    AddChild(panel_.get());
 }
 
-void StatusBar::SetPosition(float x, float y) {
-    panel_->SetPosition(x, y);
-}
-
-void StatusBar::SetSize(float width, float height) {
-    panel_->SetSize(width, height);
+void StatusBar::OnResize() {
+    Widget::OnResize();  // 级联到 panel_ 填满自身
 }
 
 void StatusBar::Render() const {
@@ -24,23 +22,24 @@ void StatusBar::Render() const {
     panel_->Render();
 }
 
-void StatusBar::RenderContent(const std::string& status_text, AgentRuntimeState state) {
+void StatusBar::Render(const media_engine::RenderContext& ctx) {
     if (!visible_) return;
-
-    constexpr StateColor kFallbackColor{128, 128, 128, 255};
+    // Recurse children (panel_ draws background)
+    for (auto* child : children_) {
+        child->Render(ctx);
+    }
 
     StateVisualProps state_props;
     if (state_props_getter_) {
-        state_props = state_props_getter_(state);
+        state_props = state_props_getter_(state_);
     } else {
-        state_props = MakeVisualProps(kFallbackColor, "Unknown");
+        state_props = MakeVisualProps(media_engine::Colors::Gray, "Unknown");
     }
 
     float status_y = panel_->GetY() + 5.0f;
 
-    // 状态图标（根据状态显示不同图标）
     const char* icon = "";
-    switch (state) {
+    switch (state_) {
         case AgentRuntimeState::IDLE: icon = "○"; break;
         case AgentRuntimeState::BEGINNING: icon = "◐"; break;
         case AgentRuntimeState::EXECUTING_TOOL: icon = "⚙"; break;
@@ -50,24 +49,26 @@ void StatusBar::RenderContent(const std::string& status_text, AgentRuntimeState 
         default: icon = "○"; break;
     }
 
-    // 状态图标（用 Unicode 字符通过 SDL_ttf 渲染）
     float window_width = panel_->GetWidth();
     float icon_x = 20;
-    MediaUtil::DrawTextRect(icon, icon_x, status_y, 100, 16,
-                            Color(state_props.r, state_props.g, state_props.b, 255),
+    media_engine::MediaUtil::DrawTextRect(icon, icon_x, status_y, 100, 16,
+                            media_engine::Color(state_props.color.r, state_props.color.g, state_props.color.b, 255),
                             platform::kDefaultFontPath);
 
-    // 状态名称
-    MediaUtil::DrawTextRect(state_props.name, icon_x + 25, status_y, 200, 14,
-                            Colors::LightGray, platform::kDefaultFontPath);
+    media_engine::MediaUtil::DrawTextRect(state_props.name, icon_x + 25, status_y, 200, 14,
+                            media_engine::Colors::LightGray, platform::kDefaultFontPath);
 
-    // 状态文本
-    MediaUtil::DrawTextRect(status_text, icon_x + 120, status_y, 400, 14,
-                            Colors::Gray, platform::kDefaultFontPath);
+    media_engine::MediaUtil::DrawTextRect(status_text_, icon_x + 120, status_y, 400, 14,
+                            media_engine::Colors::Gray, platform::kDefaultFontPath);
 
-    // ESC 提示
-    MediaUtil::DrawTextRect("[ESC] Exit", window_width - 100, status_y, 200, 14,
-                            Colors::DarkGray, platform::kDefaultFontPath);
+    media_engine::MediaUtil::DrawTextRect("[ESC] Exit", window_width - 100, status_y, 200, 14,
+                            media_engine::Colors::DarkGray, platform::kDefaultFontPath);
+}
+
+void StatusBar::RenderContent(const std::string& status_text, AgentRuntimeState state) {
+    status_text_ = status_text;
+    state_ = state;
+    Render(media_engine::RenderContext{});
 }
 
 void StatusBar::SetStatePropsGetter(StatePropsGetter getter) {

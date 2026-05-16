@@ -2,23 +2,28 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include "colors.h"
+#include "ui_component/label.h"
 #include <string>
 
-namespace prosophor {
+namespace media_engine {
 
 /// 标题栏组件 - 用于面板顶部的标题条
-class HeaderBar {
+class HeaderBar : public Widget {
 public:
     HeaderBar(float x, float y, float width, float height);
+    void OnResize() override {}
 
-    void Render(const std::string& title, Color bg_color = Color(30, 30, 30, 220)) const;
-    void SetPosition(float x, float y) { x_ = x; y_ = y; }
-    void SetSize(float width, float height) { width_ = width; height_ = height; }
+    void SetTitle(const std::string& title) { title_ = title; }
+    const std::string& GetTitle() const { return title_; }
+
+    void Render(const RenderContext& ctx) override;
+
+    // -- 外观 setter --
+    void SetTextColor(const Color& color) { label_.SetColor(color); }
 
 private:
-    float x_, y_;
-    float width_, height_;
+    std::string title_;
+    mutable Label label_{0, 0, "", Colors::White};
 };
 
-}  // namespace prosophor
+}  // namespace media_engine

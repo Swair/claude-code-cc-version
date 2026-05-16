@@ -485,6 +485,16 @@ void AgentSessionManager::SwitchRoleForSession(const std::string& session_id,
 std::vector<SystemSchema> AgentSessionManager::BuildSystemPrompt(const AgentSession& session) {
     std::ostringstream prompt;
 
+    // 0. 项目信息
+    prompt << "## 项目信息\n\n"
+           << "当前项目：Prosophor\n"
+           << "配置目录：~/.prosophor/\n"
+           << "  - config/settings.json — 全局配置\n"
+           << "  - roles/ — 角色定义\n"
+           << "  - skills/ — 技能文件（可用 /skills list 查看）\n"
+           << "  - sessions/ — 会话记录\n"
+           << "\n";
+
     // 1. Role Memory (长期记忆 - 习惯/偏好) - 从 AgentRole 封装方法加载
     if (session.GetRole()) {
         std::string memory_content = session.GetRole()->LoadMemoryContent();

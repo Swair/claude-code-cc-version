@@ -3,6 +3,7 @@
 #pragma once
 
 #include "media_engine/media_engine.h"
+#include "ui_component/ui_panel.h"
 #include "ui_types.h"
 #include <functional>
 #include <string>
@@ -11,29 +12,48 @@
 namespace prosophor {
 
 /// 聊天面板组件 - 使用独立 ScrollWindow
-class ChatPanel {
+class ChatPanel : public media_engine::Widget {
 public:
     ChatPanel(float x, float y, float width, float height);
     ~ChatPanel();
 
-    void SetPosition(float x, float y);
-    void SetSize(float width, float height);
+    void OnResize() override;
+
+    void SetSnapshot(const RenderSnapshot& snap) { snapshot_ = snap; }
+
+    using media_engine::Widget::Render;
 
     void Render() const;
+    void Render(const media_engine::RenderContext& ctx) override;
     void RenderContent(const RenderSnapshot& snapshot);
+
+    /// Render messages into a pre-positioned rect (no outer container).
+    /// Used by SpeechBubble for embedding inside its own ImGui window.
+    void RenderContentInRect(float x, float y, float w, float h,
+                             const RenderSnapshot& snapshot);
 
     void ScrollToBottom();
     bool IsScrolledToBottom() const;
 
-    void SetVisible(bool visible) { visible_ = visible; }
-    bool IsVisible() const { return visible_; }
+    void SetVisible(bool visible) { media_engine::Widget::SetVisible(visible); if (panel_) panel_->SetVisible(visible); }
+
+    void SetRoleFilter(const std::string& role) { role_filter_ = role; }
+    void SetHideRoleLabels(bool hide) { hide_role_labels_ = hide; }
+
+    // -- 外观 setter --
+    void SetBackgroundColor(const media_engine::Color& color) { media_engine::Widget::SetBackgroundColor(color); if (panel_) panel_->SetBackgroundColor(color); }
+    void SetBorderColor(const media_engine::Color& color)     { if (panel_) panel_->SetBorderColor(color); }
+    void SetBorderWidth(float w)                               { if (panel_) panel_->SetBorderWidth(w); }
 
 private:
-    std::unique_ptr<UIContainer> container_;
-    std::unique_ptr<imgui_widget::ScrollWindow> scroll_window_;
-    bool visible_ = true;
+    std::unique_ptr<media_engine::UIPanel> panel_;
+    std::unique_ptr<media_engine::ScrollWindow> scroll_window_;
+    std::string role_filter_;
+    bool hide_role_labels_ = false;
+    RenderSnapshot snapshot_;
 
     void RenderMessage(const std::string& role, const std::string& content, size_t index);
+    void RenderMessages(const RenderSnapshot& snapshot);
 };
 
 }  // namespace prosophor

@@ -3,6 +3,8 @@
 #include <SDL3/SDL.h>
 #include <SDL3_mixer/SDL_mixer.h>
 
+namespace media_engine {
+
 // AudiorImpl 定义
 struct Audior::AudiorImpl {
     std::string file_path_{};
@@ -42,3 +44,5 @@ bool Audior::Play(int loops) {
     SDL_DestroyProperties(props);
     return true;
 }
+
+} // namespace media_engine

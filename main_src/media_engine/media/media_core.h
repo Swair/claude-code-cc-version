@@ -3,13 +3,17 @@
 #include <string>
 #include <list>
 #include <vector>
+#include <unordered_map>
 #include <memory>
 #include <stdint.h>
 #include "audior.h"
 #include "font.h"
 #include "texture.h"
 #include "colors.h"
+#include "window.h"
 #include <functional>
+
+namespace media_engine {
 
 // ============================================================================
 // EventType - 事件类型枚举
@@ -59,6 +63,20 @@ enum class EventType {
 typedef std::function<void(std::vector<EventType> &event_list)> EventHandler;
 typedef std::function<void()> UpdateHandler;
 typedef std::function<void()> RenderHandler;
+enum class MouseEventType { DOWN, UP, MOTION };
+enum class MouseButton : int { LEFT = 1, RIGHT = 2, MIDDLE = 3 };
+
+class Window;
+
+struct MouseEvent {
+    MouseEventType type;
+    int x, y;
+    MouseButton button = MouseButton::LEFT;
+    int dx, dy;  // relative motion (MOTION)
+    Window* window = nullptr;  // source window
+};
+
+typedef std::function<void(const MouseEvent&)> MouseHandler;
 
 
 // ============================================================================
@@ -71,7 +89,7 @@ class MediaCore {
             return instance;
         }
 
-        void MediaInit(int window_width, int window_height);
+        void MediaInit();
         void SetFPS(uint64_t FPS);
         void FPSControl();
         float GetDeltaTimeS();
@@ -81,26 +99,36 @@ class MediaCore {
         // 游戏控制
         void Quit();  // 退出游戏
 
-        // 注册事件处理函数，更新函数，渲染函数
+        // 注册事件处理函数，更新函数，渲染函数，鼠标点击处理函数
         void RegEventHandler(EventHandler handler);
+        // 注册渲染回调到指定窗口
+        void RegRenderHandler(Window* window, RenderHandler handler);
         void RegUpdateHandler(UpdateHandler handler);
-        void RegRenderHandler(RenderHandler handler);
+        void RegMouseHandler(Window* window, MouseHandler handler);         // per-window
 
-        // ImGui 支持
-        void ImGuiInit();
-        void ImGuiShutdown();
-        void ImGuiNewFrame();
-        void ImGuiRender();
-        bool IsImGuiInitialized();
+        // 清理所有窗口
+        void Shutdown();
 
-        // 事件处理函数，更新函数，渲染函数
+        // 多窗口支持：创建额外窗口（自带 SDL + ImGui）
+        Window* CreateMediaWindow(const char* title, int w, int h,
+                             const WindowConfig& cfg = {});
+
+        // 事件处理函数，更新函数
         void EventProcess();
         void Update();
-        void Render();
 
-        // 获取窗口尺寸
-        int GetWindowWidth() const { return window_width_; }
-        int GetWindowHeight() const { return window_height_; }
+        // 获取主窗口指针（Texture/Drawer 等传统绘制用）
+        Window* GetPrimaryWindow() const { return primary_window_; }
+
+        // 获取/设置窗口尺寸与位置
+        static void GetPrimaryDisplaySize(int* w, int *h);
+        void SetWindowSize(int w, int h);
+        void GetWindowPosition(int* x, int* y) const;
+        void GetGlobalMousePosition(float* x, float* y) const;
+        void SetWindowPosition(int x, int y) const;
+        void CenterWindow(int w, int h);  // 窗口居中并设为指定尺寸
+        void ClampToDisplay();            // 确保主窗口不超出屏幕边界
+        bool GetDisplayBoundsForWindow(Window* window, int* x, int* y, int* w, int* h) const;
 
     private:
         MediaCore() = default;
@@ -113,11 +141,13 @@ class MediaCore {
         float delta_s_ = 0;
 
         std::vector<EventHandler> event_handler_list_{};
-        std::vector<RenderHandler> render_handlers_list_{};
         std::vector<UpdateHandler> update_handlers_list_{};
+        // Per-window render handlers — keyed by Window*, primary window = primary_window_
+        std::unordered_map<Window*, std::vector<RenderHandler>> window_handlers_;
+        std::unordered_map<Window*, std::vector<MouseHandler>> mouse_window_handlers_;
 
-        int window_width_ = 1280;
-        int window_height_ = 720;
+        Window* primary_window_ = nullptr;
+        std::vector<std::unique_ptr<Window>> all_windows_;
 };
 
 
@@ -133,11 +163,10 @@ public:
 
     // 快速渲染文字（一次性使用，自动管理字体，字体路径由应用层传入）
     static bool DrawTextRect(const std::string& text, float x, float y, float w, float h,
-                             uint8_t r, uint8_t g, uint8_t b, uint8_t a, const char* font_path);
-    static bool DrawTextRect(const std::string& text, float x, float y, float w, float h,
                              const Color& color, const char* font_path);
 
 private:
     MediaUtil() = default;
 };
 
+} // namespace media_engine

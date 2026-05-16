@@ -1,21 +1,25 @@
 #include "texture.h"
+#include "window.h"
+#include "log_wrapper.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
-#include "sdl_common.h"
+namespace media_engine {
 
 // TextureImpl 定义
 struct Texture::TextureImpl {
     std::string file_path_{};
     float origin_width_;
     float origin_height_;
+    SDL_Renderer* renderer_ = nullptr;
     SDL_Texture* texture_{nullptr};
 };
 
-Texture::Texture(const std::string& file_path) : impl_(std::make_unique<TextureImpl>()) {
+Texture::Texture(Window& window, const std::string& file_path) : impl_(std::make_unique<TextureImpl>()) {
     impl_->file_path_ = file_path;
-    impl_->texture_ = IMG_LoadTexture(SdlResource::Instance().GetRender(), file_path.c_str());
+    impl_->renderer_ = window.GetSDLRenderer();
+    impl_->texture_ = IMG_LoadTexture(impl_->renderer_, file_path.c_str());
     if (impl_->texture_ == nullptr) {
-        LOG_ERROR("[Texture] Failed to load image: {}", file_path.c_str());
+        LOG_WARN("[Texture] Cannot load image: {} (will retry other formats)", file_path.c_str());
         impl_->origin_width_ = 0;
         impl_->origin_height_ = 0;
     } else {
@@ -41,7 +45,7 @@ float Texture::GetOriginHeight() const {
 // 渲染时按照指定的宽高进行拉伸缩放
 bool Texture::RenderTexture(float x, float y, float w, float h) const {
     SDL_FRect rect = {x, y, w, h};
-    if (SDL_RenderTexture(SdlResource::Instance().GetRender(), impl_->texture_, nullptr, &rect) < 0) {
+    if (SDL_RenderTexture(impl_->renderer_, impl_->texture_, nullptr, &rect) < 0) {
         LOG_ERROR("[Texture] SDL_RenderTexture 渲染视差纹理失败 {}", SDL_GetError());
         return false;
     }
@@ -52,7 +56,7 @@ bool Texture::RenderTexture(float x, float y, float w, float h) const {
 bool Texture::RenderTexture(float src_x, float src_y, float src_w, float src_h, float dst_x, float dst_y, float dst_w, float dst_h) const {
     SDL_FRect src_rect = {src_x, src_y, src_w, src_h};
     SDL_FRect dst_rect = {dst_x, dst_y, dst_w, dst_h};
-    if (SDL_RenderTexture(SdlResource::Instance().GetRender(), impl_->texture_, &src_rect, &dst_rect) < 0) {
+    if (SDL_RenderTexture(impl_->renderer_, impl_->texture_, &src_rect, &dst_rect) < 0) {
         LOG_ERROR("[Texture] SDL_RenderTexture 渲染视差纹理失败 {}", SDL_GetError());
         return false;
     }
@@ -61,7 +65,7 @@ bool Texture::RenderTexture(float src_x, float src_y, float src_w, float src_h, 
 
 bool Texture::RenderTexture(float x, float y, float w, float h, float angle) const {
     SDL_FRect rect = {x, y, w, h};
-    if (SDL_RenderTextureRotated(SdlResource::Instance().GetRender(), impl_->texture_, nullptr, &rect, angle, NULL, SDL_FLIP_NONE) < 0) {
+    if (SDL_RenderTextureRotated(impl_->renderer_, impl_->texture_, nullptr, &rect, angle, NULL, SDL_FLIP_NONE) < 0) {
         LOG_ERROR("[Texture] SDL_RenderTextureRotated 渲染视差纹理失败 {}", SDL_GetError());
         return false;
     }
@@ -88,9 +92,11 @@ bool Texture::RenderTexture(float src_x, float src_y, float src_w, float src_h,
     if (flip_h) flip = (SDL_FlipMode)(flip | SDL_FLIP_HORIZONTAL);
     if (flip_v) flip = (SDL_FlipMode)(flip | SDL_FLIP_VERTICAL);
 
-    if (SDL_RenderTextureRotated(SdlResource::Instance().GetRender(), impl_->texture_, &src_rect, &dst_rect, 0.0, NULL, flip) < 0) {
+    if (SDL_RenderTextureRotated(impl_->renderer_, impl_->texture_, &src_rect, &dst_rect, 0.0, NULL, flip) < 0) {
         LOG_ERROR("[Texture] SDL_RenderTextureRotated 渲染翻转纹理失败 {}", SDL_GetError());
         return false;
     }
     return true;
 }
+
+} // namespace media_engine

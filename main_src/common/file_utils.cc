@@ -129,4 +129,16 @@ bool DirExists(const std::string& path) {
     return std::filesystem::exists(path, ec) && std::filesystem::is_directory(path, ec);
 }
 
+std::string FindFileInDirs(const std::string& base_dir, const std::string& filename) {
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(base_dir, ec)) {
+        if (!entry.is_directory()) continue;
+        std::filesystem::path candidate = entry.path() / filename;
+        if (std::filesystem::exists(candidate, ec)) {
+            return candidate.string();
+        }
+    }
+    return {};
+}
+
 }  // namespace prosophor

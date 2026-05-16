@@ -6,14 +6,15 @@
 #include "platform/platform.h"
 
 #ifdef PROSOPHOR_SDL_UI
-#include "virtual_sprite.h"
+#include "virtual_sprite/virtual_sprite.h"
 #else
 #include "ai_coding.h"
 #endif
 
 // 统一入口：所有平台都用 main()
 int main(int argc, char* argv[]) {
-    (void)argc; (void)argv;  // 未使用参数
+    (void)argc;
+    (void)argv;
 
     prosophor::platform::SetConsoleUtf8();
 

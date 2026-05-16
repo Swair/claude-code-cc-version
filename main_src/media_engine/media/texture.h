@@ -3,9 +3,13 @@
 #include <string>
 #include <memory>
 
+namespace media_engine {
+
+class Window;  // forward declaration — no SDL types exposed
+
 class Texture {
     public:
-        explicit Texture(const std::string& file_path);
+        explicit Texture(Window& window, const std::string& file_path);
 
         ~Texture();
         
@@ -35,4 +39,6 @@ class Texture {
         struct TextureImpl;
         std::unique_ptr<TextureImpl> impl_{nullptr};
 };
+
+} // namespace media_engine
 

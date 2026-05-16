@@ -3,6 +3,7 @@
 #include <string>
 #include <memory>
 
+namespace media_engine {
 
 class Audior {
     public:
@@ -21,3 +22,5 @@ class Audior {
         struct AudiorImpl;
         std::unique_ptr<AudiorImpl> impl_{nullptr};
 };
+
+} // namespace media_engine

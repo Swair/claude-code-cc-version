@@ -4,52 +4,38 @@
 
 namespace prosophor {
 
-/// 布局配置 - 统一管理所有 UI 和场景元素的布局
+/// 全局布局配置 — 所有布局数值的单一事实来源
+///
+/// 使用方法：在需要布局数值的地方 instance 一个 struct 读字段即可。
+/// 所有像素单位都集中在这里，不要在业务代码中硬编码重复值。
 struct LayoutConfig {
-    // 右侧聊天面板区域
-    float chat_panel_x_ratio = 0.65f;
-    float chat_panel_width_ratio = 0.35f;
+    // ── Central chat window ──
+    int chat_window_width = 1600;
+    int chat_window_height = 800;
 
-    // 底部输入区高度
-    float input_area_height = 100.0f;
+    // ── Chat panel (right-side percentage) ──
+    float chat_panel_x_ratio = 0.65f;         // 左边界（宽度的比例 0.0~1.0）
+    float chat_panel_width_ratio = 0.35f;      // 面板宽度（宽度的比例 0.0~1.0）
 
-    // 底部状态栏高度
-    float status_bar_height = 30.0f;
+    // ── Bottom fixed-height areas (pixels) ──
+    float input_area_height = 100.0f;          // 输入区高度
+    float status_bar_height = 30.0f;          // 状态栏高度（保留字段，后续实现）
 
-    // 办公区/像素精灵地砖大小
-    float tile_size = 32.0f;
+    // ── Close button (chat window) ──
+    float close_btn_size = 22.0f;
 
-    // 获取办公区域（屏幕左侧，聊天面板左侧即为办公区右边界）
-    static float GetOfficeX() { return 0.0f; }
-    static float GetOfficeY() { return 0.0f; }
-    static float GetOfficeWidth(float window_width) {
-        return GetChatPanelX(window_width);
-    }
-    static float GetOfficeHeight(float window_height) {
-        return window_height;
-    }
+    // ── Desktop pet (sprite window) ──
+    int sprite_window_width = 280;
+    int sprite_window_height = 380;
+    float pet_sprite_size = 192.0f;           // 宠物精灵渲染尺寸
+    float pet_ground_ratio = 0.70f;           // 宠物脚底位置 (win_h * ratio)
 
-    // 获取聊天面板位置
-    static float GetChatPanelX(float window_width) {
-        return window_width * LayoutConfig{}.chat_panel_x_ratio;
-    }
-    static float GetChatPanelWidth(float window_width) {
-        return window_width * LayoutConfig{}.chat_panel_width_ratio;
-    }
-    static float GetChatPanelY() { return 0.0f; }
-    static float GetChatPanelHeight(float window_height, float input_height, float status_height) {
-        return window_height - input_height - status_height - 10.0f;
-    }
+    // ── Navigation / status ──
+    float tile_size = 32.0f;                  // 像素精灵地砖大小（保留）
 
-    // 获取输入面板 Y 位置
-    static float GetInputPanelY(float window_height, float status_height) {
-        return window_height - status_height - LayoutConfig{}.input_area_height;
-    }
-
-    // 获取状态栏 Y 位置
-    static float GetStatusBarY(float window_height, float status_height) {
-        return window_height - status_height;
-    }
+    // ── Tray icon ──
+    int tray_icon_size = 48;
+    int tray_margin = 64;                     // 距屏幕右下角偏移
 };
 
 }  // namespace prosophor

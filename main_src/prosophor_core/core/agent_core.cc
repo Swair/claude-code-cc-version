@@ -287,6 +287,7 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
         // Check for API error
         if (!response.error_msg.empty()) {
             session.CleanupInterruptedLoop();  // 移除孤立的 user 消息
+            LOG_ERROR("LLM API error: {}", response.error_msg);
             session.SetOutput(AgentRuntimeState::STATE_ERROR, response.error_msg);
             return;
         }
@@ -329,7 +330,8 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
         }
 
         session.SetOutput(AgentRuntimeState::STATE_ERROR, "Unexpected LLM response format");
-        break;
+        LOG_ERROR("Loop res error: {}", response.content_text);
+        return;
     }
 
     // Max iterations (unexpected — LLM didn't complete in time)

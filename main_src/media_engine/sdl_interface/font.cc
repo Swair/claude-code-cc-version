@@ -3,6 +3,8 @@
 #include <SDL3_ttf/SDL_ttf.h>
 #include "sdl_common.h"
 
+namespace media_engine {
+
 // FontImpl 定义
 struct Font::FontImpl {
     std::string file_path_{};
@@ -47,3 +49,5 @@ bool Font::RenderText(const std::string& text, float x, float y, float r, float 
 
     return true;
 }
+
+} // namespace media_engine

@@ -18,5 +18,7 @@ inline std::string SoundDir()   { return AssetBase() + "sound/"; }
 inline std::string MusicDir()   { return AssetBase() + "music/"; }
 inline std::string FontDir()    { return AssetBase() + "font/"; }
 inline std::string EffectDir()  { return AssetBase() + "effect/"; }
+inline std::string PetdexDir() { return AssetBase() + "petdex-sprites/"; }
+inline std::string PetdexSpritesDir() { return PetdexDir() + "by-collection/"; }
 
 #endif

@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "ui_component/ui_panel.h"
+#include "ui_component/label.h"
 #include "drawer.h"
 
-namespace prosophor {
+namespace media_engine {
 
 PanelStyle PanelStyle::Default() {
     PanelStyle style;
-    style.background_color = Color(20, 20, 20, 200);
-    style.border_color = Color(80, 80, 80, 255);
+    style.background_color = Colors::GrayDarkest;
+    style.border_color = Colors::Gray31;
     style.has_border = true;
     style.padding = 10.0f;
     return style;
@@ -17,8 +18,8 @@ PanelStyle PanelStyle::Default() {
 
 PanelStyle PanelStyle::InputField() {
     PanelStyle style;
-    style.background_color = Color(35, 35, 35, 220);
-    style.border_color = Colors::UiPanelBorder;
+    style.background_color = Colors::OrangeLight;
+    style.border_color = Colors::CreamBorder;
     style.padding = 8.0f;
     style.has_border = true;
     return style;
@@ -26,8 +27,8 @@ PanelStyle PanelStyle::InputField() {
 
 PanelStyle PanelStyle::StatusBar() {
     PanelStyle style;
-    style.background_color = Colors::UiStatusBarBg;
-    style.border_color = Colors::UiStatusBarBorder;
+    style.background_color = Colors::GrayBlack;
+    style.border_color = Colors::Gray24;
     style.has_border = true;
     style.padding = 5.0f;
     return style;
@@ -35,8 +36,8 @@ PanelStyle PanelStyle::StatusBar() {
 
 PanelStyle PanelStyle::ChatPanel() {
     PanelStyle style;
-    style.background_color = Colors::UiPanelBg;
-    style.border_color = Colors::UiPanelBorder;
+    style.background_color = Colors::Cream;
+    style.border_color = Colors::CreamBorder;
     style.has_border = true;
     style.padding = 8.0f;
     return style;
@@ -44,8 +45,8 @@ PanelStyle PanelStyle::ChatPanel() {
 
 PanelStyle PanelStyle::MessageUser() {
     PanelStyle style;
-    style.background_color = Colors::UiMessageUserBg;
-    style.border_color = Colors::UiMessageUserBorder;
+    style.background_color = Colors::BlueSlate;
+    style.border_color = Colors::BlueSoft;
     style.padding = 6.0f;
     style.has_border = false;
     return style;
@@ -53,8 +54,8 @@ PanelStyle PanelStyle::MessageUser() {
 
 PanelStyle PanelStyle::MessageAgent() {
     PanelStyle style;
-    style.background_color = Colors::UiMessageAgentBg;
-    style.border_color = Colors::UiMessageAgentBorder;
+    style.background_color = Colors::Gray24a;
+    style.border_color = Colors::Gray40;
     style.padding = 6.0f;
     style.has_border = false;
     return style;
@@ -62,8 +63,8 @@ PanelStyle PanelStyle::MessageAgent() {
 
 PanelStyle PanelStyle::MessageSystem() {
     PanelStyle style;
-    style.background_color = Color(60, 60, 60, 200);
-    style.border_color = Color(100, 100, 100, 255);
+    style.background_color = Colors::Gray24b;
+    style.border_color = Colors::Gray40;
     style.padding = 6.0f;
     style.has_border = false;
     return style;
@@ -71,8 +72,8 @@ PanelStyle PanelStyle::MessageSystem() {
 
 PanelStyle PanelStyle::Card() {
     PanelStyle style;
-    style.background_color = Color(25, 25, 25, 230);
-    style.border_color = Color(90, 90, 90, 255);
+    style.background_color = Colors::GrayDarkest;
+    style.border_color = Colors::Gray35;
     style.has_border = true;
     style.corner_radius = 8.0f;
     style.padding = 12.0f;
@@ -80,19 +81,19 @@ PanelStyle PanelStyle::Card() {
 }
 
 UIPanel::UIPanel(float x, float y, float width, float height, PanelStyle style)
-    : x_(x), y_(y), width_(width), height_(height), style_(style) {
+    : Widget(x, y, width, height), style_(style) {
 }
 
 void UIPanel::RenderBackground() const {
     if (!visible_) return;
-    ::Drawer::Instance().DrawFilledRectWithBorder(
+    Drawer::Instance().DrawFilledRectWithBorder(
         x_, y_, width_, height_,
         style_.background_color, Colors::Transparent);
 }
 
 void UIPanel::RenderBorder() const {
     if (!visible_ || !style_.has_border) return;
-    ::Drawer::Instance().DrawFilledRectWithBorder(
+    Drawer::Instance().DrawFilledRectWithBorder(
         x_, y_, width_, height_,
         Colors::Transparent, style_.border_color);
 }
@@ -121,49 +122,47 @@ float UIPanel::GetContentHeight() const {
     return height_ - style_.padding * 2;
 }
 
-void UIPanel::SetPosition(float x, float y) { x_ = x; y_ = y; }
-
-void UIPanel::SetSize(float width, float height) { width_ = width; height_ = height; }
-
 void UIPanel::SetStyle(const PanelStyle& style) { style_ = style; }
 
+void UIPanel::OnResize() {
+    // 所有子组件全用百分比，直接级联解算
+    Widget::OnResize();
+}
+
+void UIPanel::Render(const RenderContext& ctx) {
+    if (!visible_) return;
+    RenderBackground();
+    RenderBorder();
+    for (auto* child : children_) {
+        child->Render(ctx);
+    }
+}
 void UIPanel::RenderFloatText(const std::string& text, FloatPosition pos,
                                float offset_x, float offset_y) const {
     if (!visible_) return;
 
-    float draw_x = x_;
-    float draw_y = y_;
+    Label lbl(0, 0, text, Colors::Gray78);
+    float cs = lbl.GetCharStep();
+    float ch = lbl.GetCharHeight();
 
     switch (pos) {
         case FloatPosition::TopLeft:
-            draw_x += offset_x;
-            draw_y += offset_y;
-            break;
+            lbl.RenderAt(x_ + offset_x, y_ + offset_y);
+            return;
         case FloatPosition::TopRight:
-            draw_x += width_ - offset_x - text.length() * 12;
-            draw_y += offset_y;
-            break;
+            lbl.RenderAt(x_ + width_ - offset_x - text.length() * cs, y_ + offset_y);
+            return;
         case FloatPosition::BottomLeft:
-            draw_x += offset_x;
-            draw_y += height_ - offset_y - 14;
-            break;
+            lbl.RenderAt(x_ + offset_x, y_ + height_ - offset_y - ch);
+            return;
         case FloatPosition::BottomRight:
-            draw_x += width_ - offset_x - text.length() * 12;
-            draw_y += offset_y;
-            break;
+            lbl.RenderAt(x_ + width_ - offset_x - text.length() * cs, y_ + offset_y);
+            return;
         case FloatPosition::Center:
-            draw_x += (width_ - text.length() * 12) / 2;
-            draw_y += (height_ - 14) / 2;
-            break;
-    }
-
-    for (size_t i = 0; i < text.size() && i < 50; i++) {
-        char c = text[i];
-        if (c >= 32 && c < 127) {
-            ::Drawer::Instance().DrawFillRect(draw_x + i * 12, draw_y, 8, 14,
-                                              Colors::TextGray);
-        }
+            lbl.RenderAt(x_ + (width_ - text.length() * cs) / 2,
+                         y_ + (height_ - ch) / 2);
+            return;
     }
 }
 
-}  // namespace prosophor
+}  // namespace media_engine

@@ -34,7 +34,7 @@ std::vector<SkillMetadata> SkillLoader::LoadSkillsFromDirectory(
         return skills;
     }
 
-    LOG_INFO("Loading skills from: {}", skills_dir.string());
+    LOG_DEBUG("Loading skills from: {}", skills_dir.string());
 
     for (const auto& entry :
          std::filesystem::recursive_directory_iterator(skills_dir)) {

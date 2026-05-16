@@ -117,7 +117,13 @@ RenderSnapshot AgentSession::GetSnapshot() const {
     snap.role_id = role_ ? role_->id : "";
     snap.state = state_;
     snap.state_message = state_message_;
-    snap.messages = messages_;
+    // 只拷贝最后 10 条用于 UI 渲染，避免随对话增长的全量拷贝
+    constexpr size_t kMaxVisibleMessages = 10;
+    if (messages_.size() > kMaxVisibleMessages) {
+        snap.messages.assign(messages_.end() - kMaxVisibleMessages, messages_.end());
+    } else {
+        snap.messages = messages_;
+    }
     snap.streaming_text = streaming_text_;
     snap.streaming_thinking = streaming_thinking_;
     return snap;

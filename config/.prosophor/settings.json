@@ -1,7 +1,7 @@
 {
   "default_role": "default",
   "log_level": "info",
-  "enable_summary": false,
+  "enable_summary": true,
   "providers": {
     "anthropic": [
       {

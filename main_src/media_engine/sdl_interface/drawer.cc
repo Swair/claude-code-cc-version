@@ -2,6 +2,7 @@
 #include "sdl_common.h"
 #include <cmath>
 
+namespace media_engine {
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -425,3 +426,5 @@ void Drawer::DrawGameOverOverlay() {
     // 半透明遮罩
     DrawFillRect(0, 0, 1280, 960, Colors::Overlay);
 }
+
+} // namespace media_engine

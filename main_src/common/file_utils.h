@@ -93,4 +93,10 @@ bool FileExists(const std::string& path);
 /// @return true if directory exists
 bool DirExists(const std::string& path);
 
+/// FindFileInDirs - Search base_dir + immediate subdirectories for a file
+/// @param base_dir Base directory
+/// @param filename File name to search for
+/// @return Full path if found, empty string otherwise
+std::string FindFileInDirs(const std::string& base_dir, const std::string& filename);
+
 }  // namespace prosophor

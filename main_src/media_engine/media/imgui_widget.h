@@ -13,14 +13,11 @@
 // 所有组件都使用 Pimpl 模式，头文件不依赖 ImGui
 // ============================================================================
 
-namespace imgui_widget {
+namespace media_engine {
 
 // 回调类型定义
 using VoidCallback = std::function<void()>;
-using BoolCallback = std::function<void(bool)>;
-using FloatCallback = std::function<void(float)>;
 using StringCallback = std::function<void(const std::string&)>;
-using ColorCallback = std::function<void(float[4])>;
 
 // ============================================================================
 // 按钮组件
@@ -30,81 +27,16 @@ public:
     Button(const std::string& label, VoidCallback on_click = nullptr);
     ~Button();
 
-    bool Render();
+    bool Render();                 // 渲染按钮，返回 true 表示被点击
 
-    void SetLabel(const std::string& label);
-    void SetOnClick(VoidCallback cb);
+    void SetLabel(const std::string& label);   // 设置按钮文字
+    void SetOnClick(VoidCallback cb);          // 设置点击回调
 
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// 图标按钮组件
-// ============================================================================
-class IconButton {
-public:
-    IconButton(const std::string& icon, const std::string& tooltip,
-               VoidCallback on_click = nullptr);
-    ~IconButton();
-
-    bool Render();
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// 滑块组件
-// ============================================================================
-class Slider {
-public:
-    Slider(const std::string& label, float min_val, float max_val,
-           float default_val, FloatCallback on_value_changed = nullptr);
-    ~Slider();
-
-    float GetValue() const;
-    void SetValue(float val);
-    bool Render();
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// 复选框组件
-// ============================================================================
-class Checkbox {
-public:
-    Checkbox(const std::string& label, bool default_state = false,
-             BoolCallback on_state_changed = nullptr);
-    ~Checkbox();
-
-    bool GetState() const;
-    void SetState(bool state);
-    bool Render();
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// 颜色选择器组件
-// ============================================================================
-class ColorPicker {
-public:
-    ColorPicker(const std::string& label,
-                float r = 1.0f, float g = 1.0f, float b = 1.0f, float a = 1.0f,
-                ColorCallback on_color_changed = nullptr);
-    ~ColorPicker();
-
-    void GetColor(float out_color[4]) const;
-    void SetColor(float r, float g, float b, float a);
-    bool Render();
+    // 按钮颜色
+    void SetBgColor(const Color& color);           // 默认背景色
+    void SetTextColor(const Color& color);         // 文字颜色
+    void SetHoveredColor(const Color& color);      // 鼠标悬停时的颜色
+    void SetActiveColor(const Color& color);       // 鼠标按下时的颜色
 
 private:
     struct Impl;
@@ -131,267 +63,15 @@ public:
     void SetEnterReturnsTrue(bool enable);
     bool IsEnterPressed() const;  // 检查 Enter 是否被按下
 
-    bool Render();
+    /// pos_x/pos_y >= 0 时内部自动 SetCursorScreenPos，否则由调用方管理光标位置
+    bool Render(float pos_x = -1, float pos_y = -1);
+
+    void SetBackgroundColor(const Color& color) { bg_color_ = color; }
 
 private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// 确认对话框
-// ============================================================================
-class ConfirmDialog {
-public:
-    using ConfirmCallback = VoidCallback;
-    using CancelCallback = VoidCallback;
-
-    ConfirmDialog(const std::string& title, const std::string& message,
-                  ConfirmCallback on_confirm = nullptr,
-                  CancelCallback on_cancel = nullptr);
-    ~ConfirmDialog();
-
-    void Open();
-    void Close();
-    bool IsOpen() const;
-    void Render();
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// 消息对话框（仅确定按钮）
-// ============================================================================
-class MessageDialog {
-public:
-    MessageDialog(const std::string& title, const std::string& message,
-                  VoidCallback on_close = nullptr);
-    ~MessageDialog();
-
-    void Open();
-    void Close();
-    bool IsOpen() const;
-    void Render();
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// 文件选择对话框
-// ============================================================================
-class FilePicker {
-public:
-    using FileSelectedCallback = StringCallback;
-
-    FilePicker(const std::string& title, const std::string& filter = "All Files,*.*",
-               FileSelectedCallback on_file_selected = nullptr);
-    ~FilePicker();
-
-    void Open();
-    void Close();
-    bool IsOpen() const;
-    void Render();
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// 日志控制台组件
-// ============================================================================
-class LogConsole {
-public:
-    LogConsole(size_t max_lines = 1000);
-    ~LogConsole();
-
-    void Log(const std::string& message, unsigned int color = 0xFFFFFFFF);
-    void Info(const std::string& message);
-    void Warning(const std::string& message);
-    void Error(const std::string& message);
-    void Success(const std::string& message);
-
-    void Render(const std::string& title, bool* open = nullptr);
-    void Clear();
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// 进度条组件
-// ============================================================================
-class ProgressBar {
-public:
-    ProgressBar();
-    ~ProgressBar();
-
-    void Render(const std::string& label, float fraction,
-                float width = -1.0f, float height = 0.0f);
-    void RenderWithOverlay(const std::string& label, float fraction,
-                           const std::string& overlay,
-                           float width = -1.0f, float height = 0.0f);
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-};
-
-// ============================================================================
-// ImGui 工具函数封装 - 避免外部文件直接 include imgui.h
-// ============================================================================
-
-// ImGui 窗口标志（常用）— 值匹配 ImGui 1.92.8
-constexpr int ImGuiWindowFlags_None = 0;
-constexpr int ImGuiWindowFlags_NoTitleBar = 1 << 0;
-constexpr int ImGuiWindowFlags_NoResize = 1 << 1;
-constexpr int ImGuiWindowFlags_NoMove = 1 << 2;
-constexpr int ImGuiWindowFlags_NoScrollbar = 1 << 3;
-constexpr int ImGuiWindowFlags_NoScrollWithMouse = 1 << 4;
-constexpr int ImGuiWindowFlags_NoCollapse = 1 << 5;
-constexpr int ImGuiWindowFlags_AlwaysAutoResize = 1 << 6;
-constexpr int ImGuiWindowFlags_NoBackground = 1 << 7;
-constexpr int ImGuiWindowFlags_NoSavedSettings = 1 << 8;
-constexpr int ImGuiWindowFlags_NoMouseInputs = 1 << 9;
-constexpr int ImGuiWindowFlags_MenuBar = 1 << 10;
-constexpr int ImGuiWindowFlags_HorizontalScrollbar = 1 << 11;
-constexpr int ImGuiWindowFlags_NoFocusOnAppearing = 1 << 12;
-constexpr int ImGuiWindowFlags_NoBringToFrontOnFocus = 1 << 13;
-constexpr int ImGuiWindowFlags_AlwaysVerticalScrollbar = 1 << 14;
-constexpr int ImGuiWindowFlags_AlwaysHorizontalScrollbar = 1 << 15;
-constexpr int ImGuiWindowFlags_NoDecoration =
-    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
-
-// ImGui Child 标志 — 值匹配 ImGui 1.92.8
-constexpr int ImGuiChildFlags_None = 0;
-constexpr int ImGuiChildFlags_Borders = 1 << 0;     // bit 0 必须为 1（兼容旧版 bool 参数）
-
-// ImGui 样式颜色枚举值 — 值匹配 ImGui 1.92.8
-constexpr int ImGuiCol_ChildBg = 3;
-constexpr int ImGuiCol_Border = 5;
-
-// Color → IM_COL32 (RGBA packed 32-bit, 用于 draw list 函数)
-inline uint32_t ColorToIM_COL32(const Color& c) {
-    return (static_cast<uint32_t>(c.a) << 24) |
-           (static_cast<uint32_t>(c.r) << 16) |
-           (static_cast<uint32_t>(c.g) << 8)  |
-           (static_cast<uint32_t>(c.b));
-}
-
-// ImVec2 封装
-struct ImVec2Wrapper {
-    float x, y;
-    ImVec2Wrapper(float _x = 0, float _y = 0) : x(_x), y(_y) {}
-};
-
-// ImVec4 封装
-struct ImVec4Wrapper {
-    float x, y, z, w;
-    ImVec4Wrapper(float _x = 0, float _y = 0, float _z = 0, float _w = 0) : x(_x), y(_y), z(_z), w(_w) {}
-};
-
-/// 获取程序运行时间（秒）
-double GetImGuiTime();
-
-/// 窗口位置/尺寸设置
-void SetImGuiNextWindowPos(float x, float y);
-void SetImGuiNextWindowSize(float w, float h);
-void SetImGuiNextWindowBgAlpha(float alpha);
-
-/// 窗口控制
-bool ImGuiBegin(const char* name, bool* open = nullptr, int flags = 0);
-void ImGuiEnd();
-
-/// 布局控制
-void ImGuiPushItemWidth(float width);
-void ImGuiPopItemWidth();
-void ImGuiSameLine();
-void ImGuiSetCursorPos(float x, float y);
-void ImGuiSetCursorScreenPos(float x, float y);
-
-/// 样式控制
-void ImGuiPushTextWrapPos(float wrap_width);
-void ImGuiPopTextWrapPos();
-void ImGuiPushStyleVar_ItemSpacing(float x, float y);
-void ImGuiPushStyleVar_WindowPadding(float x, float y);
-void ImGuiPushStyleVar_FramePadding(float x, float y);
-void ImGuiPushStyleVar_ItemInnerSpacing(float x, float y);
-void ImGuiPopStyleVar(int count = 1);
-
-/// 不可见按钮（用于点击区域检测，返回是否被点击）
-bool ImGuiInvisibleButton(const char* id, float w, float h);
-
-/// ImGui 窗口内绘制圆角矩形（填充，color 为 ARGB/IM_COL32 格式）
-void DrawFilledRoundRect(float x, float y, float w, float h, float radius, uint32_t color_rgba);
-/// ImGui 窗口内绘制圆角矩形（边框）
-void DrawRoundRectOutline(float x, float y, float w, float h, float radius, uint32_t color_rgba, float thickness = 1.0f);
-
-/// 样式颜色
-void ImGuiPushStyleColor_TitleText(const Color& color);
-void ImGuiPopStyleColor_TitleText(int count = 1);
-
-/// 文本渲染
-void ImGuiText(const char* fmt, ...);
-void ImGuiTextUnformatted(const char* text);
-/// 文本渲染（自动换行，wrap_width=0 表示窗口右边界）
-void ImGuiTextWrapped(const char* text, float wrap_width = 0.0f, const Color& color = Colors::White);
-/// 文本渲染（带颜色，无换行）
-void ImGuiTextColored(const Color& color, const char* text);
-/// 文本渲染（统一接口：颜色 + 可选换行）
-void ImGuiText(const char* text, const Color& color = Colors::White, float wrap_width = 0.0f);
-
-/// 滚动
-void ImGuiSetScrollHereY(float center_y_ratio = 0.5f);
-
-/// Child 窗口
-bool BeginChild(const char* name, float width = 0.0f, float height = 0.0f, int child_flags = 0);
-bool BeginChild(const char* name, float width, float height, int child_flags, int window_flags);
-void EndChild();
-
-/// 光标位置
-float GetCursorPosY();
-void SetCursorPosY(float y);
-
-/// 文本尺寸计算
-void CalcTextSize(float* out_x, float* out_y, const char* text_begin, const char* text_end = nullptr, bool hide_text_after_double_hash = false, float wrap_width = -1.0f);
-
-/// 滚动控制
-float GetScrollY();
-float GetScrollMaxY();
-void SetScrollY(float scroll_y);
-
-/// 占位符（用于增长窗口边界）
-void Dummy(float width, float height);
-
-/// 样式颜色
-void PushStyleColor(int color_index, const Color& color);
-void PopStyleColor(int count = 1);
-
-// ============================================================================
-// 属性编辑器组件
-// ============================================================================
-class PropertyEditor {
-public:
-    PropertyEditor();
-    ~PropertyEditor();
-
-    void Begin(const std::string& label);
-    void End();
-
-    void AddText(const std::string& key, const std::string& value);
-    void AddSlider(const std::string& key, float* value, float min, float max);
-    void AddCheckbox(const std::string& key, bool* value);
-    void AddColorPicker(const std::string& key, float value[4]);
-
-private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
+    Color bg_color_{0, 0, 0, 0};  // 默认 0=不覆盖 ImGui 风格
 };
 
 // ============================================================================
@@ -428,4 +108,134 @@ private:
     bool scroll_to_bottom_ = false;
 };
 
-} // namespace imgui_widget
+// ============================================================================
+// ImGui 窗口标志（常用）— 值匹配 ImGui 1.92.8
+// ============================================================================
+constexpr int ImGuiWindowFlags_None = 0;
+constexpr int ImGuiWindowFlags_NoTitleBar = 1 << 0;
+constexpr int ImGuiWindowFlags_NoResize = 1 << 1;
+constexpr int ImGuiWindowFlags_NoMove = 1 << 2;
+constexpr int ImGuiWindowFlags_NoScrollbar = 1 << 3;
+constexpr int ImGuiWindowFlags_NoScrollWithMouse = 1 << 4;
+constexpr int ImGuiWindowFlags_NoCollapse = 1 << 5;
+constexpr int ImGuiWindowFlags_AlwaysAutoResize = 1 << 6;
+constexpr int ImGuiWindowFlags_NoBackground = 1 << 7;
+constexpr int ImGuiWindowFlags_NoSavedSettings = 1 << 8;
+constexpr int ImGuiWindowFlags_NoMouseInputs = 1 << 9;
+constexpr int ImGuiWindowFlags_NoFocusOnAppearing = 1 << 12;
+constexpr int ImGuiWindowFlags_AlwaysVerticalScrollbar = 1 << 14;
+constexpr int ImGuiWindowFlags_NoDecoration =
+    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+    ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
+
+// ============================================================================
+// ImGui 工具函数封装 - 避免外部文件直接 include imgui.h
+// ============================================================================
+
+/// 窗口位置/尺寸设置
+void SetImGuiNextWindowPos(float x, float y);
+void SetImGuiNextWindowSize(float w, float h);
+void SetImGuiNextWindowBgAlpha(float alpha);
+
+/// 窗口控制
+bool ImGuiBegin(const char* name, bool* open = nullptr, int flags = 0);
+void ImGuiEnd();
+
+/// 布局控制
+void ImGuiPushItemWidth(float width);
+void ImGuiPopItemWidth();
+void ImGuiSameLine();
+void ImGuiSetCursorPos(float x, float y);
+void ImGuiSetCursorScreenPos(float x, float y);
+void ImGuiPushStyleVar_ItemSpacing(float x, float y);
+void ImGuiPopStyleVar(int count = 1);
+
+/// 不可见按钮（用于点击区域检测，返回是否被点击）
+bool ImGuiInvisibleButton(const char* id, float w, float h);
+
+/// ImGui 窗口内绘制圆角矩形（填充，color 为 ARGB/IM_COL32 格式）
+void DrawFilledRoundRect(float x, float y, float w, float h, float radius, const Color& color);
+/// ImGui 窗口内绘制圆角矩形（边框）
+void DrawRoundRectOutline(float x, float y, float w, float h, float radius, const Color& color, float thickness = 1.0f);
+/// ImGui 窗口内绘制填充三角形
+void DrawFilledTriangle(float x1, float y1, float x2, float y2, float x3, float y3, const Color& color);
+/// ImGui 窗口内绘制三角形边框
+void DrawTriangleOutline(float x1, float y1, float x2, float y2, float x3, float y3, const Color& color, float thickness = 1.0f);
+
+/// 组合组件：圆角面板（填充 + 边框，一步完成）
+void DrawPanel(float x, float y, float w, float h, float radius,
+               const Color& fill_color, const Color& border_color, float border_thickness = 1.5f);
+/// 组合组件：右下角缩放拖拽柄（两个三角叠加）
+void DrawResizeGrip(float x, float y, float size,
+                    const Color& outer_color, const Color& inner_color);
+
+/// 渲染带圆角背景的图标按钮
+/// 使用屏幕坐标定位，不受 WindowPadding 影响
+/// @returns true 表示被点击
+/// @param id 唯一标识
+/// @param icon 图标文本
+/// @param x,y 相对当前窗口 content 区域的偏移
+/// @param size 按钮宽高
+/// @param bg_color 背景色（ARGB 格式）
+/// @param text_color 文字色（默认白）
+/// @param radius 圆角半径（默认 4.0f）
+bool IconButtonRender(const char* id, const char* icon,
+                      float x, float y, float size,
+                      const Color& bg_color,
+                      const Color& text_color = Colors::White,
+                      float radius = 4.0f);
+
+/// 文本渲染
+void ImGuiText(const char* fmt, ...);
+void ImGuiTextUnformatted(const char* text);
+/// 文本渲染（自动换行，wrap_width=0 表示窗口右边界）
+void ImGuiTextWrapped(const char* text, float wrap_width = 0.0f, const Color& color = Colors::White);
+/// 文本渲染（带颜色，无换行）
+void ImGuiTextColored(const Color& color, const char* text);
+/// 文本渲染（统一接口：颜色 + 可选换行）
+void ImGuiText(const char* text, const Color& color = Colors::White, float wrap_width = 0.0f);
+
+/// 滚动
+void ImGuiSetScrollHereY(float center_y_ratio = 0.5f);
+
+/// Child 窗口
+bool BeginChild(const char* name, float width = 0.0f, float height = 0.0f, int child_flags = 0);
+bool BeginChild(const char* name, float width, float height, int child_flags, int window_flags);
+void EndChild();
+
+/// 滚动控制
+float GetScrollY();
+float GetScrollMaxY();
+void SetScrollY(float scroll_y);
+
+/// 占位符（用于增长窗口边界）
+void Dummy(float width, float height);
+
+/// ImVec2 封装（GetMouseDragDelta 返回类型）
+struct ImVec2Wrapper {
+    float x, y;
+    ImVec2Wrapper(float _x = 0, float _y = 0) : x(_x), y(_y) {}
+};
+
+/// 鼠标/交互状态查询
+bool IsItemHovered();
+bool IsItemActive();
+ImVec2Wrapper GetMouseDragDelta(float threshold = 0.0f);
+void ResetMouseDragDelta();
+
+/// 鼠标光标类型常量（值匹配 ImGui 1.92.8）
+constexpr int ImGuiMouseCursor_None = -1;
+constexpr int ImGuiMouseCursor_Arrow = 0;
+constexpr int ImGuiMouseCursor_ResizeNWSE = 4;
+
+/// 设置鼠标光标
+void SetMouseCursor(int cursor_type);
+
+/// 样式颜色
+void PushStyleColor(int color_index, const Color& color);
+void PopStyleColor(int count = 1);
+
+/// 获取当前 ImGui 上下文的显示尺寸（viewport 尺寸，NewFrame 后可用）
+void ImGuiGetDisplaySize(float* w, float* h);
+
+} // namespace media_engine

@@ -5,12 +5,17 @@
 
 #include "common/noncopyable.h"
 #include "common/input_event.h"
+#include "virtual_sprite/sprite_manager.h"
+#include "virtual_sprite/chat_window.h"
 #include <functional>
 #include <string>
+#include <memory>
+#include <cstdint>
 
 namespace prosophor {
 
-/// VirtualSprite: SDL-based graphical interface entry point
+/// VirtualSprite: SDL application entry point.
+/// Owns SpriteManager (all sprite instances) and the shared central chat window.
 class VirtualSprite : public Noncopyable {
  public:
     static VirtualSprite& GetInstance();
@@ -18,6 +23,9 @@ class VirtualSprite : public Noncopyable {
     int Run();
     void Stop();
 
+    ChatWindow& GetCentralWindow() { return central_window_; }
+
+    /// External input forwarding (system tray, etc.)
     void HandleTextInput(const char* text);
     void HandleKeyDown(int key_code);
     void HandleMouseButtonDown(int x, int y);
@@ -29,11 +37,13 @@ class VirtualSprite : public Noncopyable {
     VirtualSprite();
     ~VirtualSprite();
 
-    void Initialize();
+    void GlobalInit();
     void Shutdown();
 
     InputCallback saved_callback_;
     InputCallback input_callback_;
+
+    ChatWindow central_window_;          // shared central chat window
 };
 
 }  // namespace prosophor

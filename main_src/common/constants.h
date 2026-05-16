@@ -53,4 +53,13 @@ inline constexpr int kOverflowCompactionMaxRetries = 3;
 // Token estimation
 inline constexpr int kCharsPerTokenEstimate = 4;
 
+// ANSI color codes for terminal output
+namespace ColorCode {
+inline constexpr const char* kReset  = "\033[0m";
+inline constexpr const char* kGray   = "\033[90m";  // thinking (dim/internal)
+inline constexpr const char* kGreen  = "\033[32m";  // prompt / complete
+inline constexpr const char* kCyan   = "\033[36m";  // tool execution
+inline constexpr const char* kRed    = "\033[31m";  // error
+}
+
 }  // namespace prosophor

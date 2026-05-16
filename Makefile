@@ -53,6 +53,12 @@ run:
 	$(INSTALL_DIR)/bin/prosophor
 .PHONY: run
 
+# Package release artifacts for distribution
+release:
+	@echo "Packaging prosophor $(PACKAGE_VERSION)..."
+	@bash ./dist/package.sh $(PACKAGE_VERSION)
+.PHONY: release
+
 tests:
 	@echo "Running all tests in $(BUILD_DIR)/unitests..."
 	@for test in $(INSTALL_DIR)/bin/unitests/*_test; do \
@@ -114,4 +120,27 @@ clean_win:
 run_win_tests:
 	@echo "Running all tests in $(INSTALL_DIR_WIN)/bin/tests..."
 	@for test in $(INSTALL_DIR_WIN)/bin/tests/*.exe; do echo "Running $$(basename $$test)..."; $$test || exit 1; done
+
+
+
+# ==============================================================================
+# llamacpp server
+# ==============================================================================
+
+MODEL ?= $(PROJECT_DIR)/../llama_cpp_model/google_gemma-4-E4B-it-Q4_K_M.gguf
+run_llamacpp_server:
+	$(INSTALL_DIR)/bin/llama-server -m $(MODEL) --host 0.0.0.0 --port 8080
+.PHONY: run_llamacpp_server
+
+run_llamacpp_server_win:
+	PATH="/e/devtool/msys64/mingw64/bin:$$PATH" $(INSTALL_DIR_WIN)/bin/llama-server.exe -m $(MODEL) --host 0.0.0.0 --port 8080
+.PHONY: run_llamacpp_server_win
+
+stop_llamacpp_server:
+	-killall llama-server 2>/dev/null || pkill -f llama-server 2>/dev/null || true
+.PHONY: stop_llamacpp_server
+
+stop_llamacpp_server_win:
+	-taskkill -IM llama-server.exe -F 2>/dev/null || true
+.PHONY: stop_llamacpp_server_win
 

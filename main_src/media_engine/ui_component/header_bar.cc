@@ -4,24 +4,24 @@
 #include "ui_component/header_bar.h"
 #include "drawer.h"
 
-namespace prosophor {
+namespace media_engine {
 
 HeaderBar::HeaderBar(float x, float y, float width, float height)
-    : x_(x), y_(y), width_(width), height_(height) {
+    : Widget(x, y, width, height) {
 }
 
-void HeaderBar::Render(const std::string& title, Color bg_color) const {
-    ::Drawer::Instance().DrawFilledRectWithBorder(
+void HeaderBar::Render(const RenderContext& ctx) {
+    if (!visible_) return;
+    Drawer::Instance().DrawFilledRectWithBorder(
         x_, y_, width_, height_,
-        bg_color, Colors::Transparent);
+        bg_color_, Colors::Transparent);
 
-    for (size_t i = 0; i < title.size() && i < 50; i++) {
-        char c = title[i];
-        if (c >= 32 && c < 127) {
-            ::Drawer::Instance().DrawFillRect(x_ + 10 + i * 12, y_ + 7, 8, 14,
-                                              Colors::TextGray);
-        }
+    label_.SetText(title_);
+    label_.RenderAt(x_ + 10, y_ + 7);
+
+    for (auto* child : children_) {
+        child->Render(ctx);
     }
 }
 
-}  // namespace prosophor
+}  // namespace media_engine

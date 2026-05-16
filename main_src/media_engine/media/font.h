@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include "colors.h"
 
+namespace media_engine {
+
 class Font {
     public:
         explicit Font(const std::string &file_path, int font_size);
@@ -16,3 +18,5 @@ class Font {
         struct FontImpl;
          std::unique_ptr<FontImpl> impl_{nullptr};
 };
+
+} // namespace media_engine

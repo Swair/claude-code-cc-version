@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include "colors.h"
+#include "ui_component/widget.h"
 #include <string>
 
-namespace prosophor {
+namespace media_engine {
 
 /// 面板样式配置 - 定义面板的视觉属性
 struct PanelStyle {
@@ -46,7 +46,7 @@ enum class FloatPosition {
 ///   - 边框渲染（SDL 层）
 ///   - 内容区域计算（考虑内边距和标题栏）
 ///   - 浮动文本渲染（如标题）
-class UIPanel {
+class UIPanel : public Widget {
 public:
     UIPanel(float x, float y, float width, float height, PanelStyle style = PanelStyle::Default());
     ~UIPanel() = default;
@@ -61,29 +61,30 @@ public:
     float GetContentY() const;
     float GetContentWidth() const;
     float GetContentHeight() const;
-    float GetX() const { return x_; }
-    float GetY() const { return y_; }
-    float GetWidth() const { return width_; }
-    float GetHeight() const { return height_; }
 
     // --- 设置方法 ---
-    void SetPosition(float x, float y);
-    void SetSize(float width, float height);
     void SetStyle(const PanelStyle& style);
 
-    // --- 可见性控制 ---
-    void SetVisible(bool visible) { visible_ = visible; }
-    bool IsVisible() const { return visible_; }
+    // -- 外观 setter（仅修改对应字段，不重置整个 style） --
+    void SetBackgroundColor(const Color& color) { Widget::SetBackgroundColor(color); style_.background_color = color; }
+    void SetBorderColor(const Color& color)     { style_.border_color = color; }
+    void SetBorderWidth(float w)                { style_.border_width = w; }
+    void SetCornerRadius(float r)               { style_.corner_radius = r; }
+    void SetHasBorder(bool b)                   { style_.has_border = b; }
+    void SetPadding(float p)                    { style_.padding = p; }
+
+    // --- 布局级联 ---
+    void OnResize() override;
+
+    // --- 渲染树 ---
+    void Render(const RenderContext& ctx) override;
 
     // --- 文本渲染 ---
     void RenderFloatText(const std::string& text, FloatPosition pos = FloatPosition::TopLeft,
                          float offset_x = 10.0f, float offset_y = 8.0f) const;
 
 protected:
-    float x_, y_;
-    float width_, height_;
     PanelStyle style_;
-    bool visible_ = true;
 };
 
-}  // namespace prosophor
+}  // namespace media_engine

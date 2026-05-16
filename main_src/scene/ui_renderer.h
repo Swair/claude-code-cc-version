@@ -2,82 +2,46 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
-#include "components/ui_types.h"
-#include "scene/layout_config.h"
 #include <functional>
-#include <optional>
-#include <memory>
 #include <string>
 
 // ============================================================================
-// UI 渲染器 - 统一处理 SDL + ImGui 渲染，对外不暴露 ImGui/SDL 头文件
-// 注意：不能依赖 scene/core/managers 等业务模块，只允许依赖 common/ 和第三方库
+// UI 渲染器 — 右键上下文菜单管理
+// 注：聊天面板/输入面板由 ChatWindow 直接管理，不在此类中。
 // ============================================================================
 
 namespace prosophor {
 
-class ChatPanel;
-class InputPanel;
-class StatusBar;
-
-/// UI 渲染器 - 统一处理 SDL + ImGui 渲染
+/// UIRenderer: 全局 UI 叠加层（仅上下文菜单）
+/// 历史说明：曾持有 ChatPanel / InputPanel / StatusBar，但它们从未被渲染，
+/// 实为僵尸对象。2026-05 清理后仅保留右键菜单职责。
 class UIRenderer {
 public:
     static UIRenderer& Instance();
 
-    void Initialize();
+    // ImGui 层上下文菜单渲染（在 ImGuiNewFrame 之后调用）
+    void RenderContextMenu();
 
-    // SDL 渲染部分
-    void Render();
+    // 上下文菜单显隐控制
+    void ShowContextMenu() { context_menu_visible_ = true; }
+    void HideContextMenu() { context_menu_visible_ = false; }
+    bool IsContextMenuVisible() const { return context_menu_visible_; }
 
-    // ImGui 渲染部分（在 ImGuiNewFrame 之后调用）
-    void RenderImGui();
+    // 右键菜单 "对话" 按钮回调（如 toggle central window）
+    using ToggleChatCallback = std::function<void()>;
+    void SetOnToggleChat(ToggleChatCallback cb) { on_toggle_chat_ = std::move(cb); }
 
-    // 更新布局（窗口大小改变时调用）
-    void UpdateLayout();
-
-    // 输入处理
-    bool ProcessInput(std::string& out_message);
-
-    // 状态管理
-    void SetStatusText(const std::string& status);
-    void SetVisible(bool visible);
+    // 全局显隐
+    void SetVisible(bool v) { visible_ = v; }
     bool IsVisible() const { return visible_; }
-
-    // 设置状态视觉属性获取器（回调方式，避免依赖）
-    using StatePropsGetter = std::function<StateVisualProps(AgentRuntimeState)>;
-    void SetStatePropsGetter(StatePropsGetter getter);
-
-    // 每帧快照获取器 — VirtualSprite 设置，UIRenderer 在 RenderImGui 时调用
-    using SnapshotGetter = std::function<std::optional<RenderSnapshot>()>;
-    void SetSnapshotGetter(SnapshotGetter getter);
-
-    // 消息提交回调
-    using MessageSubmitCallback = std::function<void(const std::string&)>;
-    void SetOnMessageSubmit(MessageSubmitCallback cb);
-
-    // 浮动文本渲染（不依赖 ImGui 的 SDL 文本渲染）
-    void RenderFloatingText(const std::string& text, float x, float y,
-                           uint8_t r, uint8_t g, uint8_t b, float alpha = 1.0f);
 
 private:
     UIRenderer();
     ~UIRenderer();
 
     bool visible_ = true;
-    std::string status_text_ = "Ready";
-
-    float chat_area_height_ = 700.0f;
-    float input_area_height_ = 100.0f;
-    float bottom_status_height_ = 30.0f;
-
-    std::unique_ptr<ChatPanel> chat_panel_;
-    std::unique_ptr<InputPanel> input_panel_;
-    std::unique_ptr<StatusBar> status_bar_;
-
-    MessageSubmitCallback on_message_submit_;
-    StatePropsGetter state_props_getter_;
-    SnapshotGetter snapshot_getter_;
+    bool context_menu_visible_ = false;
+    ToggleChatCallback on_toggle_chat_;
 };
 
 }  // namespace prosophor

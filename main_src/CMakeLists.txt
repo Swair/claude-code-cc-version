@@ -146,6 +146,10 @@ if(PROSOPHOR_SDL_UI)
         ${CMAKE_CURRENT_SOURCE_DIR}/components
     )
 
+    target_compile_definitions(prosophor PRIVATE
+        PROSOPHOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+    )
+
     target_link_libraries(prosophor PRIVATE
         prosophor_core
         media_engine
@@ -169,3 +173,4 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
 endif()
 
 install(TARGETS prosophor DESTINATION bin)
+

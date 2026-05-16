@@ -3,6 +3,7 @@
 
 #include "command_registry.h"
 
+#include <iostream>
 #include <sstream>
 #include <algorithm>
 #include <cctype>
@@ -15,6 +16,7 @@
 #include "agents/task_manager.h"
 #include "managers/agent_session_manager.h"
 #include "managers/plugin_manager.h"
+#include "managers/skill_loader.h"
 #include "agents/plan_mode.h"
 #include "managers/memory_manager.h"
 #include "core/compact_service.h"
@@ -26,7 +28,9 @@
 #include "mcp/mcp_client.h"
 #include "managers/local_model_manager.h"
 #include "network/local_model_utils.h"
+#include "common/constants.h"
 #include "common/file_utils.h"
+#include "agent_engine.h"
 
 namespace prosophor {
 
@@ -448,6 +452,19 @@ void CommandRegistry::Initialize() {
         RegisterCommand(cmd);
     }
 
+    // /workspace - Set or show workspace
+    {
+        Command cmd;
+        cmd.name = "workspace";
+        cmd.description = "Set or show the current workspace path";
+        cmd.usage = "/workspace [path]";
+        cmd.aliases = {"ws"};
+        cmd.handler = [this](const CommandContext& ctx, const std::vector<std::string>& args) {
+            return CmdWorkspace(ctx, args);
+        };
+        RegisterCommand(cmd);
+    }
+
     // /bye - Exit the application
     {
         Command cmd;
@@ -496,6 +513,32 @@ void CommandRegistry::Initialize() {
         };
         RegisterCommand(cmd);
     }
+
+    // /skills - List and show available skills from ~/.prosophor/skills/
+    {
+        Command cmd;
+        cmd.name = "skills";
+        cmd.description = "List and show available skills";
+        cmd.usage = "/skills [list|show <name>]";
+        cmd.aliases = {};
+        cmd.handler = [this](const CommandContext& ctx, const std::vector<std::string>& args) {
+            return CmdSkills(ctx, args);
+        };
+        cmd.completer = [](const std::string& partial) {
+            std::vector<std::string> subcommands = {"list", "show"};
+            std::vector<std::string> completions;
+            for (const auto& subcmd : subcommands) {
+                if (subcmd.find(partial) == 0) {
+                    completions.push_back(subcmd);
+                }
+            }
+            return completions;
+        };
+        RegisterCommand(cmd);
+    }
+
+    // ── Register dynamic skill commands ─────────────────────────
+    RegisterSkillCommands();
 
     LOG_DEBUG("CommandRegistry initialized with {} commands", commands_.size());
 }
@@ -1216,23 +1259,97 @@ CommandResult CommandRegistry::CmdPlugins(const CommandContext&, const std::vect
 }
 
 CommandResult CommandRegistry::CmdSkills(const CommandContext&, const std::vector<std::string>& args) {
-    auto& plugin_mgr = prosophor::PluginManager::GetInstance();
-    std::ostringstream oss;
+    auto& loader = SkillLoader::GetInstance();
+
+    std::vector<std::filesystem::path> dirs = {
+        ExpandHome("~/.prosophor/skills")
+    };
+    std::vector<SkillMetadata> all_skills;
+    for (const auto& dir : dirs) {
+        auto skills = loader.LoadSkillsFromDirectory(dir);
+        all_skills.insert(all_skills.end(), skills.begin(), skills.end());
+    }
 
     if (args.empty() || args[0] == "list") {
-        auto skills = plugin_mgr.GetAllSkills();
-        if (skills.empty()) {
-            return CommandResult::Ok("No skills available.");
+        if (all_skills.empty()) {
+            return CommandResult::Ok("No skills available. Skills are loaded from ~/.prosophor/skills/");
         }
 
-        oss << "Available skills:\n\n";
-        for (const auto& s : skills) {
-            oss << "  - " << s << "\n";
+        std::ostringstream oss;
+        oss << "Available skills (" << all_skills.size() << "):\n\n";
+        for (const auto& s : all_skills) {
+            oss << "  /" << s.name;
+            if (!s.description.empty()) {
+                oss << "  - " << s.description;
+            }
+            oss << "\n";
         }
+        oss << "\nUse /skills show <name> to view skill content.";
         return CommandResult::Ok(oss.str());
     }
 
-    return CommandResult::Fail("Unknown skills subcommand. Use: list");
+    if (args[0] == "show" && args.size() > 1) {
+        for (const auto& s : all_skills) {
+            if (s.id == args[1] || s.name == args[1]) {
+                std::ostringstream oss;
+                oss << "=== " << s.name << " ===\n";
+                if (!s.description.empty()) {
+                    oss << s.description << "\n\n";
+                }
+                oss << s.content;
+                return CommandResult::Ok(oss.str());
+            }
+        }
+        return CommandResult::Fail("Skill not found: " + args[1]);
+    }
+
+    return CommandResult::Fail("Unknown skills subcommand. Use: list, show <name>");
+}
+
+void CommandRegistry::RegisterSkillCommands() {
+    auto& loader = SkillLoader::GetInstance();
+
+    std::vector<std::filesystem::path> dirs = {
+        ExpandHome("~/.prosophor/skills")
+    };
+
+    std::vector<SkillMetadata> all_skills;
+    for (const auto& dir : dirs) {
+        auto skills = loader.LoadSkillsFromDirectory(dir);
+        all_skills.insert(all_skills.end(), skills.begin(), skills.end());
+    }
+
+    for (const auto& skill : all_skills) {
+        if (commands_.count(skill.name)) continue;
+
+        Command cmd;
+        cmd.name = skill.name;
+        cmd.description = skill.description.empty()
+            ? ("Skill: " + skill.name)
+            : skill.description;
+        cmd.usage = "/" + skill.name;
+        cmd.handler = [skill](const CommandContext& ctx, const std::vector<std::string>& args) {
+            if (args.empty()) {
+                std::ostringstream oss;
+                oss << "=== " << skill.name << " ===\n\n";
+                oss << skill.content;
+                return CommandResult::Ok(oss.str());
+            }
+            // Has args: inject skill content + prompt into LLM
+            std::string prompt;
+            for (size_t i = 0; i < args.size(); ++i) {
+                if (i > 0) prompt += " ";
+                prompt += args[i];
+            }
+            auto* engine = static_cast<AgentEngine*>(ctx.user_data);
+            if (engine) {
+                std::string full_msg = skill.content + "\n\n" + prompt;
+                engine->SendUserMessage(ctx.session_id, full_msg);
+            }
+            return CommandResult::Ok("");
+        };
+        RegisterCommand(cmd);
+    }
 }
 
 CommandResult CommandRegistry::CmdSchedule(const CommandContext&, const std::vector<std::string>& args) {
@@ -2483,6 +2600,37 @@ CommandResult CommandRegistry::CmdSetup(const CommandContext&, const std::vector
         oss << "[!] Failed to start local model server. Use /server start to retry.\n";
     }
 
+    return CommandResult::Ok(oss.str());
+}
+
+CommandResult CommandRegistry::CmdWorkspace(const CommandContext& ctx, const std::vector<std::string>& args) {
+    if (args.empty()) {
+        std::ostringstream oss;
+        oss << "Current workspace: " << ctx.workspace << "\n";
+        oss << "Usage: /workspace <path> to change workspace";
+        return CommandResult::Ok(oss.str());
+    }
+
+    std::string new_path = args[0];
+    if (!new_path.empty() && new_path[0] == '~') {
+        new_path = ExpandHome(new_path);
+    }
+
+    new_path = std::filesystem::absolute(new_path).string();
+
+    if (!std::filesystem::exists(new_path)) {
+        return CommandResult::Fail("Path does not exist: " + new_path);
+    }
+
+    auto* engine = static_cast<AgentEngine*>(ctx.user_data);
+    if (!engine) {
+        return CommandResult::Fail("No active engine instance");
+    }
+
+    engine->ChangeWorkspace(new_path);
+
+    std::ostringstream oss;
+    oss << "Workspace changed to: " << new_path;
     return CommandResult::Ok(oss.str());
 }
 
