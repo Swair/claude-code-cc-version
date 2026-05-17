@@ -22,7 +22,8 @@ public:
     ~SpriteManager();
 
     /// Create a new sprite window. Returns nullptr on failure.
-    Sprite* CreateSprite(const std::string& name, int width, int height);
+    Sprite* CreateSprite(const std::string& name, int width, int height,
+                         const std::string& role_id = "");
 
     /// Update all sprite animations.
     void UpdateAll(float dt);

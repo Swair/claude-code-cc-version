@@ -33,6 +33,16 @@ struct LayoutConfig {
     // ── Navigation / status ──
     float tile_size = 32.0f;                  // 像素精灵地砖大小（保留）
 
+    // ── SpeechBubble (sprite popup cloud) ──
+    float bubble_min_width = 260.0f;
+    float bubble_min_body_height = 200.0f;
+    float bubble_radius = 14.0f;
+    float bubble_padding = 12.0f;
+    float bubble_tail_height = 20.0f;
+    float bubble_title_height = 22.0f;
+    float bubble_input_height = 34.0f;
+    float bubble_btn_size = 22.0f;
+
     // ── Tray icon ──
     int tray_icon_size = 48;
     int tray_margin = 64;                     // 距屏幕右下角偏移

@@ -43,7 +43,8 @@ ProsophorConfig& ProsophorConfig::GetInstance() {
 
 const AgentConfig& ProsophorConfig::GetAgentConfig() const {
     // Load default role to get its provider and agent config
-    std::string role_path = "config/.prosophor/roles/" + default_role + ".md";
+    std::string primary_role = default_role.empty() ? "default" : default_role[0];
+    std::string role_path = "config/.prosophor/roles/" + primary_role + ".json";
     if (std::filesystem::exists(role_path)) {
         auto& loader = AgentRoleLoader::GetInstance();
         try {
@@ -66,7 +67,7 @@ const AgentConfig& ProsophorConfig::GetAgentConfig() const {
                 return prov_it->second.GetDefaultAgent();
             }
         } catch (const std::exception& e) {
-            LOG_WARN("Failed to load default role '{}', using fallback: {}", default_role, e.what());
+            LOG_WARN("Failed to load default role '{}', using fallback: {}", primary_role, e.what());
         }
     }
 
@@ -89,12 +90,16 @@ const ProviderConfig& ProsophorConfig::GetProvider(const std::string& name) cons
 }
 
 const AgentConfig& ProviderConfig::GetDefaultAgent() const {
+    if (agents.empty()) {
+        static AgentConfig default_agent;
+        return default_agent;
+    }
+    // Array format: use first agent; object format: try "default" key first, then first entry
     auto it = agents.find("default");
     if (it != agents.end()) {
         return it->second;
     }
-    static AgentConfig default_agent;
-    return default_agent;
+    return agents.begin()->second;
 }
 
 bool ProviderConfig::FindEntryForModel(const std::string& provider_name,
@@ -289,18 +294,26 @@ ProviderConfig ProviderConfig::FromJson(const nlohmann::json& json) {
     config.base_url = json.value("base_url", json.value("baseUrl", ""));
     config.timeout = json.value("timeout", kDefaultProviderTimeoutSec);
 
-    // Parse agents - support both "agents" and "agent" field names
+    // Parse agents — supports array (preferred) and object (legacy) formats
     const auto& agents_json_key = json.contains("agents") ? "agents" : "agent";
-    if (json.contains(agents_json_key) && json[agents_json_key].is_object()) {
-        const auto& agents_json = json[agents_json_key];
-        for (const auto& [key, value] : agents_json.items()) {
-            AgentConfig agent = AgentConfig::FromJson(value);
-            agent.name = key;
-            // Also support tools_use → use_tools
-            if (json.contains("tools_use")) {
-                agent.use_tools = json.value("tools_use", true);
+    if (json.contains(agents_json_key)) {
+        const auto& aj = json[agents_json_key];
+        if (aj.is_array()) {
+            for (const auto& item : aj) {
+                AgentConfig agent = AgentConfig::FromJson(item);
+                if (!agent.model.empty()) {
+                    config.agents[agent.model] = agent;
+                }
             }
-            config.agents[key] = agent;
+        } else if (aj.is_object()) {
+            for (const auto& [key, value] : aj.items()) {
+                AgentConfig agent = AgentConfig::FromJson(value);
+                agent.name = key;
+                if (json.contains("tools_use")) {
+                    agent.use_tools = json.value("tools_use", true);
+                }
+                config.agents[key] = agent;
+            }
         }
     }
 
@@ -389,8 +402,15 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
 
     ProsophorConfig config;
     config.log_level = json.value("log_level", json.value("logLevel", "info"));
-    config.default_role = json.value("default_role", json.value("defaultRole", "default"));
+    // default_role can be string (backwards compat) or array of strings
+    if (json.contains("default_role") && json["default_role"].is_array()) {
+        config.default_role = json["default_role"].get<std::vector<std::string>>();
+    } else {
+        std::string single = json.value("default_role", json.value("defaultRole", "default"));
+        config.default_role = {single};
+    }
     config.enable_summary = json.value("enable_summary", true);
+    config.sprite_assets_dir = ExpandHome(json.value("sprite_assets_dir", "~/.prosophor/assets"));
 
     if (json.contains("providers") && json["providers"].is_object()) {
         for (const auto& [key, value] : json["providers"].items()) {
@@ -489,6 +509,14 @@ std::string ProsophorConfig::DefaultConfigPath() {
     if (env_path != nullptr && env_path[0] != '\0') {
         return env_path;
     }
+    // Portable: check for local .prosophor/ next to the executable
+    std::string exe_path = platform::GetSelfExePath();
+    if (!exe_path.empty()) {
+        auto local_config = std::filesystem::path(exe_path).parent_path() / ".prosophor" / "settings.json";
+        if (std::filesystem::exists(local_config)) {
+            return local_config.string();
+        }
+    }
     // Cross-platform: use user home directory
     return ExpandHome("~/.prosophor/settings.json");
 }
@@ -498,6 +526,14 @@ std::filesystem::path ProsophorConfig::BaseDir() {
     const char* env_path = std::getenv("PROSOPHOR_CONFIG");
     if (env_path != nullptr && env_path[0] != '\0') {
         return std::filesystem::path(env_path).parent_path();
+    }
+    // Portable: check for local .prosophor/ next to the executable
+    std::string exe_path = platform::GetSelfExePath();
+    if (!exe_path.empty()) {
+        auto local_dir = std::filesystem::path(exe_path).parent_path() / ".prosophor";
+        if (std::filesystem::exists(local_dir)) {
+            return local_dir;
+        }
     }
     // Cross-platform: use user home directory
     return ExpandHome("~/.prosophor");
@@ -542,14 +578,14 @@ void ProsophorConfig::CreateDefaultConfig(const std::string& filepath) {
 //
 // Structure:
 //   providers.<provider_name>.agents.<agent_name> = { model, temperature, ... }
-//   Roles are defined in config/.prosophor/roles/*.md
+//   Roles are defined in config/.prosophor/roles/*.json
 //
 // Example:
 //   providers.anthropic.agents.default.model = "qwen3.5-plus"
 //   providers.deepseek.agents.pro.model = "deepseek-v4-pro"
 
 {
-  "default_role": "default",          // Default role to use when not specified
+  "default_role": ["default"],        // Default roles (SDL: one sprite per role, TUI: first only)
   "log_level": "info",
 
   // Provider configuration (array format supports multiple instances)
@@ -630,7 +666,7 @@ nlohmann::json ProsophorConfig::ToJson() const {
     nlohmann::json json = nlohmann::json::object();
 
     json["log_level"] = log_level;
-    json["default_role"] = default_role;
+    json["default_role"] = default_role;  // nlohmann_json: vector → JSON array
     json["enable_summary"] = enable_summary;
 
     // Serialize providers
@@ -641,16 +677,16 @@ nlohmann::json ProsophorConfig::ToJson() const {
         provider_json["base_url"] = config.base_url;
         provider_json["timeout"] = config.timeout;
 
-        // Serialize agents
-        nlohmann::json agents_json = nlohmann::json::object();
+        // Serialize agents as array
+        nlohmann::json agents_json = nlohmann::json::array();
         for (const auto& [agent_name, agent_config] : config.agents) {
-            nlohmann::json agent_json = nlohmann::json::object();
+            nlohmann::json agent_json;
             agent_json["model"] = agent_config.model;
             agent_json["temperature"] = agent_config.temperature;
             agent_json["max_tokens"] = agent_config.max_tokens;
             agent_json["context_window"] = agent_config.context_window;
             agent_json["enable_streaming"] = agent_config.enable_streaming;
-            agents_json[agent_name] = agent_json;
+            agents_json.push_back(agent_json);
         }
         provider_json["agents"] = agents_json;
 

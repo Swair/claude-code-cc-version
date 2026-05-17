@@ -16,11 +16,6 @@ namespace prosophor {
 
 // Internal helper functions for OpenAI serialization
 
-// Maps thinking level to enable_thinking flag
-static bool ShouldEnableThinking(bool thinking) {
-    return thinking;
-}
-
 // Maps thinking level to budget tokens (OpenAI uses reasoning_effort style)
 static std::string ThinkingToReasoningEffort(bool /*thinking*/) {
     return "medium";
@@ -97,8 +92,8 @@ std::string OpenAIProvider::Serialize(const ChatRequest& request) const {
         payload_json["stream"] = true;
     }
 
-    // Enable thinking if provider supports it OR request asks for it
-    bool think = enable_thinking_ || ShouldEnableThinking(request.thinking);
+    // Enable thinking if request asks for it
+    bool think = request.thinking;
     if (think) {
         payload_json["enable_thinking"] = true;
         std::string effort = ThinkingToReasoningEffort(request.thinking);
@@ -254,8 +249,8 @@ ChatResponse OpenAIProvider::Deserialize(const std::string& json_str) const {
                 }
             }
 
-            // Parse reasoning_content (DeepSeek, Qwen, etc.)
-            if (msg.contains("reasoning_content") && !msg["reasoning_content"].is_null()) {
+            // Parse reasoning_content (DeepSeek, Qwen, etc.) — only when thinking is enabled
+            if (enable_thinking_ && msg.contains("reasoning_content") && !msg["reasoning_content"].is_null()) {
                 result.has_thinking = true;
                 std::string rc = msg["reasoning_content"].get<std::string>();
                 if (!rc.empty()) {
@@ -336,7 +331,7 @@ HeaderList OpenAIProvider::CreateHeaders(const ChatRequest& request) const {
 
 ChatResponse OpenAIProvider::ChatStream(const ChatRequest& request,
      std::function<void(StreamEvent, std::string)> callback) {
-    OpenAIStreamHandler stream_handler(std::move(callback));
+    OpenAIStreamHandler stream_handler(std::move(callback), request.thinking);
     PrintRequestLog(request);
     auto http_resp = ExecuteStream(request, &stream_handler);
     if (!stream_handler.error_msg.empty()) {

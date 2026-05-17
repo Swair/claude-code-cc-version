@@ -10,29 +10,22 @@
 
 namespace prosophor {
 
-/// AgentRoleLoader: 加载 AgentRole 配置文件
+/// AgentRoleLoader: 从 JSON 文件加载 AgentRole 配置
 class AgentRoleLoader {
 public:
     static AgentRoleLoader& GetInstance();
 
-    /// 从配置文件加载角色
+    /// 从单个 JSON 文件加载角色
     AgentRole LoadRole(const std::string& role_path);
 
-    /// 从目录加载所有角色
+    /// 从目录加载所有 .json 角色文件
     std::vector<AgentRole> LoadAllRoles(const std::string& roles_dir);
 
-    /// 解析 Markdown 前端 matter
-    AgentRole ParseMarkdownFile(const std::filesystem::path& file) const;
+    /// 从 JSON 对象构建 AgentRole（核心解析逻辑）
+    AgentRole ParseFromJson(const nlohmann::json& j, const std::string& file_stem) const;
 
 private:
     AgentRoleLoader() = default;
-
-    /// 解析 YAML frontmatter
-    nlohmann::json ParseYamlFrontmatter(const std::string& yaml_str) const;
-
-    /// 提取 frontmatter 之间的内容
-    std::string ExtractFrontmatter(const std::string& content,
-                                   std::string& body) const;
 };
 
 }  // namespace prosophor

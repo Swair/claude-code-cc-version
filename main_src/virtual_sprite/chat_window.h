@@ -38,6 +38,7 @@ public:
 
 private:
     void RenderChatUI();
+    void RenderSettingsWindow();
     void CreateTrayWindow();
     void ShowTray(bool show);
     void RenderTray();
@@ -48,6 +49,7 @@ private:
 
     bool          visible_    = true;
     bool          tray_showing_ = false;
+    bool          settings_open_ = false;
     int           width_      = 800;
     int           height_     = 600;
     int           prev_layout_w_ = 0;

@@ -35,7 +35,7 @@ Spritesheet::Spritesheet(media_engine::Window& window, const std::string& slug, 
         if (json_content) {
             try {
                 auto j = nlohmann::json::parse(*json_content);
-                display_name_ = j.value("displayName", slug);
+                display_name_ = j.value("display_name", slug);
             } catch (const std::exception& e) {
                 LOG_WARN("Spritesheet JSON parse failed for {}: {}", slug, e.what());
                 display_name_ = slug;

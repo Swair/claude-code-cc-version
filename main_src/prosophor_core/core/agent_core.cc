@@ -13,11 +13,11 @@
 
 #include "common/constants.h"
 #include "managers/skill_loader.h"
-#include "core/compact_service.h"
 #include "managers/token_tracker.h"
 #include "core/reference_parser.h"
 #include "common/time_wrapper.h"
 #include "tools/tool_registry.h"
+#include "core/dialog_strategy.h"
 
 namespace prosophor {
 
@@ -128,35 +128,6 @@ std::string AgentCore::ProcessFileRefs(const std::string& message, const AgentSe
     return processed_message;
 }
 
-void AgentCore::ApplyDialogStrategy(const std::string& processed_message, AgentSession& session) {
-    if (processed_message.empty()) return;
-
-    std::string ts = SystemClock::GetCurrentTimestamp();
-    std::string user_content = "[" + ts + "]\n";
-
-    if (session.GetRole() && session.GetRole()->enable_summary) {
-        // Find latest summary from previous assistant messages
-        std::string running_summary;
-        const auto& msgs = session.GetMessages();
-        for (int i = static_cast<int>(msgs.size()) - 1; i >= 0; i--) {
-            if (msgs[i].role == "assistant" && !msgs[i].summary.empty()) {
-                running_summary = msgs[i].summary;
-                break;
-            }
-        }
-
-        if (!running_summary.empty()) {
-            user_content += "[摘要]\n" + running_summary + "\n\n";
-        }
-        user_content += processed_message;
-        user_content += "\n\n[总结要求]\n请按贝尔曼衰减方式生成对话摘要：本轮新内容详细保留（高权重 γ→1），历史摘要随时间衰减（低权重 γ^n），关键决策和未解决问题不衰减。将完整摘要放在回复末尾的[摘要]中。";
-    } else {
-        user_content += processed_message;
-    }
-
-    session.AddUserMessage(user_content);
-}
-
 void AgentCore::ExtractDialogSummary(const std::string& response_text, MessageSchema& assistant_msg) {
     auto pos = response_text.rfind("[摘要]");
     if (pos == std::string::npos) return;
@@ -222,9 +193,11 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
     // Process message - resolve @file references
     std::string processed_message = ProcessFileRefs(message, session);
 
-    // Apply dialog strategy: summary injection + timestamp + summarization prompt
-    ApplyDialogStrategy(processed_message, session);
-
+    // 使用 role 的对话策略进行消息预处理
+    if (auto* role = session.GetRole()) {
+        role->dialog_strategy->Preprocess(processed_message, session);
+    }
+	
     int iterations = 0;
     int max_iterations = GetMaxIterations(session);
 
@@ -319,13 +292,6 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
                 session.SetOutput(AgentRuntimeState::COMPLETE, "Done.", assistant_msg);
             }
 
-            // 上下文过大时截断，只保留最近 2 条（默认1轮user+assistant）
-            if (CompactService::GetInstance().NeedsCompaction(session.GetMessages())) {
-                auto kept = CompactService::GetInstance().KeepRecentMessages(
-                    session.GetMessages(), 2);
-                session.CompactHistory(kept, "");
-                LOG_INFO("Compaction: kept 2 messages (last round)");
-            }
             return;
         }
 

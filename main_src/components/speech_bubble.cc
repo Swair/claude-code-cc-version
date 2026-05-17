@@ -6,8 +6,17 @@
 namespace prosophor {
 
 SpeechBubble::SpeechBubble()
-    : input_panel_(std::make_unique<media_engine::InputPanel>(0, 0, 0, 0))
-    , chat_panel_(std::make_unique<ChatPanel>(0, 0, 0, 0)) {
+    : Widget(0, 0, 100, 100) {
+    // bg_color_ kept at White (member initializer) for bubble body rendering;
+    // Widget::bg_color_ (base class, GrayDarkest) is never used since we override Render().
+    visible_ = false;  // hidden until double-click toggles
+
+    input_panel_ = std::make_unique<media_engine::InputPanel>(0, 0, 0, 0);
+    chat_panel_ = std::make_unique<ChatPanel>(0, 0, 0, 0);
+
+    AddChild(input_panel_.get());
+    AddChild(chat_panel_.get());
+
     input_panel_->SetSendButtonColor(media_engine::Colors::Orange);
     input_panel_->SetOnSubmit([this](const std::string& msg) {
         if (on_submit_) { on_submit_(msg); }
@@ -19,26 +28,27 @@ SpeechBubble::SpeechBubble()
 SpeechBubble::~SpeechBubble() = default;
 
 void SpeechBubble::SetVisible(bool visible) {
-    visible_ = visible;
+    media_engine::Widget::SetVisible(visible);
     if (visible) input_panel_->SetText("");
 }
 
 void SpeechBubble::Toggle() {
-    visible_ = !visible_;
-    if (visible_) input_panel_->SetText("");
+    bool new_visible = !IsVisible();
+    media_engine::Widget::SetVisible(new_visible);
+    if (new_visible) input_panel_->SetText("");
 }
 
 bool SpeechBubble::HitTest(int x, int y) const {
     if (!visible_) return false;
-    return x >= rect_.x && x <= rect_.x + rect_.w &&
-           y >= rect_.y && y <= rect_.y + rect_.h;
+    return x >= rect_x_ && x <= rect_x_ + width_ &&
+           y >= rect_y_ && y <= rect_y_ + height_;
 }
 
-void SpeechBubble::Render(const RenderSnapshot& snapshot, int override_w, int override_h) {
+void SpeechBubble::Render(const media_engine::RenderContext& ctx) {
     if (!visible_) return;
 
-    int win_w = override_w;
-    int win_h = override_h;
+    int win_w = override_w_;
+    int win_h = override_h_;
 
     // Compute dimensions: compact vs maximized
     float bubble_width;
@@ -60,11 +70,15 @@ void SpeechBubble::Render(const RenderSnapshot& snapshot, int override_w, int ov
     float by = 0.0f;
     if (!maximized && bx < 4) bx = 4;
 
-    // Store rect for hit-testing
-    rect_.x = static_cast<int>(bx);
-    rect_.y = static_cast<int>(by);
-    rect_.w = static_cast<int>(bubble_width);
-    rect_.h = static_cast<int>(bubble_total_h);
+    // Store Widget pixel rect for hit-testing (in sprite window coordinates)
+    width_ = bubble_width;
+    height_ = bubble_total_h;
+    // x_/y_ are widget-tree resolved values; for hit-test we want sprite-window coords
+    // so temporarily store bx/by as the effective origin (hitttest uses x_/y_/width_/height_)
+    // but x_/y_ are managed by Widget's cascading system — don't overwrite.
+    // Instead, HitTest uses stored rect_ which we compute here:
+    rect_x_ = static_cast<int>(bx);
+    rect_y_ = static_cast<int>(by);
 
     // ── ImGui overlay window ──
     media_engine::SetImGuiNextWindowPos(bx, by);
@@ -81,17 +95,30 @@ void SpeechBubble::Render(const RenderSnapshot& snapshot, int override_w, int ov
     DrawBubbleBody(bubble_width, bubble_body_h);
     if (!maximized) { DrawTail(bubble_width, bubble_body_h); }
 
-    float cx = padding_;
-    float cw = bubble_width - padding_ * 2.0f;
-
     DrawTitleBar(bx, by, bubble_width);
 
-    // Messages area (delegate to ChatPanel)
-    float msgs_y = padding_ + title_height_ + 4.0f;
-    float msgs_h = bubble_body_h - padding_ - title_height_ - input_height_ - 12.0f;
-    chat_panel_->RenderContentInRect(bx + cx, by + msgs_y, cw, msgs_h, snapshot);
+    // ── Position children in pixel coordinates directly ──
+    float content_w = bubble_width - padding_ * 2.0f;
+    float content_h = bubble_body_h - padding_ * 2.0f;
 
-    DrawInputArea(cx, cw, bubble_width, bubble_body_h);
+    float chat_h = content_h - title_height_ - input_height_;
+
+    chat_panel_->SetPixelRect(padding_, padding_ + title_height_ + 4.0f,
+                              content_w, chat_h);
+    input_panel_->SetPixelRect(padding_, bubble_body_h - padding_ - input_height_,
+                               content_w, input_height_);
+
+    // Render InputPanel child (DrawPanel uses ImGui-window-relative coords)
+    input_panel_->Render(ctx);
+
+    // Render ChatPanel messages via ScrollWindow (needs viewport-absolute coords)
+    float win_x, win_y;
+    media_engine::ImGuiGetWindowPos(&win_x, &win_y);
+    chat_panel_->RenderContentInRect(
+        win_x + chat_panel_->GetX(), win_y + chat_panel_->GetY(),
+        chat_panel_->GetWidth(), chat_panel_->GetHeight(),
+        snapshot_);
+
     DrawResizeHandle(bubble_width, bubble_body_h);
 
     if (!bubble_open) { visible_ = false; }
@@ -135,18 +162,6 @@ void SpeechBubble::DrawTitleBar(float bx, float by, float bubble_width) {
 
     media_engine::ImGuiSetCursorScreenPos(bx + padding_, by + padding_ + 2);
     media_engine::ImGuiTextColored(title_text_color_, "Prosophor");
-}
-
-// ── 输入区：委托给 InputPanel ──
-void SpeechBubble::DrawInputArea(float cx, float cw,
-                                  float bubble_width, float bubble_body_h) {
-    float input_y = bubble_body_h - padding_ - input_height_;
-    media_engine::DrawPanel(cx, input_y, cw, input_height_, 8, bg_color_, border_color_, 1.0f);
-
-    // Root = bubble dimensions → coordinates match speech_bubble ImGui window (relative coords)
-    input_panel_->SetRoot(bubble_width, bubble_body_h);
-    input_panel_->SetPosition(10.0f, 80.0f, 80.0f, 20.0f);
-    input_panel_->Render(media_engine::RenderContext{});
 }
 
 // ── 缩放手柄 ──

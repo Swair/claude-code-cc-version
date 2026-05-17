@@ -7,6 +7,7 @@
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
 #include "log_wrapper.h"
+#include "media/media_core.h"
 
 namespace media_engine {
 
@@ -46,24 +47,17 @@ void SetupImGui(ImGuiContext* ctx, SDL_Window* window, SDL_Renderer* renderer,
 
     ImGuiIO& io = ImGui::GetIO();
 
-    if (cfg.load_chinese_font) {
-        // Use a single Chinese TTF font (ASCII + CJK) — no default font fallback
-        // to avoid size mismatch and garbled glyphs.
-        const char* font_paths[] = {
-            "C:/Windows/Fonts/msyh.ttc",
-            "C:/Windows/Fonts/simsun.ttc",
-            "C:/Windows/Fonts/simhei.ttf",
-        };
-        bool loaded = false;
-        for (const auto& path : font_paths) {
-            if (io.Fonts->AddFontFromFileTTF(path, 16.0f, nullptr,
-                                              io.Fonts->GetGlyphRangesChineseFull())) {
-                LOG_INFO("[Window] Loaded Chinese font: {}", path);
-                loaded = true;
-                break;
-            }
-        }
-        if (!loaded) {
+    if (cfg.use_shared_font) {
+        // Fonts loaded once in MediaCore; all windows share the raw TTF data.
+        // ImGui rasterizes per-context, but the TTF is read from disk only once.
+        auto& shared = MediaCore::Instance().GetSharedChineseFont();
+        if (!shared.data.empty()) {
+            ImFontConfig font_cfg;
+            font_cfg.FontDataOwnedByAtlas = false;
+            io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(shared.data.data()),
+                static_cast<int>(shared.data.size()), 16.0f, &font_cfg,
+                io.Fonts->GetGlyphRangesChineseFull());
+        } else {
             io.Fonts->AddFontDefault();
         }
     } else {
@@ -198,6 +192,10 @@ void Window::Hide() {
 
 bool Window::IsShown() const {
     return impl_->window && SDL_GetWindowFlags(impl_->window) & SDL_WINDOW_HIDDEN == 0;
+}
+
+void Window::SetTitle(const char* title) {
+    if (impl_->window) SDL_SetWindowTitle(impl_->window, title);
 }
 
 void Window::SetPosition(int x, int y) {

@@ -30,7 +30,24 @@ void ChatPanel::Render(const media_engine::RenderContext& ctx) {
     for (auto* child : children_) {
         child->Render(ctx);
     }
+
+    // Messages inside scroll window, positioned at panel's content area
+    float win_x = 0.0f, win_y = 0.0f;
+    media_engine::ImGuiGetWindowPos(&win_x, &win_y);
+    scroll_window_->SetPosition(win_x + panel_->GetContentX(), win_y + panel_->GetContentY());
+    scroll_window_->SetSize(panel_->GetContentWidth(), panel_->GetContentHeight());
+
+    scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight);
     RenderMessages(snapshot_);
+
+    // Auto-scroll to bottom when already at bottom (follow new messages)
+    float scroll_max = media_engine::GetScrollMaxY();
+    float scroll_y = media_engine::GetScrollY();
+    if (scroll_y >= scroll_max - 10.0f || scroll_max < 1.0f) {
+        media_engine::SetScrollY(scroll_max);
+    }
+
+    scroll_window_->End();
 }
 
 void ChatPanel::RenderContent(const RenderSnapshot& snapshot) {
@@ -45,12 +62,8 @@ void ChatPanel::RenderContentInRect(float x, float y, float w, float h,
     scroll_window_->SetSize(w, h);
     scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight);
     RenderMessages(snapshot);
-    // Auto-scroll to bottom
-    float scroll_max = media_engine::GetScrollMaxY();
-    float scroll_y = media_engine::GetScrollY();
-    if (scroll_y >= scroll_max - 10.0f || scroll_max < 1.0f) {
-        media_engine::SetScrollY(scroll_max);
-    }
+    // Always scroll to bottom for speech bubble (compact overlay)
+    media_engine::SetScrollY(media_engine::GetScrollMaxY());
     scroll_window_->End();
 }
 
@@ -86,7 +99,7 @@ void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {
 
 void ChatPanel::RenderMessage(const std::string& role, const std::string& content, size_t index) {
     if (index > 0) {
-        media_engine::Dummy(0, 8);
+        media_engine::Dummy(0, 4);
     }
 
     // Light theme (cream background):
@@ -96,14 +109,14 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
     //   tool     → teal
     //   error    → dark red
     media_engine::Color role_color = media_engine::Colors::Gray40;
-    media_engine::Color text_color = media_engine::Colors::Gray20;
+    media_engine::Color text_color = media_engine::Colors::Gray40;
 
     if (role == "thinking") {
         role_color = media_engine::Colors::Gray55;
         text_color = media_engine::Colors::Gray47;
     } else if (role == "assistant") {
         role_color = media_engine::Colors::GreenLeafDark;
-        text_color = media_engine::Colors::Gray20;
+        text_color = media_engine::Colors::Gray40;
     } else if (role == "tool" || role == "function") {
         role_color = media_engine::Colors::Teal;
         text_color = media_engine::Colors::Teal;
@@ -114,10 +127,10 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
 
     if (!hide_role_labels_) {
         media_engine::ImGuiTextColored(role_color, role.c_str());
-        media_engine::Dummy(0, 5);
+        media_engine::Dummy(0, 2);
     }
     media_engine::ImGuiTextWrapped(content.c_str(), scroll_window_->GetWidth(), text_color);
-    media_engine::Dummy(0, 5);
+    media_engine::Dummy(0, 2);
 }
 
 void ChatPanel::ScrollToBottom() {

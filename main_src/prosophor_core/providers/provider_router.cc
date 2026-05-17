@@ -38,7 +38,8 @@ void ProviderRouter::Initialize(const ProsophorConfig& config) {
 
     // Set default provider based on default_role
     // Load the default role to get its provider_name
-    std::string role_path = "config/.prosophor/roles/" + config.default_role + ".md";
+    std::string primary_role = config.default_role.empty() ? "default" : config.default_role[0];
+    std::string role_path = "config/.prosophor/roles/" + primary_role + ".json";
     if (std::filesystem::exists(role_path)) {
         auto& loader = AgentRoleLoader::GetInstance();
         try {
@@ -48,11 +49,11 @@ void ProviderRouter::Initialize(const ProsophorConfig& config) {
                 if (it != providers_.end()) {
                     default_provider_ = it->second;
                     default_provider_name_ = role.provider_prot;
-                    LOG_DEBUG("Default provider '{}' set from default_role '{}'", default_provider_name_, config.default_role);
+                    LOG_DEBUG("Default provider '{}' set from default_role '{}'", default_provider_name_, primary_role);
                 }
             }
         } catch (const std::exception& e) {
-            LOG_WARN("Failed to load default role '{}', using first provider: {}", config.default_role, e.what());
+            LOG_WARN("Failed to load default role '{}', using first provider: {}", primary_role, e.what());
         }
     }
 

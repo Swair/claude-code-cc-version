@@ -8,7 +8,6 @@
 
 #include "core/messages_schema.h"
 #include "core/agent_session.h"
-#include "core/compact_service.h"  // For GetCompactService()
 #include "core/agent_types.h"
 
 namespace prosophor {
@@ -22,18 +21,12 @@ class AgentCore {
     /// @param session Agent session (read/write) - contains tool_executor, stop_requested, role
     static void Loop(const std::string& message, AgentSession& session);
 
-    /// Get compact service for context compaction
-    static CompactService& GetCompactService() { return CompactService::GetInstance(); }
-
  private:
     /// Build ChatRequest from AgentSession
     static ChatRequest BuildRequest(const AgentSession& session);
 
     /// Process @file references in user message
     static std::string ProcessFileRefs(const std::string& message, const AgentSession& session);
-
-    /// Apply dialog strategy: inject running summary + timestamp + summarization prompt
-    static void ApplyDialogStrategy(const std::string& processed_message, AgentSession& session);
 
     /// Extract [摘要] from LLM response into assistant_msg.summary
     static void ExtractDialogSummary(const std::string& response_text, MessageSchema& assistant_msg);

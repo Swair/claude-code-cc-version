@@ -691,4 +691,85 @@ void ImGuiGetDisplaySize(float* w, float* h) {
     if (h) *h = io.DisplaySize.y;
 }
 
+void ImGuiGetWindowPos(float* x, float* y) {
+    ImVec2 pos = ImGui::GetWindowPos();
+    if (x) *x = pos.x;
+    if (y) *y = pos.y;
+}
+
+void SetImGuiNextWindowSize(float w, float h, int cond) {
+    ImGui::SetNextWindowSize(ImVec2(w, h), static_cast<ImGuiCond>(cond));
+}
+
+void ImGuiOpenPopup(const char* name) {
+    ImGui::OpenPopup(name);
+}
+
+bool ImGuiBeginPopupModal(const char* name, bool* open, int flags) {
+    return ImGui::BeginPopupModal(name, open, flags);
+}
+
+void ImGuiEndPopup() {
+    ImGui::EndPopup();
+}
+
+bool ImGuiBeginTabBar(const char* name) {
+    return ImGui::BeginTabBar(name);
+}
+
+void ImGuiEndTabBar() {
+    ImGui::EndTabBar();
+}
+
+bool ImGuiBeginTabItem(const char* name) {
+    return ImGui::BeginTabItem(name);
+}
+
+void ImGuiEndTabItem() {
+    ImGui::EndTabItem();
+}
+
+bool ImGuiCheckbox(const char* label, bool* value) {
+    return ImGui::Checkbox(label, value);
+}
+
+bool ImGuiCombo(const char* label, int* current_item, const char* const items[], int items_count) {
+    return ImGui::Combo(label, current_item, items, items_count);
+}
+
+bool ImGuiInputText(const char* label, char* buf, size_t buf_size) {
+    return ImGui::InputText(label, buf, buf_size);
+}
+
+bool ImGuiButton(const char* label, float width, float height) {
+    return ImGui::Button(label, ImVec2(width, height));
+}
+
+void ImGuiSeparator() {
+    ImGui::Separator();
+}
+
+bool ImGuiTreeNode(const char* label) {
+    return ImGui::TreeNode(label);
+}
+
+void ImGuiTreePop() {
+    ImGui::TreePop();
+}
+
+void ImGuiBulletText(const char* fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    ImGui::BulletTextV(fmt, args);
+    va_end(args);
+}
+
+float ImGuiGetWindowWidth() {
+    return ImGui::GetWindowWidth();
+}
+
+void ImGuiSetCursorPosX(float x) {
+    ImGui::SetCursorPosX(x);
+}
+
 } // namespace media_engine

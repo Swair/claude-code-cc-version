@@ -13,10 +13,6 @@ namespace prosophor {
 // Anthropic SSE stream handler — parses content_block_start/delta/stop events
 struct AnthropicStreamHandler : public SseStreamHandler {
     std::function<void(StreamEvent, std::string)> stream_callback;
-    std::string stop_reason;
-    TokenUsageSchema usage;
-
-    // Accumulated response for return value
     ChatResponse accumulated_response;
 
     explicit AnthropicStreamHandler(std::function<void(StreamEvent, std::string)> cb)
@@ -101,15 +97,13 @@ struct AnthropicStreamHandler : public SseStreamHandler {
             }
         } else if (event_type == "message_delta") {
             if (j.contains("delta") && j["delta"].contains("stop_reason")) {
-                stop_reason = j["delta"]["stop_reason"].get<std::string>();
-                accumulated_response.stop_reason = stop_reason;
+                accumulated_response.stop_reason = j["delta"]["stop_reason"].get<std::string>();
             }
             if (j.contains("usage")) {
                 const auto& u = j["usage"];
-                usage.prompt_tokens = u.value("input_tokens", 0);
-                usage.completion_tokens = u.value("output_tokens", 0);
-                usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;
-                accumulated_response.usage = usage;
+                accumulated_response.usage.prompt_tokens = u.value("input_tokens", 0);
+                accumulated_response.usage.completion_tokens = u.value("output_tokens", 0);
+                accumulated_response.usage.total_tokens = accumulated_response.usage.prompt_tokens + accumulated_response.usage.completion_tokens;                
             }
         } else if (event_type == "message_stop") {
             EndCurrentPhase();

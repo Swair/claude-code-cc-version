@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <memory>
 #include <stdint.h>
+#include <cstddef>
 #include "audior.h"
 #include "font.h"
 #include "texture.h"
@@ -84,6 +85,13 @@ typedef std::function<void(const MouseEvent&)> MouseHandler;
 // ============================================================================
 class MediaCore {
     public:
+        /// Shared TTF data loaded once — each window references it via AddFontFromMemoryTTF
+        /// with FontDataOwnedByAtlas = false.
+        struct SharedFont {
+            std::vector<unsigned char> data;
+        };
+        SharedFont& GetSharedChineseFont() { return shared_font_; }
+
         static MediaCore& Instance() {
             static MediaCore instance;
             return instance;
@@ -133,6 +141,10 @@ class MediaCore {
     private:
         MediaCore() = default;
 
+        void LoadSharedChineseFont();
+
+        SharedFont shared_font_;
+
         bool game_exit_ = false;
         uint64_t FPS_ = 60;
         uint64_t RuntimeFPS_ = 0;
@@ -148,6 +160,7 @@ class MediaCore {
 
         Window* primary_window_ = nullptr;
         std::vector<std::unique_ptr<Window>> all_windows_;
+
 };
 
 

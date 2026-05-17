@@ -173,9 +173,11 @@ struct SecurityConfig {
 /// Top-level Prosophor configuration
 struct ProsophorConfig {
     std::string log_level = "info";
-    std::string default_role = "default";  // Default role to use when not specified
+    std::vector<std::string> default_role = {"default"};  // Default roles (SDL: one sprite per role, TUI: first only)
 
     bool enable_summary = true;      // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
+
+    std::string sprite_assets_dir;   // sprite 资源基目录 ~/.prosophor/assets，按 {sprite_id}/ 组织
 
     SecurityConfig security;
     std::unordered_map<std::string, ProviderConfig> providers;

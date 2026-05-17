@@ -78,6 +78,7 @@ target_compile_definitions(prosophor_core PUBLIC
     NOMINMAX
     _CRT_SECURE_NO_WARNINGS
     PROSOPHOR_VERSION="${PROJECT_VERSION}"
+    PROSOPHOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
 target_link_libraries(prosophor_core

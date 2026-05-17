@@ -64,6 +64,15 @@ void Widget::ResolveSelf() {
     if (size_changed) OnResize();
 }
 
+void Widget::SetPixelRect(float x, float y, float w, float h) {
+    x_ = x;
+    y_ = y;
+    bool size_changed = (w != width_ || h != height_);
+    width_ = w;
+    height_ = h;
+    if (size_changed) OnResize();
+}
+
 void Widget::AddChild(Widget* child) {
     if (!child) return;
     if (child->parent_) child->parent_->RemoveChild(child);

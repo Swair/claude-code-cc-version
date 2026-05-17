@@ -3,6 +3,7 @@
 #include <SDL3_image/SDL_image.h>
 #include <SDL3_ttf/SDL_ttf.h>
 #include <unordered_map>
+#include <fstream>
 #include "sdl_common.h"
 #include "imgui.h"
 
@@ -137,6 +138,8 @@ void MediaCore::GetKeyboardState(std::vector<EventType>& event_list) {
 void MediaCore::MediaInit() {
     SdlResource::Instance().Init();
 
+    LoadSharedChineseFont();
+
     last_timestamp_ns_ = SDL_GetTicksNS();
     frame_duration_ns_ = 1e9 / FPS_; // 纳秒转换
 }
@@ -167,6 +170,26 @@ void MediaCore::FPSControl() {
 
 
 float MediaCore::GetDeltaTimeS() { return delta_s_; }
+
+void MediaCore::LoadSharedChineseFont() {
+    if (!shared_font_.data.empty()) return;
+    const char* font_paths[] = {
+        "C:/Windows/Fonts/msyh.ttc",
+        "C:/Windows/Fonts/simsun.ttc",
+        "C:/Windows/Fonts/simhei.ttf",
+    };
+    for (const auto* path : font_paths) {
+        std::ifstream f(path, std::ios::binary | std::ios::ate);
+        if (!f) continue;
+        auto sz = f.tellg();
+        shared_font_.data.resize(static_cast<std::size_t>(sz));
+        f.seekg(0);
+        f.read(reinterpret_cast<char*>(shared_font_.data.data()), sz);
+        LOG_INFO("[MediaCore] Loaded CJK font ({} bytes) from {}", static_cast<std::size_t>(sz), path);
+        return;
+    }
+    LOG_WARN("[MediaCore] No Chinese font found, atlas will be default");
+}
 
 void MediaCore::MainRun() {
     while(!game_exit_) {
@@ -424,6 +447,7 @@ void MediaCore::GetPrimaryDisplaySize(int* w, int* h) {
 void MediaCore::Shutdown() {
     all_windows_.clear();
     primary_window_ = nullptr;
+    shared_font_.data.clear();
 }
 
 Window* MediaCore::CreateMediaWindow(const char* title, int w, int h,

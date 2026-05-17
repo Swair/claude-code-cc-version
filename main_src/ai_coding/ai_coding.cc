@@ -134,8 +134,9 @@ int AiCoding::Run() {
     PrintBanner(PROSOPHOR_VERSION);
     RegisterCallbacks();
 
-    session_id_ = AgentEngine::GetInstance().CreateSession(
-        AgentEngine::GetInstance().GetConfig().default_role, "TUI session");
+    auto& cfg = AgentEngine::GetInstance().GetConfig();
+    std::string tui_role = cfg.default_role.empty() ? "default" : cfg.default_role[0];
+    session_id_ = AgentEngine::GetInstance().CreateSession(tui_role, "TUI session");
 
     InputHandler input_handler;
 

@@ -47,6 +47,9 @@ public:
     float GetWidth() const { return width_; }
     float GetHeight() const { return height_; }
 
+    // -- 直接设置像素坐标（跳过百分比解算，用于手动布局场景） --
+    void SetPixelRect(float x, float y, float w, float h);
+
     // -- 百分比坐标（只读） --
     float GetXPercent() const { return x_pct_; }
     float GetYPercent() const { return y_pct_; }

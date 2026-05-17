@@ -19,7 +19,6 @@
 #include "managers/skill_loader.h"
 #include "agents/plan_mode.h"
 #include "managers/memory_manager.h"
-#include "core/compact_service.h"
 #include "managers/permission_manager.h"
 #include "config/config.h"
 #include "config/effort_config.h"
@@ -38,6 +37,18 @@ CommandRegistry& CommandRegistry::GetInstance() {
     static CommandRegistry instance;
     return instance;
 }
+
+namespace {
+std::string JoinDefaultRoles(const std::vector<std::string>& roles) {
+    if (roles.empty()) return std::string("default");
+    std::string r;
+    for (size_t i = 0; i < roles.size(); ++i) {
+        if (i) r += ", ";
+        r += roles[i];
+    }
+    return r;
+}
+} // anonymous namespace
 
 void CommandRegistry::Initialize() {
     // /help
@@ -357,7 +368,7 @@ void CommandRegistry::Initialize() {
             std::string roles_dir = "config/.prosophor/roles";
             if (std::filesystem::exists(roles_dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
-                    if (entry.is_regular_file() && entry.path().extension() == ".md") {
+                    if (entry.is_regular_file() && entry.path().extension() == ".json") {
                         std::string role_id = entry.path().stem().string();
                         if (role_id.find(partial) == 0) {
                             completions.push_back(role_id);
@@ -627,7 +638,7 @@ std::vector<std::string> CommandRegistry::CompleteRole(const std::string& partia
 
     if (std::filesystem::exists(roles_dir)) {
         for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".md") {
+            if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 std::string role_id = entry.path().stem().string();
                 if (role_id.find(partial) == 0) {
                     completions.push_back(role_id);
@@ -1028,7 +1039,7 @@ CommandResult CommandRegistry::CmdConfig(const CommandContext&, const std::vecto
         // Show current config
         std::ostringstream oss;
         oss << "Current configuration:\n";
-        oss << "  Default role: " << config.default_role << "\n";
+        oss << "  Default role(s): " << JoinDefaultRoles(config.default_role) << "\n";
         oss << "  Log level: " << config.log_level << "\n";
         oss << "  Permission level: " << config.security.permission_level << "\n";
         return CommandResult::Ok(oss.str());
@@ -1473,7 +1484,6 @@ CommandResult CommandRegistry::CmdSchedule(const CommandContext&, const std::vec
 
 CommandResult CommandRegistry::CmdContext(const CommandContext&, const std::vector<std::string>&) {
     auto& tracker = TokenTracker::GetInstance();
-    auto& compact = CompactService::GetInstance();
 
     std::ostringstream oss;
     oss << "=== Context Usage ===\n\n";
@@ -1502,11 +1512,6 @@ CommandResult CommandRegistry::CmdContext(const CommandContext&, const std::vect
 
     // Web searches
     oss << "Web Searches: " << extended.web_search_requests << " requests\n\n";
-
-    // Compact service stats
-    oss << "Context Compaction:\n";
-    oss << "  Compactions performed: " << compact.GetCompactionCount() << "\n";
-    oss << "  Auto-compaction: " << (compact.IsAutoCompactEnabled() ? "enabled" : "disabled") << "\n";
 
     return CommandResult::Ok(oss.str());
 }
@@ -1620,7 +1625,7 @@ CommandResult CommandRegistry::CmdDoctor(const CommandContext& ctx, const std::v
     // Configuration
     oss << "Configuration:\n";
     auto& config = ProsophorConfig::GetInstance();
-    oss << "  Default role: " << config.default_role << "\n";
+    oss << "  Default role(s): " << JoinDefaultRoles(config.default_role) << "\n";
     oss << "  Log level: " << config.log_level << "\n";
 
     return CommandResult::Ok(oss.str());
@@ -1921,7 +1926,7 @@ CommandResult CommandRegistry::CmdMemory(const CommandContext& ctx, const std::v
 
         std::vector<std::filesystem::directory_entry> entries;
         for (const auto& entry : std::filesystem::directory_iterator(memory_dir)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".md") {
+            if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 entries.push_back(entry);
             }
         }
@@ -2098,7 +2103,7 @@ CommandResult CommandRegistry::CmdRoles(const CommandContext&, const std::vector
     std::string roles_dir = "config/.prosophor/roles";
     if (std::filesystem::exists(roles_dir)) {
         for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".md") {
+            if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 std::string role_id = entry.path().stem().string();
                 oss << "  " << role_id << "\n";
             }
@@ -2117,7 +2122,7 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
         // Show current role
         std::ostringstream oss;
         oss << "Current role configuration:\n";
-        oss << "  Default role: " << config.default_role << "\n";
+        oss << "  Default role(s): " << JoinDefaultRoles(config.default_role) << "\n";
 
         // Show actual runtime config from AgentSession
         if (ctx.agent_session && ctx.agent_session->GetRole()) {
@@ -2133,10 +2138,11 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
         std::string roles_dir = "config/.prosophor/roles";
         if (std::filesystem::exists(roles_dir)) {
             for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
-                if (entry.is_regular_file() && entry.path().extension() == ".md") {
+                if (entry.is_regular_file() && entry.path().extension() == ".json") {
                     std::string role_id = entry.path().stem().string();
-                    std::string marker = (role_id == config.default_role) ? " >" : "";
-                    oss << marker << "  " << role_id << "\n";
+                    bool is_default = std::find(config.default_role.begin(), config.default_role.end(), role_id) != config.default_role.end();
+                    std::string marker = is_default ? " > " : "   ";
+                    oss << marker << role_id << "\n";
                 }
             }
         }
@@ -2149,14 +2155,18 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
     std::string new_role_id = args[0];
 
     // Validate role exists
-    std::string role_path = "config/.prosophor/roles/" + new_role_id + ".md";
+    std::string role_path = "config/.prosophor/roles/" + new_role_id + ".json";
     if (!std::filesystem::exists(role_path)) {
         return CommandResult::Fail("Unknown role: " + new_role_id);
     }
 
-    // Update default_role in config
+    // Update default_role in config (replace first entry, or create new)
     auto& mutable_config = ProsophorConfig::GetInstance();
-    mutable_config.default_role = new_role_id;
+    if (mutable_config.default_role.empty()) {
+        mutable_config.default_role.push_back(new_role_id);
+    } else {
+        mutable_config.default_role[0] = new_role_id;
+    }
 
     // Save config to file
     mutable_config.SaveToFile();

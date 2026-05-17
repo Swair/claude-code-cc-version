@@ -5,14 +5,18 @@
 
 #include <fstream>
 #include <sstream>
-#include <cctype>
 #include <filesystem>
 #include <algorithm>
+
+#ifndef PROSOPHOR_SOURCE_DIR
+#define PROSOPHOR_SOURCE_DIR "."
+#endif
 
 #include "common/log_wrapper.h"
 #include "config/config.h"
 #include "tools/tool_registry.h"
 #include "managers/skill_loader.h"
+#include "core/dialog_strategy.h"
 
 namespace prosophor {
 
@@ -22,7 +26,20 @@ AgentRoleLoader& AgentRoleLoader::GetInstance() {
 }
 
 AgentRole AgentRoleLoader::LoadRole(const std::string& role_path) {
-    return ParseMarkdownFile(role_path);
+    std::ifstream ifs(role_path);
+    if (!ifs.is_open()) {
+        throw std::runtime_error("Cannot open role file: " + role_path);
+    }
+
+    nlohmann::json j;
+    try {
+        ifs >> j;
+    } catch (const std::exception& e) {
+        throw std::runtime_error("Failed to parse role JSON: " + role_path + " — " + e.what());
+    }
+
+    std::string file_stem = std::filesystem::path(role_path).stem().string();
+    return ParseFromJson(j, file_stem);
 }
 
 std::vector<AgentRole> AgentRoleLoader::LoadAllRoles(const std::string& roles_dir) {
@@ -34,9 +51,9 @@ std::vector<AgentRole> AgentRoleLoader::LoadAllRoles(const std::string& roles_di
     }
 
     for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".md") {
+        if (entry.is_regular_file() && entry.path().extension() == ".json") {
             try {
-                AgentRole role = ParseMarkdownFile(entry.path());
+                AgentRole role = LoadRole(entry.path().string());
                 roles.push_back(role);
                 LOG_DEBUG("Loaded role: {} ({})", role.name, role.id);
             } catch (const std::exception& e) {
@@ -48,62 +65,21 @@ std::vector<AgentRole> AgentRoleLoader::LoadAllRoles(const std::string& roles_di
     return roles;
 }
 
-std::string AgentRoleLoader::ExtractFrontmatter(const std::string& content,
-                                                  std::string& body) const {
-    if (content.size() < 4 || content.substr(0, 3) != "---") {
-        body = content;
-        return "";
-    }
-
-    size_t end_pos = content.find("\n---\n", 3);
-    if (end_pos == std::string::npos) {
-        body = content;
-        return "";
-    }
-
-    std::string frontmatter = content.substr(3, end_pos - 3);
-    body = content.substr(end_pos + 4);
-
-    // Trim leading/trailing whitespace from body
-    while (!body.empty() && (body.front() == ' ' || body.front() == '\t' || body.front() == '\n')) {
-        body.erase(0, 1);
-    }
-
-    return frontmatter;
-}
-
-AgentRole AgentRoleLoader::ParseMarkdownFile(const std::filesystem::path& file) const {
-    std::ifstream ifs(file);
-    if (!ifs.is_open()) {
-        throw std::runtime_error("Cannot open role file: " + file.string());
-    }
-
-    std::stringstream buffer;
-    buffer << ifs.rdbuf();
-    std::string content = buffer.str();
-
-    std::string body;
-    std::string frontmatter_str = ExtractFrontmatter(content, body);
-
-    if (frontmatter_str.empty()) {
-        throw std::runtime_error("Invalid role file format (missing frontmatter): " + file.string());
-    }
-
-    nlohmann::json metadata = ParseYamlFrontmatter(frontmatter_str);
-    LOG_DEBUG("ParseMarkdownFile: file={}, metadata keys: {}", file.string(), metadata.dump());
-
+AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::string& file_stem) const {
     AgentRole role;
-    role.id = metadata.value("id", file.stem().string());
-    role.name = metadata.value("name", role.id);
-    role.description = metadata.value("description", "");
-    role.avatar = metadata.value("avatar", "🤖");
+    role.id = j.value("id", file_stem);
+    role.name = j.value("display_name", j.value("name", role.id));
+    role.description = j.value("description", "");
+    role.sprite_id = j.value("sprite_id", "");
+    role.sprite_assets_dir = j.value("sprite_assets_dir", "");
 
-    // Provider 配置（可选，空则使用全局默认）
-    role.provider_prot = metadata.value("provider_prot", "");
-    role.model = metadata.value("model", std::string(""));
+    // Read provider/model from "llm" block
+    const nlohmann::json* llm = nullptr;
+    if (auto it = j.find("llm"); it != j.end() && it->is_object()) llm = &*it;
+    role.provider_prot = llm ? llm->value("protocal", "") : j.value("provider_prot", "");
+    role.model = llm ? llm->value("model", std::string("")) : j.value("model", std::string(""));
 
     // Support combined "provider:model" format in model field
-    // e.g. model: "anthropic:qwen3.5-plus" or model: "deepseek:pro"
     if (!role.model.empty()) {
         auto colon_pos = role.model.find(':');
         if (colon_pos != std::string::npos) {
@@ -116,15 +92,13 @@ AgentRole AgentRoleLoader::ParseMarkdownFile(const std::filesystem::path& file) 
         }
     }
 
-    // 从 settings.json 的 agents 配置中读取 temperature 和 max_tokens
-    // 如果 role 中没有指定 provider_prot，则根据 default_role 来确定默认 provider
+    // Resolve provider and agent config
     auto& config = ProsophorConfig::GetInstance();
     std::string provider_to_use = role.provider_prot;
 
-    // 如果 role 没有指定 provider_prot，使用 default_role 的 provider
     if (provider_to_use.empty()) {
-        // 尝试加载 default_role 来获取其 provider_prot
-        std::string default_role_path = "config/.prosophor/roles/" + config.default_role + ".md";
+        std::string primary_role = config.default_role.empty() ? "default" : config.default_role[0];
+        std::string default_role_path = "config/.prosophor/roles/" + primary_role + ".json";
         if (std::filesystem::exists(default_role_path)) {
             auto& loader = AgentRoleLoader::GetInstance();
             try {
@@ -132,111 +106,128 @@ AgentRole AgentRoleLoader::ParseMarkdownFile(const std::filesystem::path& file) 
                 if (!default_role.provider_prot.empty()) {
                     provider_to_use = default_role.provider_prot;
                     LOG_DEBUG("Role using default provider '{}' from default_role '{}'",
-                             role.id, provider_to_use, config.default_role);
+                             role.id, provider_to_use, primary_role);
                 }
             } catch (const std::exception& e) {
-                LOG_WARN("Failed to load default role '{}', using fallback: {}", config.default_role, e.what());
+                LOG_WARN("Failed to load default role '{}', using fallback: {}", primary_role, e.what());
             }
         }
 
-        // 如果还是没有找到 provider，使用 providers 中的第一个
         if (provider_to_use.empty() && !config.providers.empty()) {
             provider_to_use = config.providers.begin()->first;
             LOG_DEBUG("Role using first available provider: {}", role.id, provider_to_use);
         }
     }
 
-    // 尝试从 provider 的 agents 中查找匹配的 model
-    // role.model 可以是 agent key 或直接模型名称
+    // Resolve model/agent config from provider
     if (!provider_to_use.empty()) {
         auto provider_it = config.providers.find(provider_to_use);
         if (provider_it != config.providers.end()) {
             auto& agent_map = provider_it->second.agents;
 
-            // 尝试将 role.model 作为 agent key 查找
             auto agent_it = agent_map.find(role.model);
-
-            // 如果 key 不匹配，搜索所有 agents 的 model 字段
-            if (agent_it == agent_map.end()) {
-                for (auto& [key, agent] : agent_map) {
-                    if (agent.model == role.model) {
-                        agent_it = agent_map.find(key);
-                        break;
-                    }
-                }
+            if (agent_it == agent_map.end() && !agent_map.empty()) {
+                // Fallback: use first available agent
+                agent_it = agent_map.begin();
             }
 
             if (agent_it != agent_map.end()) {
-                // 找到了匹配的 agent，使用 agent 配置
                 role.temperature = agent_it->second.temperature;
                 role.max_tokens = agent_it->second.max_tokens;
-                role.model = agent_it->second.model;  // 使用 agent 配置中的实际模型名称
+                role.model = agent_it->second.model;
                 role.enable_streaming = agent_it->second.enable_streaming;
                 role.thinking = agent_it->second.thinking;
-                LOG_DEBUG("Role using agent '{}' from provider '{}': model={}, temperature={}, max_tokens={}, enable_streaming={}",
-                         role.id, agent_it->first, provider_to_use, agent_it->second.model,
+                LOG_DEBUG("Role '{}' using agent model='{}' from provider '{}': temperature={}, max_tokens={}, enable_streaming={}",
+                         role.id, agent_it->second.model, provider_to_use,
                          role.temperature, role.max_tokens, role.enable_streaming);
             } else {
-                // 没有找到匹配的 agent，使用 default agent 配置 + 原始模型名称
-                auto default_agent_it = agent_map.find("default");
-                if (default_agent_it != agent_map.end()) {
-                    role.temperature = default_agent_it->second.temperature;
-                    role.max_tokens = default_agent_it->second.max_tokens;
-                    role.enable_streaming = default_agent_it->second.enable_streaming;
-                    role.thinking = default_agent_it->second.thinking;
-                    LOG_DEBUG("Role using default agent config with model '{}' from provider '{}': temperature={}, max_tokens={}, enable_streaming={}",
-                             role.id, role.model, provider_to_use, role.temperature, role.max_tokens, role.enable_streaming);
-                } else {
-                    LOG_WARN("Role {}: no 'default' agent in provider '{}', using hardcoded defaults", role.id, provider_to_use);
-                }
+                LOG_WARN("Role {}: no agents configured in provider '{}', using hardcoded defaults", role.id, provider_to_use);
             }
         }
     }
 
     // 性格配置
-    role.personality = metadata.value("personality", "default");
-    role.personality_prompt = metadata.value("personality_prompt", "");
-    role.role_system_prompt = metadata.value("system_prompt", "");
+    role.personality = j.value("personality", "default");
+    role.personality_prompt = j.value("personality_prompt", "");
+    role.role_system_prompt = j.value("system_prompt", "");
 
-    // 技能配置 - 支持通配符 "*" 和兼容字符串格式
-    if (metadata.contains("skills_white_list")) {
-        auto skills_config = metadata["skills_white_list"];
+    // sprite_id → 查找 sprite JSON，同名覆盖 role 字段
+    if (!role.sprite_id.empty()) {
+        nlohmann::json sj;  // sprite JSON overlay
+
+        // 1. config sprite_assets_dir/{sprite_id}/meta.json
+        if (!config.sprite_assets_dir.empty()) {
+            std::string meta_path = config.sprite_assets_dir + "/" + role.sprite_id + "/meta.json";
+            std::ifstream mf(meta_path);
+            if (mf) { try { mf >> sj; } catch (...) {} }
+        }
+
+        // 2. Fallback: petdex-sprites recursive search
+        if (sj.empty()) {
+            static const char* kPetdexDir = PROSOPHOR_SOURCE_DIR "/assets/petdex-sprites/by-collection";
+            if (!std::filesystem::exists(kPetdexDir)) {
+                LOG_WARN("Petdex directory not found: {}", kPetdexDir);
+            } else {
+                for (const auto& entry : std::filesystem::recursive_directory_iterator(kPetdexDir)) {
+                    if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
+                    try {
+                        std::ifstream pf(entry.path());
+                        nlohmann::json pj;
+                        pf >> pj;
+                        if (pj.value("id", "") == role.sprite_id) { sj = std::move(pj); break; }
+                    } catch (const std::exception& e) {
+                        LOG_WARN("Failed to read petdex entry {}: {}", entry.path().string(), e.what());
+                    }
+                }
+            }
+        }
+
+        // 3. Override role fields with sprite fields (同名覆盖)
+        if (!sj.empty()) {
+            if (auto it = sj.find("display_name"); it != sj.end() && it->is_string())
+                role.name = it->get<std::string>();
+            if (auto it = sj.find("description"); it != sj.end() && it->is_string())
+                role.description = it->get<std::string>();
+            if (auto it = sj.find("personality"); it != sj.end() && it->is_string())
+                role.personality = it->get<std::string>();
+            if (auto it = sj.find("personality_prompt"); it != sj.end() && it->is_string())
+                role.personality_prompt = it->get<std::string>();
+            if (auto it = sj.find("system_prompt"); it != sj.end() && it->is_string())
+                role.role_system_prompt = it->get<std::string>();
+            LOG_DEBUG("Sprite overlay applied for sprite_id='{}': name='{}', desc='{}', personality='{}'",
+                      role.sprite_id, role.name, role.description, role.personality);
+        }
+    }
+
+    // Read LLM-specific fields (skills, tools, etc.) from "llm" block
+    const nlohmann::json* llm_config = llm ? llm : &j;
+
+    // 技能配置 - 支持通配符 "*"
+    if (llm_config->contains("skills_white_list")) {
+        auto skills_config = (*llm_config)["skills_white_list"];
         if (skills_config.is_array() && skills_config.size() == 1 &&
             skills_config[0] == "*") {
-            // 通配符：加载所有技能
             auto& skill_loader = SkillLoader::GetInstance();
             role.skills = skill_loader.GetAllSkillIds();
             LOG_DEBUG("Role uses all skills: {}", role.id, role.skills.size());
         } else if (skills_config.is_array()) {
             role.skills = skills_config.get<std::vector<std::string>>();
         } else if (skills_config.is_string()) {
-            // 兼容字符串格式
             role.skills.push_back(skills_config.get<std::string>());
         }
     }
 
-    // 工具配置 - 支持通配符 "*" 和兼容字符串格式
-    // 记录是否显式配置了 tools_white_list 字段（用于自动设置 use_tools）
-    bool tools_explicitly_configured = metadata.contains("tools_white_list");
-    LOG_DEBUG("Role tools_explicitly_configured={}, metadata.has('tools_white_list')={}",
-             role.id, tools_explicitly_configured, metadata.contains("tools_white_list"));
+    // 工具配置 - 支持通配符 "*"
+    bool tools_explicitly_configured = llm_config->contains("tools_white_list");
     if (tools_explicitly_configured) {
-        LOG_DEBUG("Role tools_config = {}", role.id, metadata["tools_white_list"].dump());
-        LOG_DEBUG("Role tools_config.is_array={}, tools_config.type={}",
-                 role.id, metadata["tools_white_list"].is_array(), metadata["tools_white_list"].type_name());
-    }
-
-    if (tools_explicitly_configured) {
-        auto tools_config = metadata["tools_white_list"];
+        auto tools_config = (*llm_config)["tools_white_list"];
         if (tools_config.is_array() && tools_config.size() == 1 &&
             tools_config[0] == "*") {
-            // 通配符：加载所有工具，并启用自动确认（跳过 Permission Required）
             auto& tool_registry = ToolRegistry::GetInstance();
             role.tools = tool_registry.GetToolSchemas();
-            role.auto_confirm_tools = true;  // 关键：启用自动确认，不弹权限询问
+            role.auto_confirm_tools = true;
             LOG_DEBUG("Role uses all tools with auto_confirm=true: {}", role.id, role.tools.size());
         } else if (tools_config.is_array()) {
-            // 工具名称列表
             auto& tool_registry = ToolRegistry::GetInstance();
             auto all_tools = tool_registry.GetToolSchemas();
             std::vector<std::string> tool_names = tools_config.get<std::vector<std::string>>();
@@ -246,7 +237,6 @@ AgentRole AgentRoleLoader::ParseMarkdownFile(const std::filesystem::path& file) 
                 }
             }
         } else if (tools_config.is_string()) {
-            // 兼容字符串格式：单个工具名
             auto& tool_registry = ToolRegistry::GetInstance();
             auto all_tools = tool_registry.GetToolSchemas();
             std::string tool_name = tools_config.get<std::string>();
@@ -259,12 +249,16 @@ AgentRole AgentRoleLoader::ParseMarkdownFile(const std::filesystem::path& file) 
         }
     }
 
-    role.max_iterations = metadata.value("max_iterations", 15);
-    role.auto_confirm_tools = metadata.value("auto_confirm_tools", false);
-    role.enable_streaming = metadata.value("enable_streaming", true);
-    role.enable_summary = metadata.value("enable_summary", true);
+    role.max_iterations = llm_config->value("max_iterations", 15);
+    role.auto_confirm_tools = llm_config->value("auto_confirm_tools", false);
+    role.enable_streaming = llm_config->value("enable_streaming", true);
+    role.enable_summary = llm_config->value("enable_summary", true);
 
-    role.memory_dir = metadata.value("memory_dir", std::string(""));
+    role.memory_dir = llm_config->value("memory_dir", std::string(""));
+    if (role.memory_dir.empty()) {
+        role.memory_dir = ProsophorConfig::ExpandHome(
+            "~/.prosophor/memories/" + role.id);
+    }
 
     // 默认加载所有工具（如果没有显式指定 tools_white_list）
     if (!tools_explicitly_configured && role.tools.empty()) {
@@ -272,161 +266,10 @@ AgentRole AgentRoleLoader::ParseMarkdownFile(const std::filesystem::path& file) 
         role.tools = tool_registry.GetToolSchemas();
     }
 
-    // Store body content as additional role system prompt if present
-    if (!body.empty()) {
-        if (!role.role_system_prompt.empty()) {
-            role.role_system_prompt += "\n\n";
-        }
-        role.role_system_prompt += body;
-    }
+    // 初始化默认对话策略
+    role.dialog_strategy = DialogStrategy::CreateDefault();
 
     return role;
-}
-
-nlohmann::json AgentRoleLoader::ParseYamlFrontmatter(const std::string& yaml_str) const {
-    nlohmann::json root = nlohmann::json::object();
-
-    std::istringstream stream(yaml_str);
-    std::string line;
-
-    // 用于处理多行文本（| 语法）
-    std::string current_key;
-    std::string multiline_value;
-    int multiline_indent = 0;
-
-    while (std::getline(stream, line)) {
-        if (line.find_first_not_of(" \t\r\n") == std::string::npos) continue;
-
-        int indent = 0;
-        for (char c : line) {
-            if (c == ' ')
-                ++indent;
-            else if (c == '\t')
-                indent += 2;
-            else
-                break;
-        }
-
-        std::string trimmed = line.substr(line.find_first_not_of(" \t"));
-        while (!trimmed.empty() &&
-               (trimmed.back() == ' ' || trimmed.back() == '\t' ||
-                trimmed.back() == '\r')) {
-            trimmed.pop_back();
-        }
-
-        if (trimmed.empty()) continue;
-
-        // 处理多行文本块
-        if (!current_key.empty() && indent > multiline_indent) {
-            multiline_value += trimmed + "\n";
-            continue;
-        } else if (!current_key.empty() && !multiline_value.empty()) {
-            // 结束多行文本
-            while (!multiline_value.empty() && multiline_value.back() == '\n') {
-                multiline_value.pop_back();
-            }
-            root[current_key] = multiline_value;
-            current_key.clear();
-            multiline_value.clear();
-        }
-
-        if (trimmed[0] == '-') {
-            std::string val = trimmed.substr(1);
-            val.erase(0, val.find_first_not_of(" \t"));
-            if (val.empty()) continue;
-
-            if (val.size() >= 2 && val.front() == '"' && val.back() == '"') {
-                val = val.substr(1, val.size() - 2);
-            }
-
-            // 查找最后一个数组类型的 key 并添加元素
-            bool found = false;
-            for (auto it = root.rbegin(); it != root.rend(); ++it) {
-                if (it->is_array()) {
-                    it->push_back(val);
-                    found = true;
-                    LOG_DEBUG("Added '{}' to array for key '{}'", val, it.key());
-                    break;
-                }
-            }
-
-            // 如果没有找到数组，可能是缩进问题，跳过
-            if (!found) {
-                LOG_DEBUG("Orphan list item: {}, skipping", val);
-            }
-            continue;
-        }
-
-        size_t colon_pos = trimmed.find(':');
-        if (colon_pos == std::string::npos) continue;
-
-        std::string key = trimmed.substr(0, colon_pos);
-        std::string value = trimmed.substr(colon_pos + 1);
-
-        while (!key.empty() && (key.back() == ' ' || key.back() == '\t'))
-            key.pop_back();
-        value.erase(0, value.find_first_not_of(" \t"));
-        while (!value.empty() && (value.back() == ' ' || value.back() == '\t'))
-            value.pop_back();
-
-        // 检查是否是多行文本块（| 语法）
-        if (value == "|" || value == "|-") {
-            current_key = key;
-            multiline_indent = indent;
-            multiline_value = "";
-            continue;
-        }
-
-        if (value.empty()) {
-            // 空值，可能是数组的开始
-            // 初始化为空数组，等待后续 - 元素
-            root[key] = nlohmann::json::array();
-            LOG_DEBUG("Parsed key '{}' with empty value, initializing as array", key);
-        } else if (value == "true") {
-            root[key] = true;
-        } else if (value == "false") {
-            root[key] = false;
-        } else {
-            // 尝试解析为数字
-            bool is_number = true;
-            bool is_float = false;
-            for (size_t i = 0; i < value.size(); ++i) {
-                char c = value[i];
-                if (c == '.') {
-                    is_float = true;
-                } else if (c == '-') {
-                    if (i != 0) { is_number = false; break; }
-                } else if (!std::isdigit(static_cast<unsigned char>(c))) {
-                    is_number = false;
-                    break;
-                }
-            }
-
-            if (is_number) {
-                if (is_float) {
-                    root[key] = std::stod(value);
-                } else {
-                    root[key] = std::stoi(value);
-                }
-            } else {
-                // 字符串，去除引号
-                if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
-                    value = value.substr(1, value.size() - 2);
-                }
-                root[key] = value;
-            }
-        }
-    }
-
-    // 处理未完成的多行文本
-    if (!current_key.empty() && !multiline_value.empty()) {
-        while (!multiline_value.empty() && multiline_value.back() == '\n') {
-            multiline_value.pop_back();
-        }
-        root[current_key] = multiline_value;
-    }
-
-    return root;
 }
 
 }  // namespace prosophor

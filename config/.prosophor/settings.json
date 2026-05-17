@@ -1,49 +1,50 @@
 {
-  "default_role": "default",
+  "default_role": ["ayaka", "sayu", "keqing"],
   "log_level": "info",
-  "enable_summary": true,
+  "enable_summary": false,
+  "sprite_assets_dir": "~/.prosophor/assets",
   "providers": {
     "anthropic": [
       {
         "api_key": "sk-sp-198786439e234d0abc2ffexxxxxxxx",
         "base_url": "https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages",
         "timeout": 60,
-        "agents": {
-          "default": {
+        "agents": [
+           {
             "model": "qwen3.5-plus",
             "temperature": 0.7,
             "max_tokens": 8192,
             "context_window": 128000,
             "thinking": false
           },
-          "fast": {
+          {
             "model": "qwen-turbo",
             "temperature": 0.1,
             "max_tokens": 1024,
             "context_window": 128000
           }
-        }
+        ]
       },
       {
         "api_key": "sk-198786439e234d0abc2ffexxxxxxxx",
         "base_url": "https://api.deepseek.com/anthropic/v1/messages",
         "timeout": 60,
-        "agents": {
-          "pro": {
+        "agents": [
+          {
             "model": "deepseek-v4-pro",
             "temperature": 0.7,
             "max_tokens": 8192,
             "context_window": 128000,
             "thinking": false
           },
-          "flash": {
+          {
             "model": "deepseek-v4-flash",
             "temperature": 0.1,
             "max_tokens": 1024,
             "context_window": 128000,
             "thinking": true
           }
-        }
+        ]
       }
     ],
     "ollama": [
@@ -51,73 +52,87 @@
         "api_key": "",
         "base_url": "http://localhost:11434/api/chat",
         "timeout": 180,
-        "agents": {
-          "default": {
+        "agents": [
+          {
             "model": "qwen3:8b",
             "temperature": 0.7,
             "max_tokens": 8192,
             "context_window": 32768,
             "thinking": true
           },
-          "gemma4": {
+          {
             "model": "gemma4:e4b",
             "temperature": 0.1,
             "max_tokens": 4096,
             "context_window": 128000,
             "thinking": true
           }
-        }
+        ]
       }
     ],
     "openai": [
       {
+        "api_key": "sk-sp-MjA4LTIyMDcwMjA1MjEyLTE3Nzg5ODkzMDE2MDI=",
+        "base_url": "https://api.scnet.cn/api/llm/v1/chat/completions",
+        "timeout": 60,
+        "agents": [
+          {
+            "model": "MiniMax-M2.5",
+            "temperature": 0.7,
+            "max_tokens": 8192,
+            "context_window": 128000,
+            "thinking": false
+          }
+        ]
+      },
+      {
         "api_key": "sk-be7c5ed396474c3fa6841214cfxxxx",
         "base_url": "https://api.deepseek.com/chat/completions",
         "timeout": 60,
-        "agents": {
-          "default": {
+        "agents": [
+          {
             "model": "deepseek-v4-pro",
             "temperature": 0.7,
             "max_tokens": 8192,
             "context_window": 128000,
             "thinking": false
           },
-          "fast": {
+          {
             "model": "deepseek-v4-flash",
             "temperature": 0.1,
             "max_tokens": 1024,
             "context_window": 128000,
-            "thinking": true
+            "thinking": false
           }
-        }
+        ]
       },
       {
         "api_key": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "base_url": "https://api.openai.com/v1/chat/completions",
         "timeout": 60,
-        "agents": {
-          "default": {
+        "agents": [
+          {
             "model": "gpt-4o",
             "temperature": 0.7,
             "max_tokens": 8192,
             "context_window": 128000,
             "thinking": false
           }
-        }
+        ]
       },
       {
         "api_key": "",
         "base_url": "http://localhost:8080/v1/chat/completions",
         "timeout": 120,
-        "agents": {
-          "default": {
+        "agents": [
+          {
             "model": "google_gemma-4-E4B-it-Q4_K_M",
             "temperature": 0.7,
             "max_tokens": 8192,
             "context_window": 32768,
             "thinking": false
           }
-        }
+        ]
       }
     ]
   },
@@ -129,7 +144,7 @@
       "n_gpu_layers": 0,
       "n_threads": 0,
       "auto_start": false,
-      "start_timeout_ms": 150000         
+      "start_timeout_ms": 150000
     }
   ],
   "security": {

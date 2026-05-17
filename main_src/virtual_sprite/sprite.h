@@ -36,7 +36,7 @@ class SpeechBubble;
 /// via the caller (which reads LayoutConfig::sprite_window_width/height).
 class Sprite : public Noncopyable {
  public:
-    Sprite(const std::string& name, int width, int height);
+    Sprite(const std::string& name, int width, int height, const std::string& role_id = "");
     ~Sprite();
 
     bool Create();
@@ -77,9 +77,17 @@ class Sprite : public Noncopyable {
         std::string slug;
         std::string name;
     };
+    struct SpriteBinding {
+        std::string sprite_id;
+        std::string assets_dir;    // 非空时优先，直接从该目录加载 sprite
+        std::string spritesheet_file; // 相对 sprite_assets_dir 的纹理文件名
+    };
     void LoadPetList();
     void LoadCurrentPet();
+    void LoadPetBySpriteId(const std::string& sprite_id);
+    void LoadPetFromDir(const std::string& assets_dir);
     void LoadBackground();
+    SpriteBinding LoadSpriteBindingFromRole(const std::string& role_id);
 
     // ── Rendering ──
     SpritesheetAction StateToAction(AgentRuntimeState state) const;
@@ -96,6 +104,7 @@ class Sprite : public Noncopyable {
 
     // ── Core state ──
     std::string name_;
+    std::string role_id_;
     int width_ = 280;
     int height_ = 380;
     std::string session_id_;

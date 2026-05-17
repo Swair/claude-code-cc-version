@@ -132,9 +132,16 @@ constexpr int ImGuiWindowFlags_NoDecoration =
 // ImGui 工具函数封装 - 避免外部文件直接 include imgui.h
 // ============================================================================
 
+/// ImGui 条件常量 — 值匹配 ImGui 1.92.8
+constexpr int ImGuiCond_Always = 0;
+constexpr int ImGuiCond_Once = 1;
+constexpr int ImGuiCond_FirstUseEver = 2;
+constexpr int ImGuiCond_Appearing = 3;
+
 /// 窗口位置/尺寸设置
 void SetImGuiNextWindowPos(float x, float y);
 void SetImGuiNextWindowSize(float w, float h);
+void SetImGuiNextWindowSize(float w, float h, int cond);
 void SetImGuiNextWindowBgAlpha(float alpha);
 
 /// 窗口控制
@@ -237,5 +244,33 @@ void PopStyleColor(int count = 1);
 
 /// 获取当前 ImGui 上下文的显示尺寸（viewport 尺寸，NewFrame 后可用）
 void ImGuiGetDisplaySize(float* w, float* h);
+
+/// 获取当前 ImGui 窗口的位置（viewport-absolute 坐标）
+void ImGuiGetWindowPos(float* x, float* y);
+
+/// 弹出窗口/模态框
+void ImGuiOpenPopup(const char* name);
+bool ImGuiBeginPopupModal(const char* name, bool* open, int flags = 0);
+void ImGuiEndPopup();
+
+/// 标签栏
+bool ImGuiBeginTabBar(const char* name);
+void ImGuiEndTabBar();
+bool ImGuiBeginTabItem(const char* name);
+void ImGuiEndTabItem();
+
+/// 控件
+bool ImGuiCheckbox(const char* label, bool* value);
+bool ImGuiCombo(const char* label, int* current_item, const char* const items[], int items_count);
+bool ImGuiInputText(const char* label, char* buf, size_t buf_size);
+bool ImGuiButton(const char* label, float width = 0.0f, float height = 0.0f);
+void ImGuiSeparator();
+bool ImGuiTreeNode(const char* label);
+void ImGuiTreePop();
+void ImGuiBulletText(const char* fmt, ...);
+
+/// 窗口查询
+float ImGuiGetWindowWidth();
+void ImGuiSetCursorPosX(float x);
 
 } // namespace media_engine

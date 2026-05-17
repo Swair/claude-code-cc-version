@@ -111,6 +111,11 @@ run_win:
 	cd $(INSTALL_DIR_WIN)/bin && ./prosophor.exe
 .PHONY: run_win
 
+# 一键发布：cmake 配置 → 构建 → CPack 安装器
+deploy: build_win_sdl
+	cd $(BUILD_DIR_WIN) && cpack -C $(BUILD_TYPE)
+.PHONY: deploy
+
 clean_win:
 	rm -rf ${BUILD_DIR_WIN}
 .PHONY: clean_win

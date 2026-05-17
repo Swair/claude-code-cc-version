@@ -11,12 +11,13 @@
 // and ::SDL_Renderer, not media_engine::SDL_Window.
 struct SDL_Window;
 struct SDL_Renderer;
+struct ImFontAtlas;
 
 namespace media_engine {
 
 struct WindowConfig {
     bool transparent_bg = false;      // ImGui transparent style
-    bool load_chinese_font = true;
+    bool use_shared_font = true;      // use MediaCore shared ImFontAtlas (CJK)
     bool borderless = false;
     bool transparent_window = false;  // SDL_WINDOW_TRANSPARENT
     bool resizable = true;
@@ -63,6 +64,9 @@ public:
     // Window position (screen coordinates)
     void SetPosition(int x, int y);
     void GetPosition(int* x, int* y) const;
+
+    // Window title
+    void SetTitle(const char* title);
 
 private:
     friend class MediaCore;

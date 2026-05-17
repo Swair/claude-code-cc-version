@@ -75,7 +75,10 @@ void VirtualSprite::GlobalInit() {
             auto& engine = AgentEngine::GetInstance();
             auto snap = engine.GetFocusedSessionSnapshot();
             std::string sid = snap ? snap->session_id
-                                   : engine.CreateSession(engine.GetConfig().default_role, "");
+                                   : engine.CreateSession(
+                                       engine.GetConfig().default_role.empty()
+                                           ? "default"
+                                           : engine.GetConfig().default_role[0], "");
             engine.SendUserMessage(sid, msg);
         });
 
@@ -124,9 +127,10 @@ void VirtualSprite::GlobalInit() {
         }
     });
 
-    // Helper: create sprite + wire toggle central window
-    auto create_sprite = [this](const std::string& name, int w, int h) -> Sprite* {
-        auto* s = SpriteManager::GetInstance().CreateSprite(name, w, h);
+    // Helper: create sprite with role_id + wire toggle central window
+    auto create_sprite = [this](const std::string& name, int w, int h,
+                                 const std::string& role_id = "") -> Sprite* {
+        auto* s = SpriteManager::GetInstance().CreateSprite(name, w, h, role_id);
         if (s) {
             s->SetOnToggleCentralWindow([this]() {
                 central_window_.SetVisible(!central_window_.IsVisible());
@@ -135,10 +139,12 @@ void VirtualSprite::GlobalInit() {
         return s;
     };
 
-    // Create sprites (all secondary windows, uniform)
+    // Create sprites bound to roles (one per default_role entry)
     LayoutConfig sprite_cfg;
-    create_sprite("Prosophor Assistant", sprite_cfg.sprite_window_width, sprite_cfg.sprite_window_height);
-    create_sprite("Mascot", sprite_cfg.sprite_window_width, sprite_cfg.sprite_window_height);
+    auto& role_list = AgentEngine::GetInstance().GetConfig().default_role;
+    for (const auto& role_id : role_list) {
+        create_sprite(role_id, sprite_cfg.sprite_window_width, sprite_cfg.sprite_window_height, role_id);
+    }
 
     // Global update: animate all sprites
     media.RegUpdateHandler([]() {

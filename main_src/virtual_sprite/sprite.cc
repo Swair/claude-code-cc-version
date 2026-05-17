@@ -19,12 +19,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <random>
 
 namespace prosophor {
 
-Sprite::Sprite(const std::string& name, int width, int height)
-    : name_(name), width_(width), height_(height) {}
+Sprite::Sprite(const std::string& name, int width, int height, const std::string& role_id)
+    : name_(name), role_id_(role_id), width_(width), height_(height) {}
 
 Sprite::~Sprite() = default;
 
@@ -34,7 +35,7 @@ bool Sprite::Create() {
     // ── Create sprite window (always-on-top, never occluded) ──
     media_engine::WindowConfig cfg;
     cfg.transparent_bg = true;
-    cfg.load_chinese_font = true;
+    cfg.use_shared_font = true;
     cfg.borderless = true;
     cfg.transparent_window = true;
     cfg.skip_taskbar = true;
@@ -45,34 +46,73 @@ bool Sprite::Create() {
         return false;
     }
 
+    // ── Per-sprite SpeechBubble (云朵桩) — construct before widget tree ──
+    speech_bubble_ = std::make_unique<SpeechBubble>();
+    {
+        auto layout = LayoutConfig{};
+        speech_bubble_->SetMinBubbleSize(layout.bubble_min_width, layout.bubble_min_body_height);
+        speech_bubble_->SetBubbleRadius(layout.bubble_radius);
+        speech_bubble_->SetPadding(layout.bubble_padding);
+        speech_bubble_->SetTailHeight(layout.bubble_tail_height);
+        speech_bubble_->SetTitleHeight(layout.bubble_title_height);
+        speech_bubble_->SetInputHeight(layout.bubble_input_height);
+        speech_bubble_->SetButtonSize(layout.bubble_btn_size);
+    }
+
     // ── Widget tree root ──
     root_widget_.SetBackgroundColor(media_engine::Colors::Transparent);
     root_widget_.SetRoot(static_cast<float>(width_), static_cast<float>(height_));
     root_widget_.AddChild(&name_anchor_);
     root_widget_.AddChild(&nav_anchor_);
+    root_widget_.AddChild(speech_bubble_.get());
     name_anchor_.SetPosition(36.0f, 2.0f, 28.0f, 5.0f);
     nav_anchor_.SetPosition(0.0f, 85.0f, 100.0f, 15.0f);
 
     // ── Per-sprite session ──
     auto& engine = AgentEngine::GetInstance();
-    session_id_ = engine.CreateSession(engine.GetConfig().default_role, "");
-    LOG_INFO("[Sprite] Session '{}' created for '{}'", session_id_, name_);
+    auto& default_roles = engine.GetConfig().default_role;
+    std::string effective_role = role_id_.empty() ? (default_roles.empty() ? "default" : default_roles[0]) : role_id_;
+    session_id_ = engine.CreateSession(effective_role, "");
+    LOG_INFO("[Sprite] Session '{}' created for '{}' (role='{}')", session_id_, name_, effective_role);
 
     // ── Pet loading (textures tied to this sprite window's renderer) ──
     LoadBackground();
-    LoadPetList();
-    if (!pet_list_.empty()) {
-        std::mt19937 rng{std::random_device{}()};
-        current_pet_index_ = std::uniform_int_distribution<int>(0, static_cast<int>(pet_list_.size()) - 1)(rng);
-        LoadCurrentPet();
+    auto binding = LoadSpriteBindingFromRole(effective_role);
+    if (!binding.spritesheet_file.empty()) {
+        auto& eng_cfg = AgentEngine::GetInstance().GetConfig();
+        std::string webp_path = eng_cfg.sprite_assets_dir + "/" + binding.spritesheet_file;
+        if (std::filesystem::exists(webp_path)) {
+            std::string slug = std::filesystem::path(binding.spritesheet_file).stem().string();
+            pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug, eng_cfg.sprite_assets_dir + "/");
+            if (pet_sprite_->IsValid()) {
+                std::string display = pet_sprite_->GetDisplayName();
+                if (!display.empty()) { name_ = display; sprite_window_->SetTitle(display.c_str()); }
+                LOG_INFO("Loaded pet '{}' from {}", slug, webp_path);
+            } else {
+                pet_sprite_.reset();
+            }
+        }
+    }
+    if (!pet_sprite_ && !binding.assets_dir.empty()) {
+        LoadPetFromDir(binding.assets_dir);
+    }
+    if (!pet_sprite_ && !binding.sprite_id.empty()) {
+        LoadPetBySpriteId(binding.sprite_id);
+    }
+    if (!pet_sprite_) {
+        LoadPetList();
+        if (!pet_list_.empty()) {
+            std::mt19937 rng{std::random_device{}()};
+            current_pet_index_ = std::uniform_int_distribution<int>(0, static_cast<int>(pet_list_.size()) - 1)(rng);
+            LoadCurrentPet();
+        }
     }
 
     // ── Nav bar ──
     nav_bar_ = std::make_unique<media_engine::NavBar>();
     nav_bar_->SetTextColor(media_engine::Colors::Gray35);
 
-    // ── Per-sprite SpeechBubble (云朵桩) ──
-    speech_bubble_ = std::make_unique<SpeechBubble>();
+    // ── SpeechBubble onSubmit callback ──
     speech_bubble_->SetOnSubmit([this](const std::string& msg) {
         AgentEngine::GetInstance().SendUserMessage(session_id_, msg);
     });
@@ -96,14 +136,14 @@ bool Sprite::Create() {
         }
     });
 
-    // ── Render handler: pet + speech bubble + context menu ──
+    // ── Render handler: pet + speech bubble (via widget tree) + context menu ──
     mc.RegRenderHandler(sprite_window_, [this]() {
-        root_widget_.Render(media_engine::RenderContext{});
-
-        // Per-sprite cloud bubble (overlay, not in widget tree)
+        // Pre-set snapshot and window size, then render through widget tree cascade
         auto snap = AgentEngine::GetInstance().GetSessionSnapshot(session_id_);
-        speech_bubble_->Render(snap ? *snap : RenderSnapshot{},
-                               sprite_window_->GetWidth(), sprite_window_->GetHeight());
+        speech_bubble_->SetSnapshot(snap ? *snap : RenderSnapshot{});
+        speech_bubble_->SetOverrideSize(sprite_window_->GetWidth(), sprite_window_->GetHeight());
+
+        root_widget_.Render(media_engine::RenderContext{});
 
         // Global context menu (singleton)
         UIRenderer::Instance().RenderContextMenu();
@@ -115,7 +155,7 @@ bool Sprite::Create() {
 
 // ── PetCanvas: root widget drawing ───────────────────────────────────────
 
-void Sprite::PetCanvas::Render(const media_engine::RenderContext& /*ctx*/) {
+void Sprite::PetCanvas::Render(const media_engine::RenderContext& ctx) {
     if (!visible_) return;
 
     auto& s = owner_;
@@ -154,7 +194,12 @@ void Sprite::PetCanvas::Render(const media_engine::RenderContext& /*ctx*/) {
                                           media_engine::Colors::White,
                                           platform::kDefaultFontPath);
 
-    // 4. Nav bar at anchor position
+    // 4. Cascade to widget-tree children (speech_bubble_)
+    for (auto* child : children_) {
+        child->Render(ctx);
+    }
+
+    // 5. Nav bar at anchor position
     if (!s.pet_list_.empty()) {
         char buf[16];
         std::snprintf(buf, sizeof(buf), "%d/%d",
@@ -295,6 +340,166 @@ void Sprite::LoadCurrentPet() {
     if (!pet_sprite_->IsValid()) {
         pet_sprite_.reset();
     }
+}
+
+Sprite::SpriteBinding Sprite::LoadSpriteBindingFromRole(const std::string& role_id) {
+    std::string path = std::string(PROSOPHOR_SOURCE_DIR) + "/config/.prosophor/roles/" + role_id + ".json";
+    if (!std::filesystem::exists(path)) return {};
+    try {
+        std::ifstream ifs(path);
+        nlohmann::json j;
+        ifs >> j;
+        std::string sid = j.value("sprite_id", "");
+        std::string sp_file = j.value("spritesheet_path", "");
+        std::string assets_dir = j.value("sprite_assets_dir", "");
+        return {sid, assets_dir, sp_file};
+    } catch (const std::exception& e) {
+        LOG_WARN("[Sprite] Failed to read role '{}': {}", role_id, e.what());
+        return {};
+    }
+}
+
+void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
+    // Priority 1: config sprite_assets_dir/{sprite_id}/ (subdirectory with meta.json)
+    auto& config = AgentEngine::GetInstance().GetConfig();
+    if (!config.sprite_assets_dir.empty()) {
+        std::string dir = config.sprite_assets_dir + "/" + sprite_id;
+        if (std::filesystem::exists(dir)) {
+            LoadPetFromDir(dir);
+            if (pet_sprite_) return;
+        }
+    }
+
+    // Priority 1b: config sprite_assets_dir/{sprite_id}.webp directly
+    if (!config.sprite_assets_dir.empty()) {
+        std::string webp_path = config.sprite_assets_dir + "/" + sprite_id + ".webp";
+        if (std::filesystem::exists(webp_path)) {
+            pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, sprite_id, config.sprite_assets_dir + "/");
+            if (pet_sprite_->IsValid()) {
+                std::string display = pet_sprite_->GetDisplayName();
+                if (!display.empty()) {
+                    name_ = display;
+                    sprite_window_->SetTitle(display.c_str());
+                }
+                LOG_INFO("Loaded pet '{}' from {}", sprite_id, webp_path);
+                return;
+            }
+            pet_sprite_.reset();
+        }
+    }
+
+    // Priority 2: petdex-sprites recursive search
+    std::string kPetdexDir = PetdexSpritesDir();
+    if (!std::filesystem::exists(kPetdexDir)) {
+        LOG_WARN("Petdex directory not found: {}", kPetdexDir);
+        LOG_WARN("No sprite found for sprite_id='{}'", sprite_id);
+        return;
+    }
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(kPetdexDir)) {
+        if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
+        try {
+            std::ifstream pf(entry.path());
+            nlohmann::json pj;
+            pf >> pj;
+            if (pj.value("id", "") == sprite_id) {
+                std::string spritesheet_file = pj.value("spritesheet_path", "");
+                if (!spritesheet_file.empty()) {
+                    // 同名匹配：从 JSON 指定的 spritesheet_path 加载
+                    std::filesystem::path sfp(spritesheet_file);
+                    std::string slug = sfp.stem().string();
+                    std::string base_dir = entry.path().parent_path().string() + "/";
+                    pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug, base_dir);
+                    if (!pet_sprite_->IsValid()) {
+                        // Fallback: from config sprite_assets_dir/{sprite_id}/
+                        if (!config.sprite_assets_dir.empty()) {
+                            std::string assets_dir = config.sprite_assets_dir + "/" + sprite_id;
+                            pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug, assets_dir + "/");
+                        }
+                    }
+                } else {
+                    // Fallback: 用 JSON 文件名 stem 匹配
+                    std::string slug = entry.path().stem().string();
+                    pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug, PetdexSpritesDir());
+                }
+                if (!pet_sprite_->IsValid()) {
+                    LOG_WARN("Spritesheet not valid for sprite_id='{}' at {}", sprite_id, entry.path().string());
+                    pet_sprite_.reset();
+                } else {
+                    std::string display_name = pj.value("display_name",
+                        pet_sprite_->GetDisplayName().empty() ? entry.path().stem().string() : pet_sprite_->GetDisplayName());
+                    name_ = display_name;
+                    sprite_window_->SetTitle(display_name.c_str());
+                    LOG_INFO("Loaded pet (sprite_id='{}') as '{}' from spritesheet={}", sprite_id, display_name, spritesheet_file.empty() ? entry.path().stem().string() + ".webp" : spritesheet_file);
+                }
+                return;
+            }
+        } catch (const std::exception& e) {
+            LOG_WARN("Failed to read petdex entry {}: {}", entry.path().string(), e.what());
+        }
+    }
+    LOG_WARN("No petdex entry found for sprite_id='{}'", sprite_id);
+}
+
+void Sprite::LoadPetFromDir(const std::string& assets_dir) {
+    if (!std::filesystem::exists(assets_dir)) {
+        LOG_WARN("Sprite assets dir not found: {}", assets_dir);
+        return;
+    }
+
+    // Extract display name and spritesheet path from meta.json
+    std::string display_name;
+    std::string spritesheet_file;
+    std::string meta_path = assets_dir + "/meta.json";
+    if (std::filesystem::exists(meta_path)) {
+        try {
+            std::ifstream mf(meta_path);
+            nlohmann::json mj;
+            mf >> mj;
+            display_name = mj.value("display_name", "");
+            spritesheet_file = mj.value("spritesheet_path", "");
+        } catch (...) {}
+    }
+    if (display_name.empty()) {
+        display_name = std::filesystem::path(assets_dir).filename().string();
+    }
+
+    // 同名匹配：从 meta.json 指定的 spritesheet_path 加载
+    if (!spritesheet_file.empty()) {
+        std::filesystem::path sfp(spritesheet_file);
+        std::string slug = sfp.stem().string();
+        pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug, assets_dir + "/");
+        if (pet_sprite_->IsValid()) {
+            name_ = display_name;
+            sprite_window_->SetTitle(display_name.c_str());
+            LOG_INFO("Loaded sprite '{}' from {}/{}", display_name, assets_dir, spritesheet_file);
+            return;
+        }
+        pet_sprite_.reset();
+        LOG_WARN("Spritesheet '{}' not valid in {}, falling back to scan", spritesheet_file, assets_dir);
+    }
+
+    // Fallback: scan for the first .webp
+    auto load_webp = [&](const std::string& dir) -> bool {
+        for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+            if (!entry.is_regular_file() || entry.path().extension() != ".webp") continue;
+            pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_,
+                entry.path().stem().string(), dir + "/");
+            if (pet_sprite_->IsValid()) {
+                name_ = display_name;
+                sprite_window_->SetTitle(display_name.c_str());
+                LOG_INFO("Loaded sprite '{}' from {}", display_name, dir);
+                return true;
+            }
+            pet_sprite_.reset();
+        }
+        return false;
+    };
+
+    if (load_webp(assets_dir)) return;
+    std::string sub_dir = assets_dir + "/sprites";
+    if (std::filesystem::exists(sub_dir) && load_webp(sub_dir)) return;
+
+    LOG_WARN("No valid spritesheet found in assets dir: {}", assets_dir);
 }
 
 void Sprite::NextPet() {

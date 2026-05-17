@@ -147,6 +147,14 @@ void HeaderList::clear() {
 // HttpClient implementation
 // ============================================================================
 
+static void ApplySslOptions(CURL* curl) {
+    if (auto* cert_file = std::getenv("SSL_CERT_FILE")) {
+        curl_easy_setopt(curl, CURLOPT_CAINFO, cert_file);
+    } else {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 0L);
+    }
+}
+
 HttpResponse HttpClient::Get(const HttpRequest& request) {
     HttpResponse response;
 
@@ -194,6 +202,8 @@ HttpResponse HttpClient::Get(const HttpRequest& request) {
 
     // Enable automatic gzip/deflate decompression
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "gzip, deflate, br");
+
+    ApplySslOptions(curl);
 
     // Execute
     CURLcode res = curl_easy_perform(curl);
@@ -265,6 +275,8 @@ HttpResponse HttpClient::Post(const HttpRequest& request) {
     // Enable automatic gzip/deflate decompression
     curl_easy_setopt(curl, CURLOPT_ACCEPT_ENCODING, "gzip, deflate, br");
 
+    ApplySslOptions(curl);
+
     // Execute
     LOG_DEBUG("curl_easy_perform begin, req timeout_seconds {}", request.timeout_seconds);
     LOG_DEBUG("req payload {}", request.body);
@@ -284,7 +296,7 @@ HttpResponse HttpClient::Post(const HttpRequest& request) {
         return response;
     }
 
-    if(!is_streaming) LOG_DEBUG("res_body = {}", res_body);
+    if(!is_streaming) LOG_DEBUG("res_body = {}", response.body);
     response.body = res_body;
     response.retry_after_seconds = ParseRetryAfter(res_header);
     return response;

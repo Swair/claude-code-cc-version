@@ -7,12 +7,14 @@
 #include <filesystem>
 #include <optional>
 #include <sstream>
+#include <memory>
 
 #include <nlohmann/json.hpp>
 
 #include "common/file_utils.h"  // For ReadFile
 
 #include "tools/tool_registry.h"  // For ToolsSchema
+#include "core/dialog_strategy.h"
 
 namespace prosophor {
 
@@ -23,7 +25,8 @@ struct AgentRole {
     std::string id;                    // "coder", "reviewer", "architect"
     std::string name;                  // "代码专家"
     std::string description;           // 角色描述
-    std::string avatar;                // 头像/emoji，如 "👨‍💻"
+    std::string sprite_id;           // 指向 petdex-sprites 的精灵 id（SDL 模式用，TUI 忽略）
+    std::string sprite_assets_dir;   // 精灵资源目录（非空时优先于 sprite_id 的 petdex 查找）
 
     // === Provider 配置（角色可绑定专属 Provider）===
     std::string provider_prot;          // ""=使用全局默认，或指定"anthropic"/"ollama"/"deepseek"
@@ -51,6 +54,9 @@ struct AgentRole {
 
     // === 记忆配置 ===
     std::string memory_dir;            // 专属记忆目录：~/.prosophor/memories/coder
+
+    // === 对话策略（共享，同策略的 role 索引同一实例） ===
+    std::shared_ptr<DialogStrategy> dialog_strategy;
 
     /// 检查是否绑定了专属 Provider
     bool HasCustomProvider() const {

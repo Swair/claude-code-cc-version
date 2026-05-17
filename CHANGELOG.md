@@ -1,5 +1,59 @@
 # Changelog
 
+## [Unreleased] — 2026-05-17 角色配置全面 JSON 化 + 新增 6 个角色精灵
+
+本期重点：角色配置全面 JSON 化 + 新增 6 个角色精灵；对话摘要策略重构（贝尔曼衰减）；SpeechBubble/ChatPanel 接入 Widget 渲染树；多精灵管理器动态注册；ImGui 抽象层扩展；Provider 流处理优化；CPack 打包与一键部署。净变化 +328 行。
+
+### 角色系统 JSON 化 & 多角色精灵
+- 角色配置从 Markdown (YAML front-matter) 迁移为纯 JSON 格式，结构更清晰、解析更可靠
+- 新增 6 个角色：ayaka、kazuha、keqing、sayu、skirk-2、linnea-2，每个绑定独立精灵图 (.webp)
+- 默认角色改为多角色组合 `["ayaka", "sayu", "keqing"]`，支持多角色轮换
+- 新增精灵图资产目录 `config/.prosophor/assets/`
+- Providers agents 字段从 object 改为 array，支持同名 agent 多配置
+
+### 对话系统重构
+- `compact_service.{h,cc}` 重命名为 `dialog_strategy.{h,cc}`，统一对话摘要策略抽象
+- `ApplyDialogStrategy()` 逻辑重构：支持贝尔曼衰减摘要 + 角色摘要开关
+- `AgentCore` 接入新 `DialogStrategy` 接口，移除内联摘要逻辑
+
+### SpeechBubble / ChatPanel 重写
+- `SpeechBubble` 继承 `Widget` 渲染树，接入坐标级联系统
+- InputPanel / ChatPanel 作为 Widget 子节点，通过 `SetPixelRect()` 直接定位
+- 双模式渲染：compact 不透明气泡 + maximized 半透明全屏
+- 自动滚动分离：聊天面板智能跟随（在底部时自动滚），气泡内强制滚到底
+- 消息间距缩紧、文本颜色统一为 `Gray40`
+
+### 精灵系统增强
+- `Sprite` 渲染循环重构，支持多精灵管理器注册
+- `SpriteManager` 迭代器注册机制，支持动态添加/移除精灵
+- `ChatWindow` 集成新 SpeechBubble，双击切换显示
+
+### 媒体引擎扩展
+- **共享字体**: MediaCore 级共享 CJK TTF 数据，多窗口只读一次磁盘
+- **ImGui 抽象层**: 新增弹出窗口 (`OpenPopup`/`BeginPopupModal`)、标签栏 (`TabBar`/`TabItem`)、控件 (`Checkbox`/`Combo`/`InputText`/`Button`)、窗口查询 (`GetWindowPos`/`GetScrollMaxY`/`GetScrollY`)
+- `Window::SetTitle()` 接口、`SetImGuiNextWindowSize` 条件参数、`ImGuiCond_*` 常量
+- `Widget::SetPixelRect()` 直接像素坐标设置，跳过百分比解算
+
+### Provider / Network
+- **OpenAI StreamHandler**: `enable_thinking_` 在 handler 级别控制，`Deserialize` 非 thinking 时跳过 `reasoning_content`
+- **Anthropic StreamHandler**: 移除冗余 `stop_reason`/`usage` 成员变量，直接写入 `accumulated_response`
+- **curl SSL**: 支持 `SSL_CERT_FILE` 环境变量，未设置时关闭对端证书验证
+- 修复 `HttpClient::Post` 调试日志输出原始 `res_body` 而非已移动的 `response.body`
+
+### 构建 & 打包
+- **CPack 打包**: 集成 CPack，Windows 下优先 NSIS 安装器，降级 ZIP
+- **MinGW DLL 捆绑**: 自动复制 libcurl、OpenSSL、zlib 等 20+ 运行时 DLL
+- **便携部署**: config 同时安装到 `bin/.prosophor/` 作为备选查找路径
+- **一键发布**: Makefile 新增 `deploy` 目标 (cmake --build → cpack)
+- 编译定义 `PROSOPHOR_SOURCE_DIR` 暴露源码路径
+
+### 杂项
+- `/help roles` 改用 `.json` 文件自动补全
+- `ProviderRouter` 默认角色从 string 改为 vector 取第一个
+- 重构后 `dialog_strategy.h` 新增 121 行，`dialog_strategy.cc` 净变更 235 行
+
+---
+
 ## [2026-05-16] - 桌面宠物精灵窗口系统与多窗口架构
 
 ### 新增

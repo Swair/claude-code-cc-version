@@ -141,6 +141,7 @@ namespace Colors {
     constexpr Color Overlay{0, 0, 0, 180};
     constexpr Color OverlayDark{40, 40, 40, 180};
     constexpr Color WhiteTranslucent{255, 255, 255, 220};
+    constexpr Color White70{255, 255, 255, 178};
 
     // ── 日志色 ──
     constexpr Color Amber{255, 200, 0, 255};
