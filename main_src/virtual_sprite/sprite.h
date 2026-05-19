@@ -9,6 +9,7 @@
 #include "components/spritesheet.h"
 #include "media_engine/media/imgui_widget.h"
 #include "media_engine/ui_component/widget.h"
+#include "media_engine/ui_component/label.h"
 
 #include <string>
 #include <memory>
@@ -28,7 +29,7 @@ class SpeechBubble;
 ///
 /// Layout hierarchy (Widget tree for coordinate management only):
 ///   root_widget_ (0,0,100,100) [full window, transparent]
-///   ├── name_anchor_            [top-center percentage, renders via MediaUtil::DrawTextRect]
+///   ├── name_label_            [top-center percentage]
 ///   ├── nav_anchor_             [bottom strip percentage, renders via NavBar::Render]
 ///   └── [pet sprite drawn by PetCanvas at computed position]
 ///
@@ -43,6 +44,7 @@ class Sprite : public Noncopyable {
 
     media_engine::Window* GetWindow() const { return sprite_window_; }
     const std::string& GetSessionId() const { return session_id_; }
+    const std::string& GetName() const { return name_; }
 
     /// Agent state → pet animation
     void SetAgentState(AgentRuntimeState state, const std::string& details = "");
@@ -63,10 +65,16 @@ class Sprite : public Noncopyable {
     void NextPet();
     void PrevPet();
     int GetPetCount() const { return static_cast<int>(pet_list_.size()); }
+    const std::string& GetCurrentPetSlug() const;
+    const std::string& GetCurrentPetName() const;
+    std::string GetSpritesheetPath() const;
 
     /// Callback fired on double-click (wired by VirtualSprite to toggle central window)
     using ToggleCentralCallback = std::function<void()>;
     void SetOnToggleCentralWindow(ToggleCentralCallback cb) { on_toggle_central_ = std::move(cb); }
+
+    /// Toggle the per-sprite speech bubble (used by context menu)
+    void ToggleSpeechBubble();
 
     // Widget tree root — exposed so render handler calls root_widget_.Render(ctx)
     media_engine::Widget& GetRootWidget() { return root_widget_; }
@@ -81,6 +89,7 @@ class Sprite : public Noncopyable {
         std::string sprite_id;
         std::string assets_dir;    // 非空时优先，直接从该目录加载 sprite
         std::string spritesheet_file; // 相对 sprite_assets_dir 的纹理文件名
+        std::string display_name;  // display name from role JSON
     };
     void LoadPetList();
     void LoadCurrentPet();
@@ -88,10 +97,6 @@ class Sprite : public Noncopyable {
     void LoadPetFromDir(const std::string& assets_dir);
     void LoadBackground();
     SpriteBinding LoadSpriteBindingFromRole(const std::string& role_id);
-
-    // ── Rendering ──
-    SpritesheetAction StateToAction(AgentRuntimeState state) const;
-    SpritesheetAction GetEffectiveAction() const;
 
     // ── Root widget: draws pet bg + pet sprite + name text + nav bar ──
     class PetCanvas : public media_engine::Widget {
@@ -112,7 +117,7 @@ class Sprite : public Noncopyable {
 
     // ── Widget tree ──
     PetCanvas root_widget_{*this};
-    media_engine::Widget name_anchor_;     // position ref for name label
+    media_engine::Label name_label_;     // display sprite name at top center
     media_engine::Widget nav_anchor_;      // position ref for nav bar
 
     // ── Pet / animation ──
@@ -127,6 +132,9 @@ class Sprite : public Noncopyable {
 
     // ── Nav bar ──
     std::unique_ptr<media_engine::NavBar> nav_bar_;
+
+    // ── Rendering ──
+    SpritesheetAction GetEffectiveAction() const;
 
     // ── Mouse event handlers ──
     void DispatchClickAction(const media_engine::MouseEvent& me);

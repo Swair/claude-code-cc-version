@@ -21,8 +21,7 @@ static std::string ThinkingToReasoningEffort(bool /*thinking*/) {
     return "medium";
 }
 
-OpenAIProvider::OpenAIProvider(bool enable_thinking)
-    : enable_thinking_(enable_thinking) {
+OpenAIProvider::OpenAIProvider() {
     LOG_DEBUG("OpenAIProvider initialized");
 }
 
@@ -40,7 +39,6 @@ OpenAIProvider::OpenAIProvider(bool enable_thinking)
  *     {"role": "tool", "content": "..."}
  *   ],
  *   "stream": boolean,
- *   "enable_thinking": boolean,                  // optional, for reasoning models
  *   "tools": [                                   // optional
  *     {
  *       "type": "function",
@@ -95,14 +93,16 @@ std::string OpenAIProvider::Serialize(const ChatRequest& request) const {
     // Enable thinking if request asks for it
     bool think = request.thinking;
     if (think) {
-        payload_json["enable_thinking"] = true;
+        payload_json["thinking"] = nlohmann::json::object();
+        payload_json["thinking"]["type"] = "enabled";
         std::string effort = ThinkingToReasoningEffort(request.thinking);
         if (!effort.empty()) {
             payload_json["reasoning_effort"] = effort;
         }
     }
     else {
-        payload_json["enable_thinking"] = false;
+        payload_json["thinking"] = nlohmann::json::object();
+        payload_json["thinking"]["type"] = "disabled";
     }
 
     // Serialize tools (OpenAI format: {type: "function", function: {...}})
@@ -250,7 +250,7 @@ ChatResponse OpenAIProvider::Deserialize(const std::string& json_str) const {
             }
 
             // Parse reasoning_content (DeepSeek, Qwen, etc.) — only when thinking is enabled
-            if (enable_thinking_ && msg.contains("reasoning_content") && !msg["reasoning_content"].is_null()) {
+            if (msg.contains("reasoning_content") && !msg["reasoning_content"].is_null()) {
                 result.has_thinking = true;
                 std::string rc = msg["reasoning_content"].get<std::string>();
                 if (!rc.empty()) {
@@ -331,7 +331,7 @@ HeaderList OpenAIProvider::CreateHeaders(const ChatRequest& request) const {
 
 ChatResponse OpenAIProvider::ChatStream(const ChatRequest& request,
      std::function<void(StreamEvent, std::string)> callback) {
-    OpenAIStreamHandler stream_handler(std::move(callback), request.thinking);
+    OpenAIStreamHandler stream_handler(std::move(callback));
     PrintRequestLog(request);
     auto http_resp = ExecuteStream(request, &stream_handler);
     if (!stream_handler.error_msg.empty()) {

@@ -125,7 +125,11 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
         if (provider_it != config.providers.end()) {
             auto& agent_map = provider_it->second.agents;
 
-            auto agent_it = agent_map.find(role.model);
+            // Try "{provider}/{model}" first, then bare model name
+            auto agent_it = agent_map.find(provider_to_use + "/" + role.model);
+            if (agent_it == agent_map.end()) {
+                agent_it = agent_map.find(role.model);
+            }
             if (agent_it == agent_map.end() && !agent_map.empty()) {
                 // Fallback: use first available agent
                 agent_it = agent_map.begin();

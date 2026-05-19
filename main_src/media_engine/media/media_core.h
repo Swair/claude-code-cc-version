@@ -64,8 +64,8 @@ enum class EventType {
 typedef std::function<void(std::vector<EventType> &event_list)> EventHandler;
 typedef std::function<void()> UpdateHandler;
 typedef std::function<void()> RenderHandler;
-enum class MouseEventType { DOWN, UP, MOTION };
-enum class MouseButton : int { LEFT = 1, RIGHT = 2, MIDDLE = 3 };
+enum class MouseEventType { DOWN, UP, MOTION, LEAVE };
+enum class MouseButton : int { LEFT = 1, MIDDLE = 2, RIGHT = 3 };
 
 class Window;
 

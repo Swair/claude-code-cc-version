@@ -19,7 +19,7 @@ public:
 
     void OnResize() override;
 
-    void SetSnapshot(const RenderSnapshot& snap) { snapshot_ = snap; }
+    void SetSnapshot(const RenderSnapshot& snap);
 
     using media_engine::Widget::Render;
 
@@ -40,17 +40,28 @@ public:
     void SetRoleFilter(const std::string& role) { role_filter_ = role; }
     void SetHideRoleLabels(bool hide) { hide_role_labels_ = hide; }
 
+    /// Override the display name for "assistant" role (e.g., sprite name)
+    void SetAssistantDisplayName(const std::string& name) { assistant_display_name_ = name; }
+
     // -- 外观 setter --
     void SetBackgroundColor(const media_engine::Color& color) { media_engine::Widget::SetBackgroundColor(color); if (panel_) panel_->SetBackgroundColor(color); }
     void SetBorderColor(const media_engine::Color& color)     { if (panel_) panel_->SetBorderColor(color); }
     void SetBorderWidth(float w)                               { if (panel_) panel_->SetBorderWidth(w); }
+    void SetUserBgColor(const media_engine::Color& c)       { user_bg_color_ = c; }
+    void SetAssistantBgColor(const media_engine::Color& c)  { assistant_bg_color_ = c; }
 
 private:
     std::unique_ptr<media_engine::UIPanel> panel_;
     std::unique_ptr<media_engine::ScrollWindow> scroll_window_;
     std::string role_filter_;
     bool hide_role_labels_ = false;
+    std::string assistant_display_name_;
     RenderSnapshot snapshot_;
+    std::string last_session_id_;
+    mutable std::vector<ChatMessage> display_messages_;
+    size_t last_msg_count_ = 0;
+    media_engine::Color user_bg_color_{media_engine::Colors::BluePale};
+    media_engine::Color assistant_bg_color_{media_engine::Colors::GreenPale};
 
     void RenderMessage(const std::string& role, const std::string& content, size_t index);
     void RenderMessages(const RenderSnapshot& snapshot);

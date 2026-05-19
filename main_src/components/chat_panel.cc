@@ -3,6 +3,7 @@
 
 #include "components/chat_panel.h"
 #include "common/log_wrapper.h"
+#include "common/time_wrapper.h"
 
 namespace prosophor {
 
@@ -33,24 +34,43 @@ void ChatPanel::Render(const media_engine::RenderContext& ctx) {
 
     // Messages inside scroll window, positioned at panel's content area
     float win_x = 0.0f, win_y = 0.0f;
-    media_engine::ImGuiGetWindowPos(&win_x, &win_y);
+    media_engine::ImGuiWindow::GetPos(&win_x, &win_y);
     scroll_window_->SetPosition(win_x + panel_->GetContentX(), win_y + panel_->GetContentY());
     scroll_window_->SetSize(panel_->GetContentWidth(), panel_->GetContentHeight());
 
+    media_engine::Style::PushVar_ScrollbarSize(3.0f);
     scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight);
     RenderMessages(snapshot_);
 
-    // Auto-scroll to bottom when already at bottom (follow new messages)
-    float scroll_max = media_engine::GetScrollMaxY();
-    float scroll_y = media_engine::GetScrollY();
-    if (scroll_y >= scroll_max - 10.0f || scroll_max < 1.0f) {
-        media_engine::SetScrollY(scroll_max);
+    // Auto-scroll to bottom when new content arrives.
+    // Between content updates, user can freely drag the scrollbar.
+    size_t msg_count = 0;
+    for (const auto& msg : snapshot_.messages) msg_count += msg.content.size();
+    if (!snapshot_.streaming_text.empty()) ++msg_count;
+    if (!snapshot_.streaming_thinking.empty()) ++msg_count;
+
+    if (msg_count != last_msg_count_) {
+        media_engine::Scroll::SetY(media_engine::Scroll::GetMaxY());
     }
+    last_msg_count_ = msg_count;
 
     scroll_window_->End();
+    media_engine::Style::PopVar();
+}
+
+void ChatPanel::SetSnapshot(const RenderSnapshot& snap) {
+    if (snap.session_id != last_session_id_) {
+        last_session_id_ = snap.session_id;
+        display_messages_.clear();
+    }
+    snapshot_ = snap;
 }
 
 void ChatPanel::RenderContent(const RenderSnapshot& snapshot) {
+    if (snapshot.session_id != last_session_id_) {
+        last_session_id_ = snapshot.session_id;
+        display_messages_.clear();
+    }
     snapshot_ = snapshot;
     Render(media_engine::RenderContext{});
 }
@@ -60,11 +80,23 @@ void ChatPanel::RenderContentInRect(float x, float y, float w, float h,
     if (!visible_) return;
     scroll_window_->SetPosition(x, y);
     scroll_window_->SetSize(w, h);
+    media_engine::Style::PushVar_ScrollbarSize(3.0f);
     scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight);
     RenderMessages(snapshot);
-    // Always scroll to bottom for speech bubble (compact overlay)
-    media_engine::SetScrollY(media_engine::GetScrollMaxY());
+    // Auto-scroll to bottom when new content arrives.
+    // Between content updates, user can freely drag the scrollbar.
+    size_t msg_count = 0;
+    for (const auto& msg : snapshot.messages) msg_count += msg.content.size();
+    if (!snapshot.streaming_text.empty()) ++msg_count;
+    if (!snapshot.streaming_thinking.empty()) ++msg_count;
+
+    if (msg_count != last_msg_count_) {
+        media_engine::Scroll::SetY(media_engine::Scroll::GetMaxY());
+    }
+    last_msg_count_ = msg_count;
+
     scroll_window_->End();
+    media_engine::Style::PopVar();
 }
 
 void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {
@@ -99,38 +131,69 @@ void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {
 
 void ChatPanel::RenderMessage(const std::string& role, const std::string& content, size_t index) {
     if (index > 0) {
-        media_engine::Dummy(0, 4);
+        media_engine::Layout::Dummy(0, 4);
     }
 
+    // Store ChatMessage with timestamp on first render (freeze at message-received time)
+    if (index >= display_messages_.size()) {
+        display_messages_.resize(index + 1);
+        display_messages_[index] = ChatMessage{
+            role, "", content,
+            SystemClock::GetCurrentEpochSeconds()
+        };
+    }
+
+    // Measure exact message height for background rect
+    float msg_w = scroll_window_->GetWidth();
+    float label_h = hide_role_labels_ ? 0 : 20.0f;
+    float text_h = media_engine::Text::CalcWrappedHeight(content.c_str(), msg_w) + 4.0f;
+    float total_h = (index > 0 ? 4.0f : 0) + label_h + text_h + 8.0f;
+
+    // Choose background color by role
+    media_engine::Color bg_color = user_bg_color_;
+    if (role == "assistant") {
+        bg_color = assistant_bg_color_;
+    } else if (role == "thinking") {
+        bg_color = media_engine::Colors::Gray20a;
+    }
+
+    float start_x, start_y;
+    media_engine::Layout::GetCursorScreenPos(&start_x, &start_y);
+    media_engine::DrawList::RoundRect(start_x, start_y - 2.0f, msg_w, total_h, 6.0f, bg_color);
+
     // Light theme (cream background):
-    //   user     → dark gray
-    //   thinking → medium gray
-    //   assistant→ dark green
-    //   tool     → teal
+    //   user     → black (text) / dark gray (label)
+    //   thinking → black (text) / medium gray (label)
+    //   assistant→ black (text) / dark green (label)
+    //   tool     → black (text) / teal (label)
     //   error    → dark red
     media_engine::Color role_color = media_engine::Colors::Gray40;
-    media_engine::Color text_color = media_engine::Colors::Gray40;
+    media_engine::Color text_color = media_engine::Colors::Black;
 
     if (role == "thinking") {
         role_color = media_engine::Colors::Gray55;
-        text_color = media_engine::Colors::Gray47;
+        text_color = media_engine::Colors::Black;
     } else if (role == "assistant") {
         role_color = media_engine::Colors::GreenLeafDark;
-        text_color = media_engine::Colors::Gray40;
+        text_color = media_engine::Colors::Black;
     } else if (role == "tool" || role == "function") {
         role_color = media_engine::Colors::Teal;
-        text_color = media_engine::Colors::Teal;
+        text_color = media_engine::Colors::Black;
     } else if (role == "error") {
         role_color = media_engine::Colors::RedDark;
         text_color = media_engine::Colors::RedDark;
     }
 
     if (!hide_role_labels_) {
-        media_engine::ImGuiTextColored(role_color, role.c_str());
-        media_engine::Dummy(0, 2);
+        std::string label = (role == "assistant" && !assistant_display_name_.empty())
+                            ? assistant_display_name_ : role;
+        label += " [" + SystemClock::FormatTimestamp(
+            static_cast<std::time_t>(display_messages_[index].timestamp), "%H:%M:%S") + "]";
+        media_engine::Text::Colored(role_color, label.c_str());
+        media_engine::Layout::Dummy(0, 2);
     }
-    media_engine::ImGuiTextWrapped(content.c_str(), scroll_window_->GetWidth(), text_color);
-    media_engine::Dummy(0, 2);
+    media_engine::Text::Wrapped(content.c_str(), scroll_window_->GetWidth(), text_color);
+    media_engine::Layout::Dummy(0, 2);
 }
 
 void ChatPanel::ScrollToBottom() {

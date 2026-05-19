@@ -25,23 +25,23 @@ struct LayoutConfig {
     float close_btn_size = 22.0f;
 
     // ── Desktop pet (sprite window) ──
-    int sprite_window_width = 280;
-    int sprite_window_height = 380;
+    int sprite_window_width = 192;
+    int sprite_window_height = 384;
     float pet_sprite_size = 192.0f;           // 宠物精灵渲染尺寸
-    float pet_ground_ratio = 0.70f;           // 宠物脚底位置 (win_h * ratio)
+    float pet_ground_ratio = 0.75f;           // 宠物脚底位置 (win_h * ratio)
 
     // ── Navigation / status ──
     float tile_size = 32.0f;                  // 像素精灵地砖大小（保留）
 
     // ── SpeechBubble (sprite popup cloud) ──
-    float bubble_min_width = 260.0f;
-    float bubble_min_body_height = 200.0f;
-    float bubble_radius = 14.0f;
-    float bubble_padding = 12.0f;
-    float bubble_tail_height = 20.0f;
-    float bubble_title_height = 22.0f;
-    float bubble_input_height = 34.0f;
-    float bubble_btn_size = 22.0f;
+    float bubble_min_width = 180.0f;
+    float bubble_min_body_height = 160.0f;
+    float bubble_radius = 10.0f;
+    float bubble_padding = 8.0f;
+    float bubble_tail_height = 12.0f;
+    float bubble_title_height = 18.0f;
+    float bubble_input_height = 30.0f;
+    float bubble_btn_size = 18.0f;
 
     // ── Tray icon ──
     int tray_icon_size = 48;

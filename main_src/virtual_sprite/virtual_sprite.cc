@@ -3,10 +3,11 @@
 
 #include "virtual_sprite/virtual_sprite.h"
 #include "virtual_sprite/sprite.h"
-#include "scene/ui_renderer.h"
-#include "scene/layout_config.h"
+#include "virtual_sprite/ui_renderer.h"
+#include "virtual_sprite/layout_config.h"
 #include "media_engine/media_engine.h"
 #include "common/log_wrapper.h"
+#include "common/i18n.h"
 #include "agent_engine.h"
 
 #include <memory>
@@ -61,6 +62,9 @@ void VirtualSprite::SetInputCallback(InputCallback callback) {
 void VirtualSprite::GlobalInit() {
     LOG_INFO("Initializing SDL application...");
 
+    // Initialise i18n (load default translations)
+    I18n::Instance().Init("zh-CN");
+
     auto& media = media_engine::MediaCore::Instance();
     media.MediaInit();
     media.SetFPS(60);
@@ -95,9 +99,30 @@ void VirtualSprite::GlobalInit() {
             }
         });
 
-    // Right-click context menu "对话" → toggle central window
-    UIRenderer::Instance().SetOnToggleChat([this]() {
-        central_window_.SetVisible(!central_window_.IsVisible());
+    // Right-click context menu callbacks — toggle the requesting sprite's bubble
+    UIRenderer::Instance().SetOnToggleChat([](media_engine::Window* win) {
+        if (auto* s = SpriteManager::GetInstance().FindByWindow(win)) {
+            s->ToggleSpeechBubble();
+        }
+    });
+    UIRenderer::Instance().SetOnShowMainWindow([this]() {
+        central_window_.SetVisible(true);
+    });
+    UIRenderer::Instance().SetOnOpenSettings([this]() {
+        central_window_.OpenSettings();
+        central_window_.SetVisible(true);
+    });
+    UIRenderer::Instance().SetOnNewSprite([]() {
+        static int counter = 1;
+        auto& vs = VirtualSprite::GetInstance();
+        auto* s = SpriteManager::GetInstance().CreateSprite(
+            "Assistant " + std::to_string(counter++),
+            LayoutConfig{}.sprite_window_width, LayoutConfig{}.sprite_window_height);
+        if (s) {
+            s->SetOnToggleCentralWindow([&vs]() {
+                vs.GetCentralWindow().SetVisible(!vs.GetCentralWindow().IsVisible());
+            });
+        }
     });
 
     // Route user input from central window to focused session is handled in
@@ -115,9 +140,7 @@ void VirtualSprite::GlobalInit() {
                     HandleKeyDown('\b');
                     break;
                 case media_engine::EventType::ESCAPE:
-                    if (UIRenderer::Instance().IsContextMenuVisible()) {
-                        UIRenderer::Instance().HideContextMenu();
-                    } else if (central_window_.IsVisible()) {
+                    if (central_window_.IsVisible()) {
                         central_window_.SetVisible(false);
                     }
                     break;

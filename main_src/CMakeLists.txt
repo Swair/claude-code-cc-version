@@ -114,16 +114,12 @@ if(NOT PROSOPHOR_SDL_UI)
 endif()
 
 # ============================================================================
-# SDL build: prosophor_core + media_engine + scene + virtual_sprite
+# SDL build: prosophor_core + media_engine + virtual_sprite
 # ============================================================================
 if(PROSOPHOR_SDL_UI)
     add_subdirectory(media_engine)
 
     add_compile_definitions(PROSOPHOR_SDL_UI)
-
-    file(GLOB_RECURSE SCENE_SOURCES
-        ${CMAKE_CURRENT_LIST_DIR}/scene/*.cc
-    )
 
     file(GLOB_RECURSE GUI_SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/virtual_sprite/*.cc
@@ -133,16 +129,14 @@ if(PROSOPHOR_SDL_UI)
         ${CMAKE_CURRENT_LIST_DIR}/components/*.cc
     )
 # WIN32
-    add_executable(prosophor 
+    add_executable(prosophor
         main.cc
-        ${SCENE_SOURCES}
         ${GUI_SOURCES}
         ${COMPONENTS_SOURCES}
     )
 
     target_include_directories(prosophor PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/scene
         ${CMAKE_CURRENT_SOURCE_DIR}/virtual_sprite
         ${CMAKE_CURRENT_SOURCE_DIR}/components
     )

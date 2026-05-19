@@ -56,6 +56,19 @@ public:
         return FormatTimestamp(NowSystem(), "%Y-%m-%d");
     }
 
+    /// Get current time formatted with custom format string
+    static std::string FormatCurrentTime(const char* format = "%Y-%m-%d %H:%M:%S") {
+        return FormatTimestamp(NowSystem(), format);
+    }
+
+    /// Get current time as seconds since epoch (double, suitable for timestamps)
+    static double GetCurrentEpochSeconds() {
+        return static_cast<double>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()
+            ).count()) / 1000.0;
+    }
+
     /// Get current time as milliseconds since epoch
     static int64_t GetCurrentTimeMillis() {
         return std::chrono::duration_cast<std::chrono::milliseconds>(

@@ -1,0 +1,39 @@
+{
+  "window_title": "智灵(Prosophor) ",
+
+  "menu_file": "文件",
+  "menu_help": "帮助",
+
+  "settings": "设置",
+  "close": "关闭",
+
+  "role_panel_header": "角色",
+
+  "settings_title": "设置",
+  "tab_general": "通用",
+  "tab_roles": "角色",
+  "tab_providers": "提供商",
+  "general_log_level": "日志级别",
+  "general_enable_summary": "启用摘要",
+  "general_sprite_assets_dir": "精灵资源目录",
+  "roles_select_hint": "选择默认角色（每个角色一个精灵）：",
+  "providers_readonly": "已配置的提供商（只读）：",
+  "btn_save": "保存",
+  "btn_cancel": "取消",
+
+  "menu_about": "关于",
+  "about_title": "关于智灵",
+  "about_contact": "联系方式：",
+  "btn_close": "关闭",
+
+  "ctx_chat": "对话",
+  "ctx_show_main": "显示主窗口",
+  "ctx_settings": "设置",
+  "ctx_quit": "退出",
+
+  "nav_prev": "上一个",
+  "nav_next": "下一个",
+
+  "btn_lang_zh": "中",
+  "btn_lang_en": "EN"
+}

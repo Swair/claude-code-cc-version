@@ -63,6 +63,25 @@ Sprite* SpriteManager::FindBySessionId(const std::string& session_id) {
     return nullptr;
 }
 
+Sprite* SpriteManager::FindByWindow(media_engine::Window* win) {
+    for (auto& s : sprites_) {
+        if (s->GetWindow() == win) {
+            return s.get();
+        }
+    }
+    return nullptr;
+}
+
+std::string SpriteManager::GetFocusedSpriteName() const {
+    if (focused_session_.empty()) return {};
+    for (const auto& s : sprites_) {
+        if (s->GetSessionId() == focused_session_) {
+            return s->GetName();
+        }
+    }
+    return {};
+}
+
 void SpriteManager::Clear() {
     sprites_.clear();
 }

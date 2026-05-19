@@ -35,6 +35,10 @@ class Texture {
         // 平铺渲染，起点(absolute_x_, absolute_y_)，把尺寸为(width_, height_)平铺满(tiled_width, tiled_height)
         void TiledRender(float x, float y, float w, float h, int tiled_width, int tiled_height) const;
 
+        // 在 ImGui 窗口中绘制此纹理（UV 坐标 0~1）
+        void DrawImGui(float x, float y, float w, float h,
+                       float uv0_x, float uv0_y, float uv1_x, float uv1_y) const;
+
     private:
         struct TextureImpl;
         std::unique_ptr<TextureImpl> impl_{nullptr};

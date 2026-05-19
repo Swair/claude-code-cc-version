@@ -36,9 +36,12 @@ public:
     int GetWidth() const { return width_; }
     int GetHeight() const { return height_; }
 
+    void OpenSettings() { settings_open_ = true; }
+
 private:
     void RenderChatUI();
     void RenderSettingsWindow();
+    void RenderAboutWindow();
     void CreateTrayWindow();
     void ShowTray(bool show);
     void RenderTray();
@@ -50,11 +53,11 @@ private:
     bool          visible_    = true;
     bool          tray_showing_ = false;
     bool          settings_open_ = false;
+    bool          about_open_ = false;
     int           width_      = 800;
     int           height_     = 600;
     int           prev_layout_w_ = 0;
     int           prev_layout_h_ = 0;
-    float         close_btn_x_ = 0.0f;
 
     SubmitCallback submit_cb_;
 };

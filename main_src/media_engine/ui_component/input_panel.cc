@@ -31,15 +31,21 @@ void InputPanel::RenderContent() {
     if (!visible_) return;
 
     // Background
-    DrawPanel(x_, y_, width_, height_, corner_radius_, bg_color_, border_color_, border_width_);
+    DrawList::Panel(x_, y_, width_, height_, corner_radius_, bg_color_, border_color_, border_width_);
 
     // Content area (with padding)
     float cx = x_ + padding_;
-    float cy = y_ + padding_;
-    float cw = width_ - padding_ * 2.0f;
 
-    float input_w = cw * input_ratio_;
-    ImGuiPushItemWidth(input_w);
+    // Vertically center InputText within panel height
+    float input_text_h = 20.0f;
+    float cy = y_ + (height_ - input_text_h) / 2.0f;
+
+    // Input fills from left padding to right padding minus button + spacing
+    constexpr float kBtnW = 30.0f;
+    constexpr float kBtnSpacing = 4.0f;
+    float input_w = width_ - padding_ * 2.0f - kBtnW - kBtnSpacing;
+
+    Style::PushItemWidth(input_w);
     input_text_->Render(cx, cy);
 
     if (input_text_->IsEnterPressed()) {
@@ -49,9 +55,9 @@ void InputPanel::RenderContent() {
             if (on_submit_) { on_submit_(msg); }
         }
     }
-    ImGuiPopItemWidth();
+    Style::PopItemWidth();
 
-    ImGuiSameLine();
+    Layout::SameLine();
     send_button_->Render();
 }
 

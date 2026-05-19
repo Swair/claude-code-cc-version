@@ -122,6 +122,7 @@ constexpr int ImGuiWindowFlags_AlwaysAutoResize = 1 << 6;
 constexpr int ImGuiWindowFlags_NoBackground = 1 << 7;
 constexpr int ImGuiWindowFlags_NoSavedSettings = 1 << 8;
 constexpr int ImGuiWindowFlags_NoMouseInputs = 1 << 9;
+constexpr int ImGuiWindowFlags_MenuBar = 1 << 11;
 constexpr int ImGuiWindowFlags_NoFocusOnAppearing = 1 << 12;
 constexpr int ImGuiWindowFlags_AlwaysVerticalScrollbar = 1 << 14;
 constexpr int ImGuiWindowFlags_NoDecoration =
@@ -132,145 +133,175 @@ constexpr int ImGuiWindowFlags_NoDecoration =
 // ImGui 工具函数封装 - 避免外部文件直接 include imgui.h
 // ============================================================================
 
-/// ImGui 条件常量 — 值匹配 ImGui 1.92.8
-constexpr int ImGuiCond_Always = 0;
-constexpr int ImGuiCond_Once = 1;
-constexpr int ImGuiCond_FirstUseEver = 2;
-constexpr int ImGuiCond_Appearing = 3;
+/// DrawList — ImGui 窗口内 2D 绘图原语集合（静态方法，各方法独立获取 draw list）。
+class DrawList {
+public:
+    static void RoundRect(float x, float y, float w, float h, float radius, const Color& color);
+    static void RoundRectOutline(float x, float y, float w, float h, float radius,
+                                 const Color& color, float thickness = 1.0f);
+    static void OverlayRectOutline(float x, float y, float w, float h, float radius,
+                                   const Color& color, float thickness = 1.0f);
+    static void FilledTriangle(float x1, float y1, float x2, float y2,
+                               float x3, float y3, const Color& color);
+    static void TriangleOutline(float x1, float y1, float x2, float y2,
+                                float x3, float y3, const Color& color,
+                                float thickness = 1.0f);
+    static void Panel(float x, float y, float w, float h, float radius,
+                      const Color& fill_color, const Color& border_color,
+                      float border_thickness = 1.5f);
+    static void ResizeGrip(float x, float y, float size,
+                           const Color& outer_color, const Color& inner_color);
+    static void Text(float x, float y, const Color& color, const char* text);
+};
 
-/// 窗口位置/尺寸设置
-void SetImGuiNextWindowPos(float x, float y);
-void SetImGuiNextWindowSize(float w, float h);
-void SetImGuiNextWindowSize(float w, float h, int cond);
-void SetImGuiNextWindowBgAlpha(float alpha);
+/// ImGui 条件常量 — 匹配 ImGuiCond_ enum (power-of-two bits)
+constexpr int ImGuiCond_Always = 1;
+constexpr int ImGuiCond_Once = 2;
+constexpr int ImGuiCond_FirstUseEver = 4;
+constexpr int ImGuiCond_Appearing = 8;
 
-/// 窗口控制
-bool ImGuiBegin(const char* name, bool* open = nullptr, int flags = 0);
-void ImGuiEnd();
+/// 窗口控制 — 窗口生命周期、位置尺寸、查询
+class ImGuiWindow {
+public:
+    static void SetNextPos(float x, float y);
+    static void SetNextSize(float w, float h);
+    static void SetNextSize(float w, float h, int cond);
+    static void SetNextBgAlpha(float alpha);
+    static bool Begin(const char* name, bool* open = nullptr, int flags = 0);
+    static void End();
+    static void GetPos(float* x, float* y);
+    static void GetDisplaySize(float* w, float* h);
+    static float GetWidth();
+};
 
-/// 布局控制
-void ImGuiPushItemWidth(float width);
-void ImGuiPopItemWidth();
-void ImGuiSameLine();
-void ImGuiSetCursorPos(float x, float y);
-void ImGuiSetCursorScreenPos(float x, float y);
-void ImGuiPushStyleVar_ItemSpacing(float x, float y);
-void ImGuiPopStyleVar(int count = 1);
-
-/// 不可见按钮（用于点击区域检测，返回是否被点击）
-bool ImGuiInvisibleButton(const char* id, float w, float h);
-
-/// ImGui 窗口内绘制圆角矩形（填充，color 为 ARGB/IM_COL32 格式）
-void DrawFilledRoundRect(float x, float y, float w, float h, float radius, const Color& color);
-/// ImGui 窗口内绘制圆角矩形（边框）
-void DrawRoundRectOutline(float x, float y, float w, float h, float radius, const Color& color, float thickness = 1.0f);
-/// ImGui 窗口内绘制填充三角形
-void DrawFilledTriangle(float x1, float y1, float x2, float y2, float x3, float y3, const Color& color);
-/// ImGui 窗口内绘制三角形边框
-void DrawTriangleOutline(float x1, float y1, float x2, float y2, float x3, float y3, const Color& color, float thickness = 1.0f);
-
-/// 组合组件：圆角面板（填充 + 边框，一步完成）
-void DrawPanel(float x, float y, float w, float h, float radius,
-               const Color& fill_color, const Color& border_color, float border_thickness = 1.5f);
-/// 组合组件：右下角缩放拖拽柄（两个三角叠加）
-void DrawResizeGrip(float x, float y, float size,
-                    const Color& outer_color, const Color& inner_color);
-
-/// 渲染带圆角背景的图标按钮
-/// 使用屏幕坐标定位，不受 WindowPadding 影响
-/// @returns true 表示被点击
-/// @param id 唯一标识
-/// @param icon 图标文本
-/// @param x,y 相对当前窗口 content 区域的偏移
-/// @param size 按钮宽高
-/// @param bg_color 背景色（ARGB 格式）
-/// @param text_color 文字色（默认白）
-/// @param radius 圆角半径（默认 4.0f）
-bool IconButtonRender(const char* id, const char* icon,
-                      float x, float y, float size,
-                      const Color& bg_color,
-                      const Color& text_color = Colors::White,
-                      float radius = 4.0f);
+/// Layout — 布局控制（光标位置、同行、占位）
+class Layout {
+public:
+    static void SameLine();
+    static void Dummy(float width, float height);
+    static void SetCursorPos(float x, float y);
+    static void SetCursorPosX(float x);
+    static void SetCursorScreenPos(float x, float y);
+    static void GetCursorScreenPos(float* x, float* y);
+};
 
 /// 文本渲染
-void ImGuiText(const char* fmt, ...);
-void ImGuiTextUnformatted(const char* text);
-/// 文本渲染（自动换行，wrap_width=0 表示窗口右边界）
-void ImGuiTextWrapped(const char* text, float wrap_width = 0.0f, const Color& color = Colors::White);
-/// 文本渲染（带颜色，无换行）
-void ImGuiTextColored(const Color& color, const char* text);
-/// 文本渲染（统一接口：颜色 + 可选换行）
-void ImGuiText(const char* text, const Color& color = Colors::White, float wrap_width = 0.0f);
-
-/// 滚动
-void ImGuiSetScrollHereY(float center_y_ratio = 0.5f);
+class Text {
+public:
+    static void Fmt(const char* fmt, ...);
+    static void Raw(const char* text);
+    static void Colored(const Color& color, const char* text);
+    static void Wrapped(const char* text, float wrap_width = 0.0f,
+                        const Color& color = Colors::White);
+    /// Measure the height of text when wrapped at wrap_width (before rendering)
+    static float CalcWrappedHeight(const char* text, float wrap_width);
+};
 
 /// Child 窗口
-bool BeginChild(const char* name, float width = 0.0f, float height = 0.0f, int child_flags = 0);
-bool BeginChild(const char* name, float width, float height, int child_flags, int window_flags);
-void EndChild();
+class Child {
+public:
+    static bool Begin(const char* name, float width = 0.0f, float height = 0.0f,
+                      int child_flags = 0);
+    static bool Begin(const char* name, float width, float height,
+                      int child_flags, int window_flags);
+    static void End();
+};
 
 /// 滚动控制
-float GetScrollY();
-float GetScrollMaxY();
-void SetScrollY(float scroll_y);
+class Scroll {
+public:
+    static void SetHereY(float center_y_ratio = 0.5f);
+    static float GetY();
+    static float GetMaxY();
+    static void SetY(float scroll_y);
+};
 
-/// 占位符（用于增长窗口边界）
-void Dummy(float width, float height);
-
-/// ImVec2 封装（GetMouseDragDelta 返回类型）
+/// ImVec2 封装（GetDragDelta 返回类型）
 struct ImVec2Wrapper {
     float x, y;
     ImVec2Wrapper(float _x = 0, float _y = 0) : x(_x), y(_y) {}
 };
-
-/// 鼠标/交互状态查询
-bool IsItemHovered();
-bool IsItemActive();
-ImVec2Wrapper GetMouseDragDelta(float threshold = 0.0f);
-void ResetMouseDragDelta();
 
 /// 鼠标光标类型常量（值匹配 ImGui 1.92.8）
 constexpr int ImGuiMouseCursor_None = -1;
 constexpr int ImGuiMouseCursor_Arrow = 0;
 constexpr int ImGuiMouseCursor_ResizeNWSE = 4;
 
-/// 设置鼠标光标
-void SetMouseCursor(int cursor_type);
+/// Mouse — 鼠标/交互状态查询
+class Mouse {
+public:
+    static bool IsItemHovered();
+    static bool IsItemActive();
+    static ImVec2Wrapper GetDragDelta(float threshold = 0.0f);
+    static void ResetDragDelta();
+    static void SetCursor(int cursor_type);
+};
 
-/// 样式颜色
-void PushStyleColor(int color_index, const Color& color);
-void PopStyleColor(int count = 1);
-
-/// 获取当前 ImGui 上下文的显示尺寸（viewport 尺寸，NewFrame 后可用）
-void ImGuiGetDisplaySize(float* w, float* h);
-
-/// 获取当前 ImGui 窗口的位置（viewport-absolute 坐标）
-void ImGuiGetWindowPos(float* x, float* y);
+/// Style — 样式栈操作
+class Style {
+public:
+    static void PushColor(int color_index, const Color& color);
+    static void PopColor(int count = 1);
+    static void PushItemWidth(float width);
+    static void PopItemWidth();
+    static void PushVar_ItemSpacing(float x, float y);
+    static void PushVar_WindowBorderSize(float size);
+    static void PushVar_ScrollbarSize(float size);
+    static void PushVar_WindowPadding(float x, float y);
+    static void PopVar(int count = 1);
+};
 
 /// 弹出窗口/模态框
-void ImGuiOpenPopup(const char* name);
-bool ImGuiBeginPopupModal(const char* name, bool* open, int flags = 0);
-void ImGuiEndPopup();
+class Popup {
+public:
+    static void Open(const char* name);
+    static bool Begin(const char* name);
+    static bool BeginContextVoid(const char* str_id);
+    static bool BeginModal(const char* name, bool* open, int flags = 0);
+    static bool MenuItem(const char* label, bool selected = false, bool enabled = true);
+    static void End();
+};
 
 /// 标签栏
-bool ImGuiBeginTabBar(const char* name);
-void ImGuiEndTabBar();
-bool ImGuiBeginTabItem(const char* name);
-void ImGuiEndTabItem();
+class TabBar {
+public:
+    static bool BeginBar(const char* name);
+    static void EndBar();
+    static bool BeginItem(const char* name);
+    static void EndItem();
+};
 
-/// 控件
-bool ImGuiCheckbox(const char* label, bool* value);
-bool ImGuiCombo(const char* label, int* current_item, const char* const items[], int items_count);
-bool ImGuiInputText(const char* label, char* buf, size_t buf_size);
-bool ImGuiButton(const char* label, float width = 0.0f, float height = 0.0f);
-void ImGuiSeparator();
-bool ImGuiTreeNode(const char* label);
-void ImGuiTreePop();
-void ImGuiBulletText(const char* fmt, ...);
+/// 控件（立即模式）
+class ImGuiWidget {
+public:
+    static bool Checkbox(const char* label, bool* value);
+    static bool Combo(const char* label, int* current_item, const char* const items[], int items_count);
+    static bool InputText(const char* label, char* buf, size_t buf_size);
+    static bool Button(const char* label, float width = 0.0f, float height = 0.0f);
+    static void Separator();
+    static bool TreeNode(const char* label);
+    static void TreePop();
+    static void BulletText(const char* fmt, ...);
+    static bool InvisibleButton(const char* id, float w, float h);
+    static bool IconButton(const char* id, const char* icon,
+                           float x, float y, float size,
+                           const Color& bg_color,
+                           const Color& text_color = Colors::White,
+                           float radius = 4.0f);
+};
 
-/// 窗口查询
-float ImGuiGetWindowWidth();
-void ImGuiSetCursorPosX(float x);
+/// MenuBar — 传统菜单栏 (ImGui BeginMenuBar / EndMenuBar)
+class MenuBar {
+public:
+    static bool Begin();
+    static void End();
+};
+
+/// Menu — 菜单 (ImGui BeginMenu / EndMenu)
+class Menu {
+public:
+    static bool Begin(const char* label, bool enabled = true);
+    static void End();
+};
 
 } // namespace media_engine

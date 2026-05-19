@@ -39,6 +39,8 @@ include(FetchContent)
 ############################################# llama.cpp (optional) #####################################
 option(PROSOPHOR_BUILD_LLAMA "Build llama.cpp for local model inference (llama-server)" ON)
 
+############################################# Debug borders (optional) #####################################
+
 if(PROSOPHOR_BUILD_LLAMA)
     if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty_src/llamacpp-src")
         message(STATUS "Found llama.cpp in thirdparty_src, using existing download")
@@ -116,6 +118,12 @@ if(WIN32 AND MINGW)
         "${MINGW_BIN_DIR}/libssh2-1.dll"
         "${MINGW_BIN_DIR}/libunistring-5.dll"
         "${MINGW_BIN_DIR}/libzstd.dll"
+        DESTINATION bin
+    )
+
+    # CA certificate bundle for SSL verification
+    install(FILES
+        "${MINGW_BIN_DIR}/../etc/ssl/certs/ca-bundle.crt"
         DESTINATION bin
     )
 endif()

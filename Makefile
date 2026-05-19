@@ -15,9 +15,10 @@ NUM_JOB ?= 8
 # Set PATH for MSYS2/MinGW tools (always needed on this system)
 export PATH := /e/devtool/msys64/mingw64/bin:$(PATH)
 
-PACKAGE_NAME ?= Demo
-PACKAGE_VERSION ?= 0.2.0
-BUILD_TYPE ?= RelWithDebInfo
+PACKAGE_NAME ?= Prosophor
+PACKAGE_VERSION ?= 0.6.0
+# BUILD_TYPE ?= RelWithDebInfo
+BUILD_TYPE ?= Debug
 
 
 all:
@@ -37,7 +38,7 @@ CMAKE_ARGS ?= \
 	-DBUILD_SHARED_LIBS=OFF \
 	-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-	-DCMAKE_PROJECT_VERSION=$(PACKAGE_VERSION) \
+	-DPACKAGE_VERSION=$(PACKAGE_VERSION) \
 	-DPROSOPHOR_BUILD_LLAMA=ON \
 	$(CMAKE_EXTRA_ARGS)
 
@@ -53,11 +54,6 @@ run:
 	$(INSTALL_DIR)/bin/prosophor
 .PHONY: run
 
-# Package release artifacts for distribution
-release:
-	@echo "Packaging prosophor $(PACKAGE_VERSION)..."
-	@bash ./dist/package.sh $(PACKAGE_VERSION)
-.PHONY: release
 
 tests:
 	@echo "Running all tests in $(BUILD_DIR)/unitests..."
@@ -86,7 +82,7 @@ CMAKE_ARGS_WIN ?= \
 	-DBUILD_SHARED_LIBS=OFF \
 	-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-	-DCMAKE_PROJECT_VERSION=$(PACKAGE_VERSION) \
+	-DPACKAGE_VERSION=$(PACKAGE_VERSION) \
 	$(CMAKE_EXTRA_ARGS)
 
 # Windows 构建 - 无 SDL UI (纯终端模式)
@@ -108,17 +104,35 @@ build_win_sdl:
 .PHONY: build_win_sdl
 
 run_win:
-	cd $(INSTALL_DIR_WIN)/bin && ./prosophor.exe
+	cd $(INSTALL_DIR_WIN)/bin && SSL_CERT_FILE=ca-bundle.crt ./prosophor.exe
 .PHONY: run_win
 
-# 一键发布：cmake 配置 → 构建 → CPack 安装器
+# 一键发布：从 install/bin 直接打包（排除 assets/.prosophor）
 deploy: build_win_sdl
-	cd $(BUILD_DIR_WIN) && cpack -C $(BUILD_TYPE)
+	cp /e/devtool/msys64/mingw64/etc/ssl/certs/ca-bundle.crt $(INSTALL_DIR_WIN)/bin/
+	cd $(INSTALL_DIR_WIN)/bin && \
+	cmake -E tar cf $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64.zip \
+	  --format=zip *.exe *.dll *.crt
 .PHONY: deploy
+
+# 全量重构建+打包（清除 cmake 缓存）
+deploy_fresh:
+	rm -rf $(BUILD_DIR_WIN)/CMakeCache.txt
+	$(MAKE) deploy
+.PHONY: deploy_fresh
 
 clean_win:
 	rm -rf ${BUILD_DIR_WIN}
 .PHONY: clean_win
+
+# 构建并发布到 GitHub Releases（需要先 git tag）
+release: deploy
+	@echo "Creating GitHub release v$(PACKAGE_VERSION)..."
+	gh release create v$(PACKAGE_VERSION) \
+	  $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64.zip \
+	  --title "v$(PACKAGE_VERSION)" \
+	  --generate-notes
+.PHONY: release
 
 # 运行所有单元测试 (执行 bin/tests 目录下所有测试程序)
 .PHONY: run_win_tests

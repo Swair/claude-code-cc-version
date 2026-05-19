@@ -68,6 +68,7 @@ public:
     // Window title
     void SetTitle(const char* title);
 
+
 private:
     friend class MediaCore;
     friend class SdlResource;

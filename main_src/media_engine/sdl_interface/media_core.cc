@@ -347,6 +347,10 @@ void MediaCore::EventProcess() {
                 me.dy = static_cast<int>(event.motion.yrel);
                 me.window = find_win(event.motion.windowID);
                 break;
+            case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+                me.type = MouseEventType::LEAVE;
+                me.window = find_win(event.window.windowID);
+                break;
             default:
                 break;
         }

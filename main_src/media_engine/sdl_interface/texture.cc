@@ -3,6 +3,7 @@
 #include "log_wrapper.h"
 #include <SDL3/SDL.h>
 #include <SDL3_image/SDL_image.h>
+#include "imgui.h"
 namespace media_engine {
 
 // TextureImpl 定义
@@ -97,6 +98,13 @@ bool Texture::RenderTexture(float src_x, float src_y, float src_w, float src_h,
         return false;
     }
     return true;
+}
+
+void Texture::DrawImGui(float x, float y, float w, float h,
+                        float uv0_x, float uv0_y, float uv1_x, float uv1_y) const {
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    dl->AddImage(impl_->texture_, ImVec2(x, y), ImVec2(x + w, y + h),
+                 ImVec2(uv0_x, uv0_y), ImVec2(uv1_x, uv1_y));
 }
 
 } // namespace media_engine

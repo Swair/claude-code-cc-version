@@ -74,6 +74,9 @@ namespace Colors {
 
     // ── 暖白/奶油色系 ──
     constexpr Color Cream{250, 248, 245, 240};
+    constexpr Color Cream70{250, 248, 245, 178};
+    constexpr Color CreamTranslucent{250, 248, 245, 128};
+    constexpr Color CreamOpaque90{250, 248, 245, 229};
     constexpr Color CreamLight{240, 238, 235, 255};
     constexpr Color CreamBorder{200, 195, 190, 255};
     constexpr Color CreamDark{180, 175, 170, 230};
@@ -120,6 +123,9 @@ namespace Colors {
     // ── 黄色/橙色系 ──
     constexpr Color Orange{255, 165, 0, 255};
     constexpr Color OrangeLight{255, 225, 195, 255};
+    constexpr Color OrangeLightest{255, 240, 220, 255};
+    constexpr Color OrangeWarm{200, 120, 50, 255};
+    constexpr Color OrangeDeep{180, 100, 40, 255};
     constexpr Color Gold{255, 215, 0, 255};
     constexpr Color GoldDark{200, 180, 100, 255};
     constexpr Color BeigeWarm{245, 245, 220, 255};
@@ -142,6 +148,12 @@ namespace Colors {
     constexpr Color OverlayDark{40, 40, 40, 180};
     constexpr Color WhiteTranslucent{255, 255, 255, 220};
     constexpr Color White70{255, 255, 255, 178};
+    constexpr Color White80{255, 255, 255, 204};
+
+    // ── 聊天消息背景色 ──
+    constexpr Color BluePale{235, 245, 255, 200};
+    constexpr Color GreenPale{235, 245, 235, 200};
+    constexpr Color Gray20a{50, 50, 50, 160};
 
     // ── 日志色 ──
     constexpr Color Amber{255, 200, 0, 255};

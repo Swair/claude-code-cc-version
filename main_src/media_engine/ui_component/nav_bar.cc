@@ -22,17 +22,17 @@ void NavBar::Render(float parent_width, const std::string& status_text,
 
     // Compact window at bottom center, auto-sized to content
     ImGui::SetNextWindowPos(ImVec2(parent_width * 0.5f, nav_y), ImGuiCond_Always, ImVec2(0.5f, 0.0f));
-    ImGuiBegin("##nav_bar", nullptr,
+    ImGuiWindow::Begin("##nav_bar", nullptr,
         ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
         ImGuiWindowFlags_AlwaysAutoResize);
 
     // Background bar matching content width
     float content_w = ImGui::GetWindowWidth();
-    DrawFilledRoundRect(0, 0, content_w, height_, 0, bg_color_);
+    DrawList::RoundRect(0, 0, content_w, height_, 0, bg_color_);
 
     // Centered content: status text + buttons
-    ImGuiSetCursorPos(pad_left_, pad_top_);
-    ImGuiTextColored(text_color_, status_text.c_str());
+    Layout::SetCursorPos(pad_left_, pad_top_);
+    Text::Colored(text_color_, status_text.c_str());
     ImGui::SameLine(0, 6);
 
     for (size_t i = 0; i < items.size(); i++) {
@@ -42,7 +42,7 @@ void NavBar::Render(float parent_width, const std::string& status_text,
         if (i + 1 < items.size()) ImGui::SameLine(0, 0);
     }
 
-    ImGuiEnd();
+    ImGuiWindow::End();
 }
 
 }  // namespace media_engine

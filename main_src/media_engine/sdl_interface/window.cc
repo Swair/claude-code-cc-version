@@ -48,8 +48,6 @@ void SetupImGui(ImGuiContext* ctx, SDL_Window* window, SDL_Renderer* renderer,
     ImGuiIO& io = ImGui::GetIO();
 
     if (cfg.use_shared_font) {
-        // Fonts loaded once in MediaCore; all windows share the raw TTF data.
-        // ImGui rasterizes per-context, but the TTF is read from disk only once.
         auto& shared = MediaCore::Instance().GetSharedChineseFont();
         if (!shared.data.empty()) {
             ImFontConfig font_cfg;
@@ -197,6 +195,7 @@ bool Window::IsShown() const {
 void Window::SetTitle(const char* title) {
     if (impl_->window) SDL_SetWindowTitle(impl_->window, title);
 }
+
 
 void Window::SetPosition(int x, int y) {
     if (impl_->window) SDL_SetWindowPosition(impl_->window, x, y);

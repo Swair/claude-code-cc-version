@@ -3,10 +3,9 @@
 
 #include "virtual_sprite/sprite.h"
 #include "virtual_sprite/sprite_manager.h"
-#include "platform/platform.h"
-#include "scene/ui_renderer.h"
-#include "scene/layout_config.h"
-#include "scene/asset_define.h"
+#include "virtual_sprite/ui_renderer.h"
+#include "virtual_sprite/layout_config.h"
+#include "virtual_sprite/asset_define.h"
 #include "components/speech_bubble.h"
 #include "media_engine/media_engine.h"
 #include "agent_engine.h"
@@ -21,6 +20,11 @@
 #include <filesystem>
 #include <fstream>
 #include <random>
+
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 namespace prosophor {
 
@@ -37,6 +41,7 @@ bool Sprite::Create() {
     cfg.transparent_bg = true;
     cfg.use_shared_font = true;
     cfg.borderless = true;
+    cfg.resizable = false;
     cfg.transparent_window = true;
     cfg.skip_taskbar = true;
     cfg.always_on_top = true;
@@ -57,15 +62,19 @@ bool Sprite::Create() {
         speech_bubble_->SetTitleHeight(layout.bubble_title_height);
         speech_bubble_->SetInputHeight(layout.bubble_input_height);
         speech_bubble_->SetButtonSize(layout.bubble_btn_size);
+        speech_bubble_->SetInputCornerRadius(layout.bubble_radius);
     }
 
     // ── Widget tree root ──
     root_widget_.SetBackgroundColor(media_engine::Colors::Transparent);
     root_widget_.SetRoot(static_cast<float>(width_), static_cast<float>(height_));
-    root_widget_.AddChild(&name_anchor_);
+    root_widget_.AddChild(&name_label_);
     root_widget_.AddChild(&nav_anchor_);
     root_widget_.AddChild(speech_bubble_.get());
-    name_anchor_.SetPosition(36.0f, 2.0f, 28.0f, 5.0f);
+    name_label_.SetPosition(20.0f, 0.0f, 60.0f, 8.0f);
+    name_label_.SetBackgroundColor(media_engine::Colors::Cream70);
+    name_label_.SetColor(media_engine::Colors::OrangeDeep);
+    name_label_.SetText(name_);
     nav_anchor_.SetPosition(0.0f, 85.0f, 100.0f, 15.0f);
 
     // ── Per-sprite session ──
@@ -80,17 +89,16 @@ bool Sprite::Create() {
     auto binding = LoadSpriteBindingFromRole(effective_role);
     if (!binding.spritesheet_file.empty()) {
         auto& eng_cfg = AgentEngine::GetInstance().GetConfig();
-        std::string webp_path = eng_cfg.sprite_assets_dir + "/" + binding.spritesheet_file;
-        if (std::filesystem::exists(webp_path)) {
-            std::string slug = std::filesystem::path(binding.spritesheet_file).stem().string();
-            pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug, eng_cfg.sprite_assets_dir + "/");
-            if (pet_sprite_->IsValid()) {
-                std::string display = pet_sprite_->GetDisplayName();
-                if (!display.empty()) { name_ = display; sprite_window_->SetTitle(display.c_str()); }
-                LOG_INFO("Loaded pet '{}' from {}", slug, webp_path);
-            } else {
-                pet_sprite_.reset();
-            }
+        std::string slug = std::filesystem::path(binding.spritesheet_file).stem().string();
+        pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug,
+            eng_cfg.sprite_assets_dir + "/");
+        if (pet_sprite_->IsValid()) {
+            std::string display = pet_sprite_->GetDisplayName();
+            if (!display.empty()) { name_ = display; sprite_window_->SetTitle(display.c_str()); }
+            name_label_.SetText(name_);
+            LOG_INFO("Loaded pet '{}' from {}", slug, binding.spritesheet_file);
+        } else {
+            pet_sprite_.reset();
         }
     }
     if (!pet_sprite_ && !binding.assets_dir.empty()) {
@@ -108,14 +116,27 @@ bool Sprite::Create() {
         }
     }
 
+    // Fallback: if no pet loading source provided a display name,
+    // use display_name from the role JSON directly.
+    if (!binding.display_name.empty() && name_ == effective_role) {
+        name_ = binding.display_name;
+        sprite_window_->SetTitle(name_.c_str());
+    }
+    name_label_.SetText(name_);
+
     // ── Nav bar ──
     nav_bar_ = std::make_unique<media_engine::NavBar>();
     nav_bar_->SetTextColor(media_engine::Colors::Gray35);
+
+    // ── Set bubble title and assistant label to sprite display name ──
+    speech_bubble_->SetTitle(name_);
+    speech_bubble_->SetAssistantDisplayName(name_);
 
     // ── SpeechBubble onSubmit callback ──
     speech_bubble_->SetOnSubmit([this](const std::string& msg) {
         AgentEngine::GetInstance().SendUserMessage(session_id_, msg);
     });
+
 
     // ── Mouse handler: drag + double-click (+ nav popup) ──
     mc.RegMouseHandler(sprite_window_, [this](const media_engine::MouseEvent& me) {
@@ -133,6 +154,9 @@ bool Sprite::Create() {
             case media_engine::MouseEventType::UP:
                 EndDrag();
                 break;
+            case media_engine::MouseEventType::LEAVE:
+                SetHovering(false);
+                break;
         }
     });
 
@@ -145,8 +169,26 @@ bool Sprite::Create() {
 
         root_widget_.Render(media_engine::RenderContext{});
 
+        // ── Debug borders (window outline + sprite hitbox) ──
+#ifndef NDEBUG
+        {
+            int ww = sprite_window_->GetWidth();
+            int wh = sprite_window_->GetHeight();
+            media_engine::DrawList::OverlayRectOutline(0.0f, 0.0f,
+                static_cast<float>(ww), static_cast<float>(wh),
+                0.0f, media_engine::Colors::White, 1.5f);
+        }
+
+        if (pet_sprite_ && pet_sprite_->IsValid()) {
+            auto& b = sprite_bounds_;
+            media_engine::DrawList::OverlayRectOutline(b.x, b.y,
+                b.width, b.height,
+                0.0f, media_engine::Colors::White, 1.0f);
+        }
+#endif  // !NDEBUG
+
         // Global context menu (singleton)
-        UIRenderer::Instance().RenderContextMenu();
+        UIRenderer::Instance().RenderContextMenu(sprite_window_);
     });
 
     LOG_INFO("[Sprite] Window '{}' created ({}x{})", name_, width_, height_);
@@ -158,41 +200,29 @@ bool Sprite::Create() {
 void Sprite::PetCanvas::Render(const media_engine::RenderContext& ctx) {
     if (!visible_) return;
 
-    auto& s = owner_;
+    auto& sprite = owner_;
     float win_w = width_;
     float win_h = height_;
 
     // 1. Pet sprite (centered at ground ratio)
-    if (s.pet_sprite_ && s.pet_sprite_->IsValid()) {
+    if (sprite.pet_sprite_ && sprite.pet_sprite_->IsValid()) {
         auto pet_cfg = LayoutConfig{};
         float base_x = win_w / 2.0f;
         float base_y = win_h * pet_cfg.pet_ground_ratio;
-        float breathe_y = std::sin(s.animation_time_ * 3.14f) * 4.0f;
-
-        auto action = s.GetEffectiveAction();
-        int frame_count = s.pet_sprite_->GetFrameCount(action);
-        float fps = 6.0f;
-        if (action == SpritesheetAction::RUN_LEFT || action == SpritesheetAction::RUN_RIGHT) {
-            fps = 12.0f;
-        } else if (action != SpritesheetAction::IDLE) {
-            fps = 10.0f;
-        }
-        int frame = static_cast<int>(s.animation_time_ * fps) % frame_count;
+        auto action = sprite.GetEffectiveAction();
+        int frame_count = sprite.pet_sprite_->GetFrameCount(action);
+        int fps = sprite.pet_sprite_->GetActionFps(action);
+        if (fps <= 0) fps = 10;
+        if (frame_count <= 0) frame_count = 1;
+        int frame = static_cast<int>(sprite.animation_time_ * fps) % frame_count;
 
         float sx = base_x - pet_cfg.pet_sprite_size / 2.0f;
-        float sy = base_y - pet_cfg.pet_sprite_size / 2.0f + breathe_y;
+        float sy = base_y - pet_cfg.pet_sprite_size / 2.0f;
 
-        s.pet_sprite_->RenderFrame(action, frame, sx, sy,
+        sprite.pet_sprite_->RenderFrame(action, frame, sx, sy,
                                     pet_cfg.pet_sprite_size, pet_cfg.pet_sprite_size);
-        s.sprite_bounds_ = {sx, sy, pet_cfg.pet_sprite_size, pet_cfg.pet_sprite_size};
+        sprite.sprite_bounds_ = {sx, sy, pet_cfg.pet_sprite_size, pet_cfg.pet_sprite_size};
     }
-
-    // 3. Name label at anchor position
-    media_engine::MediaUtil::DrawTextRect(s.name_,
-                                          s.name_anchor_.GetX(), s.name_anchor_.GetY(),
-                                          s.name_anchor_.GetWidth(), s.name_anchor_.GetHeight(),
-                                          media_engine::Colors::White,
-                                          platform::kDefaultFontPath);
 
     // 4. Cascade to widget-tree children (speech_bubble_)
     for (auto* child : children_) {
@@ -200,25 +230,28 @@ void Sprite::PetCanvas::Render(const media_engine::RenderContext& ctx) {
     }
 
     // 5. Nav bar at anchor position
-    if (!s.pet_list_.empty()) {
+    if (!sprite.pet_list_.empty()) {
         char buf[16];
         std::snprintf(buf, sizeof(buf), "%d/%d",
-                      s.current_pet_index_ + 1, s.GetPetCount());
+                      sprite.current_pet_index_ + 1, sprite.GetPetCount());
         std::vector<media_engine::NavBar::Item> items = {};
         // NavBar needs the parent width for ImGui layout; use nav_anchor_.GetWidth()
         // but the nav bar internally uses the window width (parent_width param).
         // The actual window width from the root is more accurate here.
-        s.nav_bar_->Render(win_w, buf, items);
+        sprite.nav_bar_->Render(win_w, buf, items);
     }
 }
 
 // ── Mouse event handlers ─────────────────────────────────────────────
 
 void Sprite::DispatchClickAction(const media_engine::MouseEvent& me) {
-    // Right-click → context menu
+    // Right-click on pet → context menu; non-pet areas pass through via native WS_EX_TRANSPARENT
     if (me.button == media_engine::MouseButton::RIGHT) {
-        auto& ui = UIRenderer::Instance();
-        ui.IsContextMenuVisible() ? ui.HideContextMenu() : ui.ShowContextMenu();
+        bool on_pet = sprite_bounds_.Contains(static_cast<float>(me.x), static_cast<float>(me.y)) &&
+                      static_cast<float>(me.y) < static_cast<float>(height_) - 20.0f;
+        if (on_pet) {
+            UIRenderer::Instance().RequestContextMenu(me.window);
+        }
         return;
     }
     // Only left-click from here
@@ -228,30 +261,38 @@ void Sprite::DispatchClickAction(const media_engine::MouseEvent& me) {
 
     float fx = static_cast<float>(me.x);
     float fy = static_cast<float>(me.y);
-    if (!sprite_bounds_.Contains(fx, fy) || fy >= static_cast<float>(height_) - 20.0f) {
+
+    // 1. Pet sprite click → drag / double-click toggle bubble
+    //    But skip if speech bubble is visible and hit (don't drag through bubble)
+    bool bubble_hit = speech_bubble_ && speech_bubble_->IsVisible() &&
+                      speech_bubble_->HitTest(static_cast<int>(fx), static_cast<int>(fy));
+    if (sprite_bounds_.Contains(fx, fy) && fy < static_cast<float>(height_) - 20.0f && !bubble_hit) {
+        // Double-click → toggle speech bubble
+        if (first_click_at_ && SteadyClock::ElapsedMillis(*first_click_at_) < 500) {
+            first_click_at_.reset();
+            speech_bubble_->Toggle();
+            SpriteManager::GetInstance().SetFocusedSession(session_id_);
+            return;
+        }
+        // Single-click — record for potential double-click
+        first_click_at_ = SteadyClock::Now();
+
+        // Start drag
+        dragging_ = true;
+        hover_override_active_ = false;
+        auto& mc = media_engine::MediaCore::Instance();
+        int wx, wy;
+        float gx, gy;
+        sprite_window_->GetPosition(&wx, &wy);
+        mc.GetGlobalMousePosition(&gx, &gy);
+        drag_off_x_ = wx - static_cast<int>(gx);
+        drag_off_y_ = wy - static_cast<int>(gy);
         return;
     }
 
-    // Double-click → toggle speech bubble
-    if (first_click_at_ && SteadyClock::ElapsedMillis(*first_click_at_) < 500) {
-        first_click_at_.reset();
-        speech_bubble_->Toggle();
-        SpriteManager::GetInstance().SetFocusedSession(session_id_);
-        return;
-    }
-    // Single-click — record for potential double-click
-    first_click_at_ = SteadyClock::Now();
-
-    // Start drag
-    dragging_ = true;
-    hover_override_active_ = false;
-    auto& mc = media_engine::MediaCore::Instance();
-    int wx, wy;
-    float gx, gy;
-    sprite_window_->GetPosition(&wx, &wy);
-    mc.GetGlobalMousePosition(&gx, &gy);
-    drag_off_x_ = wx - static_cast<int>(gx);
-    drag_off_y_ = wy - static_cast<int>(gy);
+    // 2. Everything else — non-pet clicks natively pass through via WS_EX_TRANSPARENT.
+    // Bubble interactive areas (buttons, input) also work via SDL3 raw input.
+    // No explicit passthrough or SendInput needed.
 }
 
 void Sprite::ConstrainSpriteOnScreen(const media_engine::MouseEvent& /*me*/) {
@@ -293,6 +334,7 @@ void Sprite::UpdateHoverState(const media_engine::MouseEvent& me) {
 void Sprite::EndDrag() {
     dragging_ = false;
     SetDragOverride(false, false);
+    SetHovering(false);
 }
 
 // ── Background ────────────────────────────────────────────────────────
@@ -337,7 +379,15 @@ void Sprite::LoadCurrentPet() {
     if (pet_list_.empty()) return;
     const auto& entry = pet_list_[current_pet_index_];
     pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, entry.slug, PetdexSpritesDir());
-    if (!pet_sprite_->IsValid()) {
+    if (pet_sprite_->IsValid()) {
+        name_ = entry.name;
+        sprite_window_->SetTitle(name_.c_str());
+        name_label_.SetText(name_);
+        if (speech_bubble_) {
+            speech_bubble_->SetTitle(name_);
+            speech_bubble_->SetAssistantDisplayName(name_);
+        }
+    } else {
         pet_sprite_.reset();
     }
 }
@@ -352,7 +402,8 @@ Sprite::SpriteBinding Sprite::LoadSpriteBindingFromRole(const std::string& role_
         std::string sid = j.value("sprite_id", "");
         std::string sp_file = j.value("spritesheet_path", "");
         std::string assets_dir = j.value("sprite_assets_dir", "");
-        return {sid, assets_dir, sp_file};
+        std::string display_name = j.value("display_name", "");
+        return {sid, assets_dir, sp_file, display_name};
     } catch (const std::exception& e) {
         LOG_WARN("[Sprite] Failed to read role '{}': {}", role_id, e.what());
         return {};
@@ -381,6 +432,7 @@ void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
                     name_ = display;
                     sprite_window_->SetTitle(display.c_str());
                 }
+                name_label_.SetText(name_);
                 LOG_INFO("Loaded pet '{}' from {}", sprite_id, webp_path);
                 return;
             }
@@ -429,6 +481,7 @@ void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
                         pet_sprite_->GetDisplayName().empty() ? entry.path().stem().string() : pet_sprite_->GetDisplayName());
                     name_ = display_name;
                     sprite_window_->SetTitle(display_name.c_str());
+                    name_label_.SetText(name_);
                     LOG_INFO("Loaded pet (sprite_id='{}') as '{}' from spritesheet={}", sprite_id, display_name, spritesheet_file.empty() ? entry.path().stem().string() + ".webp" : spritesheet_file);
                 }
                 return;
@@ -471,6 +524,7 @@ void Sprite::LoadPetFromDir(const std::string& assets_dir) {
         if (pet_sprite_->IsValid()) {
             name_ = display_name;
             sprite_window_->SetTitle(display_name.c_str());
+            name_label_.SetText(name_);
             LOG_INFO("Loaded sprite '{}' from {}/{}", display_name, assets_dir, spritesheet_file);
             return;
         }
@@ -487,6 +541,7 @@ void Sprite::LoadPetFromDir(const std::string& assets_dir) {
             if (pet_sprite_->IsValid()) {
                 name_ = display_name;
                 sprite_window_->SetTitle(display_name.c_str());
+                name_label_.SetText(name_);
                 LOG_INFO("Loaded sprite '{}' from {}", display_name, dir);
                 return true;
             }
@@ -514,11 +569,35 @@ void Sprite::PrevPet() {
     LoadCurrentPet();
 }
 
+const std::string& Sprite::GetCurrentPetSlug() const {
+    static const std::string s_empty;
+    if (pet_sprite_) return pet_sprite_->GetSlug();
+    if (pet_list_.empty()) return s_empty;
+    return pet_list_[current_pet_index_].slug;
+}
+
+const std::string& Sprite::GetCurrentPetName() const {
+    static const std::string s_empty;
+    if (pet_list_.empty()) return s_empty;
+    return pet_list_[current_pet_index_].name;
+}
+
+std::string Sprite::GetSpritesheetPath() const {
+    if (pet_sprite_) return pet_sprite_->GetFilePath();
+    return "";
+}
+
 // ── State → Action ────────────────────────────────────────────────────
 
-SpritesheetAction Sprite::StateToAction(AgentRuntimeState state) const {
-    switch (state) {
+SpritesheetAction Sprite::GetEffectiveAction() const {
+    // Priority: drag > hover > agent_state
+    if (dragging_ || drag_override_active_) return drag_override_left_ ? SpritesheetAction::RUN_LEFT : SpritesheetAction::RUN_RIGHT;
+    if (hover_override_active_) return SpritesheetAction::WAVE;
+
+    switch (agent_state_) {
         case AgentRuntimeState::IDLE:
+        case AgentRuntimeState::COMPLETE:
+        case AgentRuntimeState::STREAM_MODE_COMPLETE:
             return SpritesheetAction::IDLE;
         case AgentRuntimeState::BEGINNING:
         case AgentRuntimeState::STREAM_THINKING_START:
@@ -532,9 +611,6 @@ SpritesheetAction Sprite::StateToAction(AgentRuntimeState state) const {
             return SpritesheetAction::WAIT;
         case AgentRuntimeState::STATE_ERROR:
             return SpritesheetAction::FAILED;
-        case AgentRuntimeState::COMPLETE:
-        case AgentRuntimeState::STREAM_MODE_COMPLETE:
-            return SpritesheetAction::IDLE;
         case AgentRuntimeState::STREAM_CONTENT_TYPING:
         case AgentRuntimeState::STREAM_CONTENT_START:
         case AgentRuntimeState::STREAM_CONTENT_END:
@@ -594,16 +670,6 @@ void Sprite::UpdateAnimation(float delta_time) {
     }
 }
 
-SpritesheetAction Sprite::GetEffectiveAction() const {
-    if (drag_override_active_) {
-        return drag_override_left_ ? SpritesheetAction::RUN_LEFT : SpritesheetAction::RUN_RIGHT;
-    }
-    if (hover_override_active_) {
-        return SpritesheetAction::WAVE;
-    }
-    return StateToAction(agent_state_);
-}
-
 // ── State / override setters ──────────────────────────────────────────
 
 void Sprite::SetAgentState(AgentRuntimeState state, const std::string& details) {
@@ -618,6 +684,10 @@ void Sprite::SetDragOverride(bool active, bool left) {
 
 void Sprite::SetHovering(bool active) {
     hover_override_active_ = active;
+}
+
+void Sprite::ToggleSpeechBubble() {
+    speech_bubble_->Toggle();
 }
 
 }  // namespace prosophor

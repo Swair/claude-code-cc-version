@@ -41,13 +41,16 @@ public:
     /// Hit test: is the given screen point inside the bubble?
     bool HitTest(int x, int y) const;
 
+    /// Hit test: is the given screen point on an interactive element
+    /// (title buttons, input panel, resize handle)?
+    bool HitTestInteractive(int x, int y) const;
+
     /// Toggle between compact and maximized size
     void ToggleMaximize() { maximized_ = !maximized_; }
     bool IsMaximized() const { return maximized_; }
 
 private:
     bool maximized_ = false;
-    bool resizing_ = false;
     float custom_w_ = 0.0f;
     float custom_h_ = 0.0f;
     std::unique_ptr<media_engine::InputPanel> input_panel_;
@@ -63,13 +66,12 @@ private:
     void DrawBubbleBody(float bubble_width, float bubble_body_h);
     void DrawTail(float bubble_width, float bubble_body_h);
     void DrawTitleBar(float bx, float by, float bubble_width);
-    void DrawResizeHandle(float bubble_width, float bubble_body_h);
-
     // -- 外观 --
-    media_engine::Color bg_color_{media_engine::Colors::White70};
-    media_engine::Color border_color_{media_engine::Colors::CreamBorder};
-    media_engine::Color title_text_color_{media_engine::Colors::Gray55};
+    media_engine::Color bg_color_{media_engine::Colors::Cream70};
+    media_engine::Color border_color_{media_engine::Colors::Transparent};
+    media_engine::Color title_text_color_{media_engine::Colors::Black};
     media_engine::Color button_color_{media_engine::Colors::CreamDark};
+    std::string title_text_{"Prosophor"};
 
     // -- 布局（值由 Sprite::Create() 从 LayoutConfig 注入） --
     float bubble_radius_ = 0;
@@ -86,6 +88,8 @@ public:
     void SetBubbleBackgroundColor(const media_engine::Color& c) { bg_color_ = c; }
     void SetBubbleBorderColor(const media_engine::Color& c)     { border_color_ = c; }
     void SetTitleTextColor(const media_engine::Color& c)        { title_text_color_ = c; }
+    void SetTitle(const std::string& title)                     { title_text_ = title; }
+    void SetAssistantDisplayName(const std::string& name)       { if (chat_panel_) chat_panel_->SetAssistantDisplayName(name); }
     void SetButtonColor(const media_engine::Color& c)           { button_color_ = c; }
     void SetSendButtonColor(const media_engine::Color& c)       { if (input_panel_) input_panel_->SetSendButtonColor(c); }
 
@@ -97,6 +101,7 @@ public:
     void SetTailHeight(float h)            { tail_height_ = h; }
     void SetButtonSize(float s)            { btn_size_ = s; }
     void SetMinBubbleSize(float w, float h) { min_width_ = w; min_body_height_ = h; }
+    void SetInputCornerRadius(float r);
 };
 
 } // namespace prosophor

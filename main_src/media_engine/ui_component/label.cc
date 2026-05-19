@@ -20,11 +20,14 @@ void Label::Render() const {
 void Label::RenderAt(float x, float y) const {
     if (!visible_ || text_.empty()) return;
 
+    // Vertically center text within label height
+    float cy = y + (height_ - char_h_) * 0.5f;
+
     int max = std::min(max_chars_, static_cast<int>(text_.size()));
     for (int i = 0; i < max; i++) {
         char c = text_[i];
         if (c >= 32 && c < 127) {
-            Drawer::Instance().DrawFillRect(x + i * char_step_, y, char_w_, char_h_, color_);
+            Drawer::Instance().DrawFillRect(x + i * char_step_, cy, char_w_, char_h_, color_);
         }
     }
 }

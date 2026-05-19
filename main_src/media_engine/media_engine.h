@@ -4,7 +4,7 @@
 
 // ============================================================================
 // media_engine unified entry point
-// External modules (scene/, components/, core/) should include this header
+// External modules (components/, core/) should include this header
 // instead of individual media_engine/xxx.h files.
 // ============================================================================
 

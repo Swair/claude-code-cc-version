@@ -23,6 +23,8 @@ SpeechBubble::SpeechBubble()
     });
     chat_panel_->SetRoleFilter("assistant");
     chat_panel_->SetHideRoleLabels(true);
+    chat_panel_->SetUserBgColor(media_engine::Colors::Transparent);
+    chat_panel_->SetAssistantBgColor(media_engine::Colors::Transparent);
 }
 
 SpeechBubble::~SpeechBubble() = default;
@@ -44,6 +46,27 @@ bool SpeechBubble::HitTest(int x, int y) const {
            y >= rect_y_ && y <= rect_y_ + height_;
 }
 
+bool SpeechBubble::HitTestInteractive(int x, int y) const {
+    if (!visible_) return false;
+
+    // Convert to bubble-local coords
+    float lx = static_cast<float>(x - rect_x_);
+    float ly = static_cast<float>(y - rect_y_);
+    if (lx < 0 || ly < 0) return false;
+
+    float body_h = height_ - (maximized_ ? 0.0f : tail_height_);
+
+    // 1. Title bar buttons (maximize + close) at top-right
+    float max_btn_x = width_ - padding_ - btn_size_ * 2.0f - 6.0f;
+    if (ly <= title_height_ && lx >= max_btn_x) return true;
+
+    // 2. Input panel area at the bottom of the body
+    float input_top = body_h - input_height_;
+    if (ly >= input_top && ly <= body_h) return true;
+
+    return false;
+}
+
 void SpeechBubble::Render(const media_engine::RenderContext& ctx) {
     if (!visible_) return;
 
@@ -61,14 +84,13 @@ void SpeechBubble::Render(const media_engine::RenderContext& ctx) {
         bubble_width = custom_w_;
         bubble_body_h = custom_h_;
     } else {
-        bubble_width = std::max(min_width_, static_cast<float>(win_w) * 0.50f);
+        bubble_width = std::max(min_width_, static_cast<float>(win_w));
         bubble_body_h = std::max(min_body_height_, static_cast<float>(win_h) * 0.50f);
     }
 
     float bubble_total_h = bubble_body_h + (maximized ? 0.0f : tail_height_);
-    float bx = maximized ? 0.0f : static_cast<float>(win_w) - bubble_width - 6.0f;
+    float bx = maximized ? 0.0f : static_cast<float>(win_w) - bubble_width;
     float by = 0.0f;
-    if (!maximized && bx < 4) bx = 4;
 
     // Store Widget pixel rect for hit-testing (in sprite window coordinates)
     width_ = bubble_width;
@@ -81,16 +103,17 @@ void SpeechBubble::Render(const media_engine::RenderContext& ctx) {
     rect_y_ = static_cast<int>(by);
 
     // ── ImGui overlay window ──
-    media_engine::SetImGuiNextWindowPos(bx, by);
-    media_engine::SetImGuiNextWindowSize(bubble_width, bubble_total_h);
-    media_engine::SetImGuiNextWindowBgAlpha(0.0f);
+    media_engine::ImGuiWindow::SetNextPos(bx, by);
+    media_engine::ImGuiWindow::SetNextSize(bubble_width, bubble_total_h);
+    media_engine::ImGuiWindow::SetNextBgAlpha(0.0f);
+
+    media_engine::Style::PushVar_WindowBorderSize(0.0f);
 
     bool bubble_open = true;
-    media_engine::ImGuiBegin("speech_bubble", &bubble_open,
+    media_engine::ImGuiWindow::Begin("speech_bubble", &bubble_open,
         media_engine::ImGuiWindowFlags_NoDecoration |
         media_engine::ImGuiWindowFlags_NoMove |
-        media_engine::ImGuiWindowFlags_NoSavedSettings |
-        media_engine::ImGuiWindowFlags_NoScrollWithMouse);
+        media_engine::ImGuiWindowFlags_NoSavedSettings);
 
     DrawBubbleBody(bubble_width, bubble_body_h);
     if (!maximized) { DrawTail(bubble_width, bubble_body_h); }
@@ -105,42 +128,56 @@ void SpeechBubble::Render(const media_engine::RenderContext& ctx) {
 
     chat_panel_->SetPixelRect(padding_, padding_ + title_height_ + 4.0f,
                               content_w, chat_h);
-    input_panel_->SetPixelRect(padding_, bubble_body_h - padding_ - input_height_,
-                               content_w, input_height_);
+    input_panel_->SetPixelRect(0, bubble_body_h - input_height_,
+                               bubble_width, input_height_);
 
     // Render InputPanel child (DrawPanel uses ImGui-window-relative coords)
     input_panel_->Render(ctx);
 
     // Render ChatPanel messages via ScrollWindow (needs viewport-absolute coords)
+    // Bubble mode: only show the last assistant reply (compact desktop pet)
+    RenderSnapshot bubble_snapshot = snapshot_;
+    bubble_snapshot.messages.clear();
+    for (auto it = snapshot_.messages.rbegin(); it != snapshot_.messages.rend(); ++it) {
+        if (it->role == "assistant") {
+            bubble_snapshot.messages.push_back(*it);
+            break;
+        }
+    }
     float win_x, win_y;
-    media_engine::ImGuiGetWindowPos(&win_x, &win_y);
+    media_engine::ImGuiWindow::GetPos(&win_x, &win_y);
     chat_panel_->RenderContentInRect(
         win_x + chat_panel_->GetX(), win_y + chat_panel_->GetY(),
         chat_panel_->GetWidth(), chat_panel_->GetHeight(),
-        snapshot_);
-
-    DrawResizeHandle(bubble_width, bubble_body_h);
+        bubble_snapshot);
 
     if (!bubble_open) { visible_ = false; }
-    media_engine::ImGuiEnd();
+    media_engine::ImGuiWindow::End();
+    media_engine::Style::PopVar();  // WindowBorderSize
 }
 
 // ── 气泡主体 ──
+void SpeechBubble::SetInputCornerRadius(float r) {
+    if (input_panel_) input_panel_->SetCornerRadius(r);
+}
+
 void SpeechBubble::DrawBubbleBody(float bubble_width, float bubble_body_h) {
-    media_engine::DrawPanel(0, 0, bubble_width, bubble_body_h,
-                             bubble_radius_, bg_color_, border_color_, 1.0f);
+    float wx, wy;
+    media_engine::ImGuiWindow::GetPos(&wx, &wy);
+    media_engine::DrawList::Panel(wx, wy, bubble_width, bubble_body_h,
+                                   bubble_radius_, bg_color_, border_color_, 1.0f);
 }
 
 // ── 三角尾巴 ──
 void SpeechBubble::DrawTail(float bubble_width, float bubble_body_h) {
-    float tail_left = bubble_width - 40.0f;
-    float tail_top = bubble_body_h - 8.0f;
-    media_engine::DrawFilledTriangle(
-        tail_left - 12, tail_top, tail_left + 12, tail_top, tail_left, tail_top + tail_height_,
-        bg_color_);
-    media_engine::DrawTriangleOutline(
-        tail_left - 12, tail_top, tail_left + 12, tail_top, tail_left, tail_top + tail_height_,
-        border_color_, 1.0f);
+    float wx, wy;
+    media_engine::ImGuiWindow::GetPos(&wx, &wy);
+    float tail_left = wx + bubble_width - 40.0f;
+    float tail_top = wy + bubble_body_h - 8.0f;
+    media_engine::DrawList::FilledTriangle(tail_left - 12, tail_top, tail_left + 12, tail_top,
+                      tail_left, tail_top + tail_height_, bg_color_);
+    media_engine::DrawList::TriangleOutline(tail_left - 12, tail_top, tail_left + 12, tail_top,
+                       tail_left, tail_top + tail_height_, border_color_, 1.0f);
 }
 
 // ── 标题栏：标题 + 最大化 + 关闭 ──
@@ -148,47 +185,20 @@ void SpeechBubble::DrawTitleBar(float bx, float by, float bubble_width) {
     constexpr float title_top_y = 0.0f;
 
     float maximize_btn_x = bubble_width - padding_ - btn_size_ * 2.0f - 6.0f;
-    if (media_engine::IconButtonRender("maximize", maximized_ ? "-" : "+",
+    if (media_engine::ImGuiWidget::IconButton("maximize", maximized_ ? "-" : "+",
                                         maximize_btn_x, title_top_y, btn_size_, button_color_, media_engine::Colors::WhiteTranslucent)) {
         if (maximized_) { custom_w_ = 0.0f; custom_h_ = 0.0f; }
         maximized_ = !maximized_;
         if (on_window_resize_) { on_window_resize_(maximized_); }
     }
     float close_btn_x = bubble_width - padding_ - btn_size_ - 2.0f;
-    if (media_engine::IconButtonRender("close", "x",
+    if (media_engine::ImGuiWidget::IconButton("close", "x",
                                         close_btn_x, title_top_y, btn_size_, button_color_, media_engine::Colors::WhiteTranslucent)) {
         visible_ = false;
     }
 
-    media_engine::ImGuiSetCursorScreenPos(bx + padding_, by + padding_ + 2);
-    media_engine::ImGuiTextColored(title_text_color_, "Prosophor");
-}
-
-// ── 缩放手柄 ──
-void SpeechBubble::DrawResizeHandle(float bubble_width, float bubble_body_h) {
-    float handle_size = 16.0f;
-    float handle_x = bubble_width - handle_size - 2.0f;
-    float handle_y = bubble_body_h - handle_size - 2.0f;
-    media_engine::ImGuiSetCursorPos(handle_x, handle_y);
-    media_engine::ImGuiInvisibleButton("##resize", handle_size, handle_size);
-
-    if (media_engine::IsItemHovered() || media_engine::IsItemActive()) {
-        media_engine::SetMouseCursor(media_engine::ImGuiMouseCursor_ResizeNWSE);
-    }
-
-    if (media_engine::IsItemActive()) {
-        auto delta = media_engine::GetMouseDragDelta(3.0f);
-        if (delta.x != 0.0f || delta.y != 0.0f) {
-            custom_w_ = std::max(min_width_ * 0.8f, bubble_width + delta.x);
-            custom_h_ = std::max(min_body_height_ * 0.8f, bubble_body_h + delta.y);
-            media_engine::ResetMouseDragDelta();
-            maximized_ = false;
-        }
-    }
-
-    media_engine::DrawResizeGrip(handle_x, handle_y, handle_size,
-                                  media_engine::Colors::Gray55a,
-                                  media_engine::Colors::Gray63a);
+    media_engine::Layout::SetCursorScreenPos(bx + padding_, by + padding_ + 2);
+    media_engine::Text::Colored(title_text_color_, title_text_.c_str());
 }
 
 } // namespace prosophor

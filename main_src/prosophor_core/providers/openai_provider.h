@@ -14,7 +14,7 @@ namespace prosophor {
 /// SSE: data: {choices[{delta:{reasoning_content, content}}]} | [DONE]
 class OpenAIProvider : public LLMProvider {
  public:
-    explicit OpenAIProvider(bool enable_thinking = false);
+    explicit OpenAIProvider();
 
     ChatResponse ChatStream(const ChatRequest& request,
         std::function<void(StreamEvent, std::string)> callback) override;
@@ -39,7 +39,6 @@ class OpenAIProvider : public LLMProvider {
     nlohmann::json SerializeMessageContent(const std::vector<ContentSchema>& content) const;
     nlohmann::json SerializeTools(const std::vector<ToolsSchema>& tools) const;
 
-    bool enable_thinking_;
     std::string display_name_ = "openai";
 };
 

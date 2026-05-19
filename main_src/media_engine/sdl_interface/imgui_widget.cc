@@ -48,9 +48,9 @@ Button::~Button() = default;
  */
 bool Button::Render() {
     int pushed = 0;
-    if (impl_->bg_color_.a > 0)       { PushStyleColor(ImGuiCol_Button, impl_->bg_color_); pushed++; }
-    if (impl_->hovered_color_.a > 0)  { PushStyleColor(ImGuiCol_ButtonHovered, impl_->hovered_color_); pushed++; }
-    if (impl_->active_color_.a > 0)   { PushStyleColor(ImGuiCol_ButtonActive, impl_->active_color_); pushed++; }
+    if (impl_->bg_color_.a > 0)       { Style::PushColor(ImGuiCol_Button, impl_->bg_color_); pushed++; }
+    if (impl_->hovered_color_.a > 0)  { Style::PushColor(ImGuiCol_ButtonHovered, impl_->hovered_color_); pushed++; }
+    if (impl_->active_color_.a > 0)   { Style::PushColor(ImGuiCol_ButtonActive, impl_->active_color_); pushed++; }
 
     bool clicked = false;
     if (ImGui::Button(impl_->label_.c_str())) {
@@ -60,7 +60,7 @@ bool Button::Render() {
         clicked = true;
     }
 
-    if (pushed > 0) PopStyleColor(pushed);
+    if (pushed > 0) Style::PopColor(pushed);
     return clicked;
 }
 
@@ -218,27 +218,6 @@ bool InputText::Render(float pos_x, float pos_y) {
 // Keep-alive functions used externally
 // ============================================================================
 
-bool IsItemHovered() {
-    return ImGui::IsItemHovered();
-}
-
-bool IsItemActive() {
-    return ImGui::IsItemActive();
-}
-
-ImVec2Wrapper GetMouseDragDelta(float threshold) {
-    ImVec2 delta = ImGui::GetMouseDragDelta(0, threshold);
-    return ImVec2Wrapper(delta.x, delta.y);
-}
-
-void ResetMouseDragDelta() {
-    ImGui::ResetMouseDragDelta(0);
-}
-
-void SetMouseCursor(int cursor_type) {
-    ImGui::SetMouseCursor(cursor_type);
-}
-
 // ============================================================================
 // ScrollWindow 实现 - 滚动窗口（通用滚动容器）
 // ============================================================================
@@ -269,11 +248,11 @@ bool ScrollWindow::Begin(const std::string& name, const Color* /*title_color*/) 
     // 使用 BeginChild 创建可滚动区域（而非 Begin），
     // 因为 ScrollWindow 总是嵌套在父窗口（ContentArea）内部。
     // BeginChild 是 ImGui 中创建可滚动子区域的正确方式。
-    ImGuiSetCursorScreenPos(x_, y_);
-    BeginChild(name.c_str(), width_, height_, ImGuiChildFlags_None,
-        ImGuiWindowFlags_AlwaysVerticalScrollbar);
+    Layout::SetCursorScreenPos(x_, y_);
+    Child::Begin(name.c_str(), width_, height_, ImGuiChildFlags_None,
+                 ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
-    ImGuiPushStyleVar_ItemSpacing(4, 4);  // 设置内容间距
+    Style::PushVar_ItemSpacing(4, 4);  // 设置内容间距
 
     return true;
 }
@@ -284,12 +263,12 @@ bool ScrollWindow::Begin(const std::string& name, const Color* /*title_color*/) 
 void ScrollWindow::End() {
     // 如果需要滚动到底部
     if (scroll_to_bottom_) {
-        ImGuiSetScrollHereY(1.0f);
+        Scroll::SetHereY(1.0f);
         scroll_to_bottom_ = false;
     }
 
-    ImGuiPopStyleVar();  // 恢复间距样式
-    EndChild();
+    Style::PopVar();  // 恢复间距样式
+    Child::End();
 }
 
 /**
@@ -324,173 +303,187 @@ void ScrollWindow::ScrollToBottom() {
  * @return true 表示已滚动到底部
  */
 bool ScrollWindow::IsScrolledToBottom() const {
-    return scroll_to_bottom_ || GetScrollY() >= GetScrollMaxY() - 1.0f;
+    return scroll_to_bottom_ || Scroll::GetY() >= Scroll::GetMaxY() - 1.0f;
 }
 
 // ============================================================================
-// ImGui 工具函数封装实现
+// Window 实现 — 窗口生命周期、位置尺寸、查询
 // ============================================================================
 
-/**
- * @brief 设置下一窗口位置
- * @param x X 坐标
- * @param y Y 坐标
- */
-void SetImGuiNextWindowPos(float x, float y) {
+void ImGuiWindow::SetNextPos(float x, float y) {
     ImGui::SetNextWindowPos(ImVec2(x, y));
 }
 
-/**
- * @brief 设置下一窗口尺寸
- * @param w 宽度
- * @param h 高度
- */
-void SetImGuiNextWindowSize(float w, float h) {
+void ImGuiWindow::SetNextSize(float w, float h) {
     ImGui::SetNextWindowSize(ImVec2(w, h));
 }
 
-/**
- * @brief 设置下一窗口背景透明度
- * @param alpha 透明度 (0.0-1.0)
- */
-void SetImGuiNextWindowBgAlpha(float alpha) {
+void ImGuiWindow::SetNextSize(float w, float h, int cond) {
+    ImGui::SetNextWindowSize(ImVec2(w, h), static_cast<ImGuiCond>(cond));
+}
+
+void ImGuiWindow::SetNextBgAlpha(float alpha) {
     ImGui::SetNextWindowBgAlpha(alpha);
 }
 
-/**
- * @brief 开始窗口
- * @param name 窗口名称
- * @param open 窗口打开状态指针（可选）
- * @param flags 窗口标志
- * @return true 表示窗口打开成功
- */
-bool ImGuiBegin(const char* name, bool* open, int flags) {
+bool ImGuiWindow::Begin(const char* name, bool* open, int flags) {
     return ImGui::Begin(name, open, flags);
 }
 
-/**
- * @brief 结束窗口
- */
-void ImGuiEnd() {
+void ImGuiWindow::End() {
     ImGui::End();
 }
 
-/**
- * @brief 推入项目宽度
- * @param width 宽度值
- */
-void ImGuiPushItemWidth(float width) {
-    ImGui::PushItemWidth(width);  // 设置下一项的宽度
+void ImGuiWindow::GetPos(float* x, float* y) {
+    ImVec2 pos = ImGui::GetWindowPos();
+    if (x) *x = pos.x;
+    if (y) *y = pos.y;
 }
 
-/**
- * @brief 弹出项目宽度
- */
-void ImGuiPopItemWidth() {
+void ImGuiWindow::GetDisplaySize(float* w, float* h) {
+    auto& io = ImGui::GetIO();
+    if (w) *w = io.DisplaySize.x;
+    if (h) *h = io.DisplaySize.y;
+}
+
+float ImGuiWindow::GetWidth() {
+    return ImGui::GetWindowWidth();
+}
+
+// ============================================================================
+// Style 实现 — 样式栈操作
+// ============================================================================
+
+void Style::PushItemWidth(float width) {
+    ImGui::PushItemWidth(width);
+}
+
+void Style::PopItemWidth() {
     ImGui::PopItemWidth();
 }
 
-/**
- * @brief 在同一行渲染下一项
- */
-void ImGuiSameLine() {
-    ImGui::SameLine();
-}
-
-/**
- * @brief 设置光标位置
- * @param x X 坐标
- * @param y Y 坐标
- */
-void ImGuiSetCursorPos(float x, float y) {
-    ImGui::SetCursorPos(ImVec2(x, y));
-}
-
-void ImGuiSetCursorScreenPos(float x, float y) {
-    ImGui::SetCursorScreenPos(ImVec2(x, y));
-}
-
-/**
- * @brief 推入文本换行位置
- * @param wrap_width 换行宽度
- */
-void ImGuiPushTextWrapPos(float wrap_width) {
-    ImGui::PushTextWrapPos(wrap_width);
-}
-
-/**
- * @brief 弹出文本换行位置
- */
-void ImGuiPopTextWrapPos() {
-    ImGui::PopTextWrapPos();
-}
-
-/**
- * @brief 推入项目间距样式
- * @param x 水平间距
- * @param y 垂直间距
- */
-void ImGuiPushStyleVar_ItemSpacing(float x, float y) {
+void Style::PushVar_ItemSpacing(float x, float y) {
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(x, y));
 }
 
-/**
- * @brief 弹出样式变量
- * @param count 弹出数量
- */
-void ImGuiPopStyleVar(int count) {
+void Style::PushVar_WindowBorderSize(float size) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, size);
+}
+
+void Style::PushVar_ScrollbarSize(float size) {
+    ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarSize, size);
+}
+
+void Style::PushVar_WindowPadding(float x, float y) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(x, y));
+}
+
+void Style::PopVar(int count) {
     ImGui::PopStyleVar(count);
 }
 
-bool ImGuiInvisibleButton(const char* id, float w, float h) {
+void Style::PushColor(int color_index, const Color& color) {
+    ImGui::PushStyleColor((::ImGuiCol)color_index, ImVec4(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f));
+}
+
+void Style::PopColor(int count) {
+    ImGui::PopStyleColor(count);
+}
+
+// ============================================================================
+// Layout 实现 — 布局控制
+// ============================================================================
+
+void Layout::SameLine() {
+    ImGui::SameLine();
+}
+
+void Layout::SetCursorPos(float x, float y) {
+    ImGui::SetCursorPos(ImVec2(x, y));
+}
+
+void Layout::SetCursorScreenPos(float x, float y) {
+    ImGui::SetCursorScreenPos(ImVec2(x, y));
+}
+
+void Layout::SetCursorPosX(float x) {
+    ImGui::SetCursorPosX(x);
+}
+
+void Layout::Dummy(float width, float height) {
+    ImGui::Dummy(ImVec2(width, height));
+}
+
+void Layout::GetCursorScreenPos(float* x, float* y) {
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    *x = p.x;
+    *y = p.y;
+}
+
+bool ImGuiWidget::InvisibleButton(const char* id, float w, float h) {
     return ImGui::InvisibleButton(id, ImVec2(w, h));
 }
 
-void DrawFilledRoundRect(float x, float y, float w, float h,
-                                        float radius, const Color& color) {
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    dl->AddRectFilled(ImVec2(x, y), ImVec2(x + w, y + h), ColorToRGBA(color), radius);
+// ============================================================================
+// DrawList 实现 — ImGui 2D 绘图原语
+// ============================================================================
+
+void DrawList::RoundRect(float x, float y, float w, float h,
+                         float radius, const Color& color) {
+    ImGui::GetWindowDrawList()->AddRectFilled(
+        ImVec2(x, y), ImVec2(x + w, y + h), ColorToRGBA(color), radius);
 }
 
-void DrawRoundRectOutline(float x, float y, float w, float h,
-                                         float radius, const Color& color,
-                                         float thickness) {
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    dl->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), ColorToRGBA(color), radius, 0, thickness);
+void DrawList::RoundRectOutline(float x, float y, float w, float h,
+                                float radius, const Color& color,
+                                float thickness) {
+    ImGui::GetWindowDrawList()->AddRect(
+        ImVec2(x, y), ImVec2(x + w, y + h), ColorToRGBA(color), radius, 0, thickness);
 }
 
-void DrawFilledTriangle(float x1, float y1, float x2, float y2,
-                                       float x3, float y3, const Color& color) {
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    dl->AddTriangleFilled(ImVec2(x1, y1), ImVec2(x2, y2), ImVec2(x3, y3), ColorToRGBA(color));
+void DrawList::OverlayRectOutline(float x, float y, float w, float h,
+                                  float radius, const Color& color,
+                                  float thickness) {
+    ImDrawList* fg = ImGui::GetForegroundDrawList();
+    fg->AddRect(ImVec2(x, y), ImVec2(x + w, y + h), ColorToRGBA(color), radius, 0, thickness);
 }
 
-void DrawTriangleOutline(float x1, float y1, float x2, float y2,
-                                        float x3, float y3, const Color& color,
-                                        float thickness) {
-    ImDrawList* dl = ImGui::GetWindowDrawList();
-    dl->AddTriangle(ImVec2(x1, y1), ImVec2(x2, y2), ImVec2(x3, y3), ColorToRGBA(color), thickness);
+void DrawList::FilledTriangle(float x1, float y1, float x2, float y2,
+                              float x3, float y3, const Color& color) {
+    ImGui::GetWindowDrawList()->AddTriangleFilled(
+        ImVec2(x1, y1), ImVec2(x2, y2), ImVec2(x3, y3), ColorToRGBA(color));
 }
 
-void DrawPanel(float x, float y, float w, float h, float radius,
-                              const Color& fill_color, const Color& border_color,
-                              float border_thickness) {
-    DrawFilledRoundRect(x, y, w, h, radius, fill_color);
-    DrawRoundRectOutline(x, y, w, h, radius, border_color, border_thickness);
+void DrawList::TriangleOutline(float x1, float y1, float x2, float y2,
+                               float x3, float y3, const Color& color,
+                               float thickness) {
+    ImGui::GetWindowDrawList()->AddTriangle(
+        ImVec2(x1, y1), ImVec2(x2, y2), ImVec2(x3, y3), ColorToRGBA(color), thickness);
 }
 
-void DrawResizeGrip(float x, float y, float size,
-                                   const Color& outer_color, const Color& inner_color) {
+void DrawList::Panel(float x, float y, float w, float h, float radius,
+                     const Color& fill_color, const Color& border_color,
+                     float border_thickness) {
+    RoundRect(x, y, w, h, radius, fill_color);
+    RoundRectOutline(x, y, w, h, radius, border_color, border_thickness);
+}
+
+void DrawList::ResizeGrip(float x, float y, float size,
+                          const Color& outer_color, const Color& inner_color) {
     float gx = x + size;
     float gy = y + size;
-    DrawFilledTriangle(gx - 8, gy, gx, gy, gx, gy - 8, outer_color);
-    DrawFilledTriangle(gx - 4, gy, gx, gy, gx, gy - 4, inner_color);
+    FilledTriangle(gx - 8, gy, gx, gy, gx, gy - 8, outer_color);
+    FilledTriangle(gx - 4, gy, gx, gy, gx, gy - 4, inner_color);
 }
 
-bool IconButtonRender(const char* id, const char* icon,
-                                     float x, float y, float size,
-                                     const Color& bg_color, const Color& text_color,
-                                     float radius) {
+void DrawList::Text(float x, float y, const Color& color, const char* text) {
+    ImGui::GetWindowDrawList()->AddText(ImVec2(x, y), ColorToRGBA(color), text);
+}
+
+bool ImGuiWidget::IconButton(const char* id, const char* icon,
+                         float x, float y, float size,
+                         const Color& bg_color, const Color& text_color,
+                         float radius) {
     ImVec2 win_pos = ImGui::GetWindowPos();
     ImDrawList* dl = ImGui::GetWindowDrawList();
     ImGuiIO& io = ImGui::GetIO();
@@ -533,243 +526,206 @@ bool IconButtonRender(const char* id, const char* icon,
     return clicked;
 }
 
-/**
- * @brief 渲染格式化文本
- * @param fmt 格式字符串
- */
-void ImGuiText(const char* fmt, ...) {
+// ============================================================================
+// Text 实现 — 文本渲染
+// ============================================================================
+
+void Text::Fmt(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     ImGui::TextV(fmt, args);
     va_end(args);
 }
 
-/**
- * @brief 渲染未格式化文本（直接输出）
- * @param text 文本内容
- */
-void ImGuiTextUnformatted(const char* text) {
+void Text::Raw(const char* text) {
     ImGui::TextUnformatted(text);
 }
 
-/**
- * @brief 渲染带自动换行的文本
- * @param text 文本内容
- * @param wrap_width 换行宽度（0 表示窗口右边界）
- * @param color 文本颜色（默认白色）
- */
-void ImGuiTextWrapped(const char* text, float wrap_width, const Color& color) {
-    ImGuiText(text, color, wrap_width);
+void Text::Colored(const Color& color, const char* text) {
+    Style::PushColor(ImGuiCol_Text, color);
+    ImGui::TextUnformatted(text);
+    Style::PopColor();
 }
 
-/**
- * @brief 渲染带颜色的文本（统一接口）
- * @param text 文本内容
- * @param color 文本颜色（默认白色）
- * @param wrap_width 换行宽度（0 表示无换行）
- */
-void ImGuiText(const char* text, const Color& color, float wrap_width) {
+void Text::Wrapped(const char* text, float wrap_width, const Color& color) {
     if (wrap_width > 0.0f) {
-        ImGuiPushTextWrapPos(wrap_width);
+        ImGui::PushTextWrapPos(wrap_width);
     }
-    PushStyleColor(ImGuiCol_Text, color);
+    Style::PushColor(ImGuiCol_Text, color);
+    ImGui::TextWrapped("%s", text);
+    Style::PopColor();
     if (wrap_width > 0.0f) {
-        ImGui::TextWrapped("%s", text);
-    } else {
-        ImGui::TextUnformatted(text);
-    }
-    PopStyleColor();
-    if (wrap_width > 0.0f) {
-        ImGuiPopTextWrapPos();
+        ImGui::PopTextWrapPos();
     }
 }
 
-/**
- * @brief 渲染带颜色的文本（自动恢复样式）
- * @param color 文本颜色
- * @param text 文本内容
- */
-void ImGuiTextColored(const Color& color, const char* text) {
-    ImGuiText(text, color, 0.0f);  // 委托给统一接口
+float Text::CalcWrappedHeight(const char* text, float wrap_width) {
+    ImGui::PushTextWrapPos(wrap_width);
+    ImVec2 size = ImGui::CalcTextSize(text, nullptr, false, wrap_width);
+    ImGui::PopTextWrapPos();
+    return size.y;
 }
 
-/**
- * @brief 设置滚动位置到当前可见区域
- * @param center_y_ratio 垂直位置比例 (0=顶部，1=底部，0.5=居中)
- */
-void ImGuiSetScrollHereY(float center_y_ratio) {
-    ImGui::SetScrollHereY(center_y_ratio);
-}
+// ============================================================================
+// Child 实现 — Child 窗口
+// ============================================================================
 
-/**
- * @brief 开始子窗口（Child）
- * @param name 子窗口名称
- * @param width 宽度
- * @param height 高度
- * @param child_flags 子窗口标志
- * @return true 表示子窗口打开成功
- */
-bool BeginChild(const char* name, float width, float height, int child_flags) {
+bool Child::Begin(const char* name, float width, float height, int child_flags) {
     ImVec2 size(width, height);
     return ImGui::BeginChild(name, size, child_flags);
 }
 
-/**
- * @brief 开始子窗口（Child）带窗口标志
- * @param name 子窗口名称
- * @param width 宽度
- * @param height 高度
- * @param child_flags 子窗口标志
- * @param window_flags 窗口标志
- * @return true 表示子窗口打开成功
- */
-bool BeginChild(const char* name, float width, float height, int child_flags, int window_flags) {
+bool Child::Begin(const char* name, float width, float height, int child_flags, int window_flags) {
     ImVec2 size(width, height);
     return ImGui::BeginChild(name, size, child_flags, window_flags);
 }
 
-/**
- * @brief 结束子窗口
- */
-void EndChild() {
+void Child::End() {
     ImGui::EndChild();
 }
 
-/**
- * @brief 获取当前滚动位置
- * @return 滚动 Y 坐标
- */
-float GetScrollY() {
+// ============================================================================
+// Scroll 实现 — 滚动控制
+// ============================================================================
+
+void Scroll::SetHereY(float center_y_ratio) {
+    ImGui::SetScrollHereY(center_y_ratio);
+}
+
+float Scroll::GetY() {
     return ImGui::GetScrollY();
 }
 
-/**
- * @brief 获取最大滚动位置
- * @return 最大滚动 Y 坐标
- */
-float GetScrollMaxY() {
+float Scroll::GetMaxY() {
     return ImGui::GetScrollMaxY();
 }
 
-/**
- * @brief 设置滚动位置
- * @param scroll_y 滚动 Y 坐标
- */
-void SetScrollY(float scroll_y) {
+void Scroll::SetY(float scroll_y) {
     ImGui::SetScrollY(scroll_y);
 }
 
-/**
- * @brief 绘制占位符（用于添加间距）
- * @param width 宽度
- * @param height 高度
- */
-void Dummy(float width, float height) {
-    ImGui::Dummy(ImVec2(width, height));
+// ============================================================================
+// Mouse 实现 — 鼠标/交互状态查询
+// ============================================================================
+
+bool Mouse::IsItemHovered() {
+    return ImGui::IsItemHovered();
 }
 
-/**
- * @brief 推送样式颜色
- * @param color_index ImGuiCol 枚举值（如 0=ImGuiCol_Text）
- * @param color 颜色值
- */
-void PushStyleColor(int color_index, const Color& color) {
-    ImGui::PushStyleColor((::ImGuiCol)color_index, ImVec4(color.r / 255.0f, color.g / 255.0f, color.b / 255.0f, color.a / 255.0f));
+bool Mouse::IsItemActive() {
+    return ImGui::IsItemActive();
 }
 
-/**
- * @brief 弹出样式颜色
- * @param count 弹出数量
- */
-void PopStyleColor(int count) {
-    ImGui::PopStyleColor(count);
+ImVec2Wrapper Mouse::GetDragDelta(float threshold) {
+    ImVec2 delta = ImGui::GetMouseDragDelta(0, threshold);
+    return ImVec2Wrapper(delta.x, delta.y);
 }
 
-void ImGuiGetDisplaySize(float* w, float* h) {
-    auto& io = ImGui::GetIO();
-    if (w) *w = io.DisplaySize.x;
-    if (h) *h = io.DisplaySize.y;
+void Mouse::ResetDragDelta() {
+    ImGui::ResetMouseDragDelta(0);
 }
 
-void ImGuiGetWindowPos(float* x, float* y) {
-    ImVec2 pos = ImGui::GetWindowPos();
-    if (x) *x = pos.x;
-    if (y) *y = pos.y;
+void Mouse::SetCursor(int cursor_type) {
+    ImGui::SetMouseCursor(cursor_type);
 }
 
-void SetImGuiNextWindowSize(float w, float h, int cond) {
-    ImGui::SetNextWindowSize(ImVec2(w, h), static_cast<ImGuiCond>(cond));
-}
-
-void ImGuiOpenPopup(const char* name) {
+void Popup::Open(const char* name) {
     ImGui::OpenPopup(name);
 }
 
-bool ImGuiBeginPopupModal(const char* name, bool* open, int flags) {
+bool Popup::Begin(const char* name) {
+    return ImGui::BeginPopup(name);
+}
+
+bool Popup::BeginContextVoid(const char* str_id) {
+    return ImGui::BeginPopupContextVoid(str_id);
+}
+
+bool Popup::BeginModal(const char* name, bool* open, int flags) {
     return ImGui::BeginPopupModal(name, open, flags);
 }
 
-void ImGuiEndPopup() {
+bool Popup::MenuItem(const char* label, bool selected, bool enabled) {
+    return ImGui::MenuItem(label, nullptr, selected, enabled);
+}
+
+void Popup::End() {
     ImGui::EndPopup();
 }
 
-bool ImGuiBeginTabBar(const char* name) {
+bool TabBar::BeginBar(const char* name) {
     return ImGui::BeginTabBar(name);
 }
 
-void ImGuiEndTabBar() {
+void TabBar::EndBar() {
     ImGui::EndTabBar();
 }
 
-bool ImGuiBeginTabItem(const char* name) {
+bool TabBar::BeginItem(const char* name) {
     return ImGui::BeginTabItem(name);
 }
 
-void ImGuiEndTabItem() {
+void TabBar::EndItem() {
     ImGui::EndTabItem();
 }
 
-bool ImGuiCheckbox(const char* label, bool* value) {
+bool ImGuiWidget::Checkbox(const char* label, bool* value) {
     return ImGui::Checkbox(label, value);
 }
 
-bool ImGuiCombo(const char* label, int* current_item, const char* const items[], int items_count) {
+bool ImGuiWidget::Combo(const char* label, int* current_item, const char* const items[], int items_count) {
     return ImGui::Combo(label, current_item, items, items_count);
 }
 
-bool ImGuiInputText(const char* label, char* buf, size_t buf_size) {
+bool ImGuiWidget::InputText(const char* label, char* buf, size_t buf_size) {
     return ImGui::InputText(label, buf, buf_size);
 }
 
-bool ImGuiButton(const char* label, float width, float height) {
+bool ImGuiWidget::Button(const char* label, float width, float height) {
     return ImGui::Button(label, ImVec2(width, height));
 }
 
-void ImGuiSeparator() {
+void ImGuiWidget::Separator() {
     ImGui::Separator();
 }
 
-bool ImGuiTreeNode(const char* label) {
+bool ImGuiWidget::TreeNode(const char* label) {
     return ImGui::TreeNode(label);
 }
 
-void ImGuiTreePop() {
+void ImGuiWidget::TreePop() {
     ImGui::TreePop();
 }
 
-void ImGuiBulletText(const char* fmt, ...) {
+void ImGuiWidget::BulletText(const char* fmt, ...) {
     va_list args;
     va_start(args, fmt);
     ImGui::BulletTextV(fmt, args);
     va_end(args);
 }
 
-float ImGuiGetWindowWidth() {
-    return ImGui::GetWindowWidth();
+// ============================================================================
+// MenuBar 实现 — 传统菜单栏
+// ============================================================================
+
+bool MenuBar::Begin() {
+    return ImGui::BeginMenuBar();
 }
 
-void ImGuiSetCursorPosX(float x) {
-    ImGui::SetCursorPosX(x);
+void MenuBar::End() {
+    ImGui::EndMenuBar();
+}
+
+// ============================================================================
+// Menu 实现 — 菜单
+// ============================================================================
+
+bool Menu::Begin(const char* label, bool enabled) {
+    return ImGui::BeginMenu(label, enabled);
+}
+
+void Menu::End() {
+    ImGui::EndMenu();
 }
 
 } // namespace media_engine

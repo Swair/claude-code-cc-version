@@ -1,0 +1,62 @@
+// Copyright 2026 Prosophor Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+#include "virtual_sprite/ui_renderer.h"
+#include "common/i18n.h"
+#include "media_engine/media_engine.h"
+
+namespace prosophor {
+
+UIRenderer& UIRenderer::Instance() {
+    static UIRenderer instance;
+    return instance;
+}
+
+UIRenderer::UIRenderer() = default;
+UIRenderer::~UIRenderer() = default;
+
+void UIRenderer::RequestContextMenu(media_engine::Window* win) {
+    if (win) {
+        context_menu_requests_.push_back(win);
+    }
+}
+
+void UIRenderer::RenderContextMenu(media_engine::Window* current_win) {
+    if (!visible_ || !current_win) return;
+
+    // Only open popup if this window requested it
+    auto it = std::find(context_menu_requests_.begin(), context_menu_requests_.end(), current_win);
+    if (it != context_menu_requests_.end()) {
+        media_engine::Popup::Open("sprite_context_menu");
+        context_menu_requests_.erase(it);
+    }
+
+    media_engine::Style::PushColor(media_engine::Color::Slot::PopupBg,
+                                 media_engine::Colors::CreamOpaque90);
+    media_engine::Style::PushColor(media_engine::Color::Slot::Text,
+                                 media_engine::Colors::Black);
+    if (!media_engine::Popup::Begin("sprite_context_menu")) {
+        media_engine::Style::PopColor(2);
+        return;
+    }
+
+    auto& L = I18n::Instance();
+    if (media_engine::Popup::MenuItem(L.Get("ctx_chat").c_str())) {
+        if (on_toggle_chat_) on_toggle_chat_(current_win);
+    }
+    if (media_engine::Popup::MenuItem(L.Get("ctx_show_main").c_str())) {
+        if (on_show_main_window_) on_show_main_window_();
+    }
+    if (media_engine::Popup::MenuItem(L.Get("ctx_settings").c_str())) {
+        if (on_open_settings_) on_open_settings_();
+    }
+    media_engine::ImGuiWidget::Separator();
+    if (media_engine::Popup::MenuItem(L.Get("ctx_quit").c_str())) {
+        media_engine::MediaCore::Instance().Quit();
+    }
+
+    media_engine::Popup::End();
+    media_engine::Style::PopColor(2);  // PopupBg + Text
+}
+
+}  // namespace prosophor

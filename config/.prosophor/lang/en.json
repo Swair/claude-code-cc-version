@@ -1,0 +1,39 @@
+{
+  "window_title": "Prosophor ",
+
+  "menu_file": "File",
+  "menu_help": "Help",
+
+  "settings": "Settings",
+  "close": "Close",
+
+  "role_panel_header": "Characters",
+
+  "settings_title": "Settings",
+  "tab_general": "General",
+  "tab_roles": "Roles",
+  "tab_providers": "Providers",
+  "general_log_level": "Log Level",
+  "general_enable_summary": "Enable Summary",
+  "general_sprite_assets_dir": "Sprite Assets Dir",
+  "roles_select_hint": "Select default roles (one sprite per role):",
+  "providers_readonly": "Configured providers (read-only):",
+  "btn_save": "Save",
+  "btn_cancel": "Cancel",
+
+  "menu_about": "About",
+  "about_title": "About Prosophor",
+  "about_contact": "Contact:",
+  "btn_close": "Close",
+
+  "ctx_chat": "Chat",
+  "ctx_show_main": "Show Main Window",
+  "ctx_settings": "Settings",
+  "ctx_quit": "Quit",
+
+  "nav_prev": "Prev",
+  "nav_next": "Next",
+
+  "btn_lang_zh": "中",
+  "btn_lang_en": "EN"
+}

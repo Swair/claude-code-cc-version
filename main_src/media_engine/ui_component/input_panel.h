@@ -43,6 +43,7 @@ public:
     void SetBackgroundColor(const Color& color) { Widget::SetBackgroundColor(color); }
     void SetBorderColor(const Color& color)     { border_color_ = color; }
     void SetBorderWidth(float w)                { border_width_ = w; }
+    void SetCornerRadius(float r)               { corner_radius_ = r; }
 
 private:
     std::unique_ptr<InputText> input_text_;
@@ -52,7 +53,7 @@ private:
     float border_width_ = 1.0f;
     float padding_ = 8.0f;
     float corner_radius_ = 0.0f;
-    float input_ratio_ = 0.75f;  // 输入框占内容区比例
+    float input_ratio_ = 0.82f;  // 输入框占内容区比例
 };
 
 }  // namespace media_engine

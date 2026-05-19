@@ -19,12 +19,8 @@ struct OpenAIStreamHandler : public SseStreamHandler {
     std::function<void(StreamEvent, std::string)> stream_callback;
     ChatResponse accumulated_response;
 
-    bool enable_thinking_ = true;
-
-    explicit OpenAIStreamHandler(std::function<void(StreamEvent, std::string)> cb,
-                                  bool enable_thinking = true)
-        : stream_callback(std::move(cb))
-        , enable_thinking_(enable_thinking) {}
+    explicit OpenAIStreamHandler(std::function<void(StreamEvent, std::string)> cb)
+        : stream_callback(std::move(cb)) {}
 
     void EndCurrentPhase() {
         if (phase == StreamPhase::kThinking) {
@@ -95,8 +91,6 @@ struct OpenAIStreamHandler : public SseStreamHandler {
             return;
         }
 
-    // Parse reasoning_content (DeepSeek/Qwen style) — only when thinking is enabled
-    if (enable_thinking_) {
         auto rc_it = delta.find("reasoning_content");
         if (rc_it != delta.end() && rc_it->is_string()) {
             std::string rc = rc_it->get<std::string>();
@@ -107,8 +101,6 @@ struct OpenAIStreamHandler : public SseStreamHandler {
                 stream_callback(StreamEvent::kThinkingDelta, std::move(rc));
             }
         }
-    }
-
         // Parse regular content
         auto cc_it = delta.find("content");
         if (cc_it != delta.end() && cc_it->is_string()) {

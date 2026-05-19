@@ -9,6 +9,8 @@
 #include <memory>
 #include <vector>
 
+namespace media_engine { class Window; }
+
 namespace prosophor {
 
 class Sprite;
@@ -31,6 +33,9 @@ public:
     /// Find sprite by session ID (for routing agent state updates).
     Sprite* FindBySessionId(const std::string& session_id);
 
+    /// Find sprite by window pointer (for context menu routing).
+    Sprite* FindByWindow(media_engine::Window* win);
+
     /// Remove all sprites.
     void Clear();
 
@@ -43,6 +48,9 @@ public:
     /// Focused session tracking (for MainWindow cross-sprite chat display).
     void SetFocusedSession(const std::string& sid) { focused_session_ = sid; }
     std::string GetFocusedSession() const { return focused_session_; }
+
+    /// Get the display name of the currently focused sprite.
+    std::string GetFocusedSpriteName() const;
 
     /// Direct access to all sprites (for iteration in callbacks).
     std::vector<std::unique_ptr<Sprite>>& GetAll() { return sprites_; }
