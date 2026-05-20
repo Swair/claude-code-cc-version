@@ -45,7 +45,7 @@ void InputPanel::RenderContent() {
     constexpr float kBtnSpacing = 4.0f;
     float input_w = width_ - padding_ * 2.0f - kBtnW - kBtnSpacing;
 
-    Style::PushItemWidth(input_w);
+    ScopedItemWidth _(input_w);
     input_text_->Render(cx, cy);
 
     if (input_text_->IsEnterPressed()) {
@@ -55,7 +55,6 @@ void InputPanel::RenderContent() {
             if (on_submit_) { on_submit_(msg); }
         }
     }
-    Style::PopItemWidth();
 
     Layout::SameLine();
     send_button_->Render();

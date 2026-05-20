@@ -1,5 +1,95 @@
 # Changelog
 
+## [Unreleased] — 2026-05-20 托盘窗口独立字体 + 精灵背景纹理清理
+
+本期重点：Tray 窗口独立字体配置（`use_shared_font=false`），避免共享 CJK 字体上下文冲突；移除 Sprite 中废弃的 `LoadBackground()` 方法和 `bg_texture_` 成员（精灵窗口不再使用静态背景纹理）。
+
+### Tray 窗口
+- `ChatWindow::CreateTrayWindow()` 设置 `cfg.use_shared_font = false`，托盘窗口不再共享 MediaCore 的 CJK 字体集
+
+### 精灵系统清理
+- 移除 `Sprite::LoadBackground()` 方法及 `bg_texture_` 成员
+- 精灵窗口创建时不再加载 `solitude.jpg` 背景纹理（纹理层已由 pet spritesheet + Widget UI 替代）
+
+### 文件统计
+- 变更文件：3 个
+- 新增：+1 行
+- 删除：-13 行
+- 净变化：-12 行
+
+---
+
+## [Unreleased] — 2026-05-19 ImGui API 命名空间重构 + i18n 国际化 + 精灵系统增强
+
+本期重点：ImGui 工具函数全面命名空间化（`ImGuiFoo` → `ImGuiWindow::`/`Style::`/`Layout::`/`DrawList::`）；新增 i18n 国际化系统（JSON 翻译 + 运行时切换）；精灵系统增强（名字标签、显示名绑定、调试边框、悬浮感知）；ChatPanel 智能自动滚动；OpenAI thinking 格式更新；场景残余清理。净变化 +2,607 行。
+
+### ImGui Widget 命名空间重构
+- 所有扁平工具函数（`SetImGuiNextWindowPos`、`ImGuiBegin`、`PushStyleColor` 等）归入命名空间类：`ImGuiWindow::`、`Style::`、`Layout::`、`Scroll::`、`Child::`、`DrawList::`
+- 新增 `DrawList` 类：`RoundRect`、`OverlayRectOutline`、`Text`、`Panel`、`ResizeGrip` 等静态绘图方法
+- `ImGuiCond_*` 常量从 0..3 改为 power-of-two 位掩码（匹配 ImGui 原生枚举）
+- 新增 `ImGuiWindowFlags_MenuBar` 标志常量
+- 移除冗余自由函数：`IsItemHovered`、`IsItemActive`、`GetMouseDragDelta`、`ResetMouseDragDelta`、`SetMouseCursor`
+
+### 国际化 (i18n) 系统
+- 新增 `common/i18n.{h,cc}` — I18n 单例，JSON 翻译文件懒加载 + LRU 缓存
+- 新增 `config/.prosophor/lang/en.json`、`zh-CN.json` 双语言翻译文件
+- `VirtualSprite::GlobalInit()` 自动初始化 `zh-CN` 翻译
+- `I18n::SetLanguage(lang)` 运行时切换语言，缓存已加载的翻译表
+
+### 精灵系统增强
+- **名字标签 Widget**: `Sprite` 从 `DrawTextRect` 裸绘改为 `Label` widget（`name_label_`），奶油底色 + 橙色文字
+- **DisplayName 绑定**: `LoadSpriteBindingFromRole()` 返回 `display_name` 字段，role JSON 可配置精灵显示名
+- **轮廓调试**: 非 Debug 构建下窗口轮廓 + 精灵 hitbox 叠加半透明边框（`#ifndef NDEBUG`）
+- **悬浮感知**: 新增 `SetHovering()` 和 `LEAVE` 鼠标事件处理
+- **气泡切换**: 新增 `ToggleSpeechBubble()` 公开方法，右键菜单切换到按精灵逐个体控制气泡
+- **气泡设置**: `SpeechBubble` 标题栏和 assistant 显示名使用精灵名称；输入框圆角可配置（`bubble_radius`）
+- **访问器增强**: 新增 `GetName()`、`GetCurrentPetSlug()`、`GetCurrentPetName()`、`GetSpritesheetPath()`
+- **Spritesheet 增强**: 新增 `GetActionFps()` 逐动作帧率；`SpritesheetAction::COUNT` 枚举总行数；`file_path_` 纹理路径追踪
+
+### 聊天面板智能滚动
+- ChatPanel 自动滚动改为基于消息计数变化触发（`last_msg_count_`），流式过程中用户可自由拖拽滚动条
+- ChatPanel 滚动条宽度收窄至 3.0f
+- 新增 `SetSnapshot()` 方法，session 切换时自动清理暂存消息
+- SpeechBubble 内 ChatPanel 用户/助理消息背景设为透明
+
+### OpenAI Provider 更新
+- `enable_thinking` 字段替换为 `thinking.type`（`"enabled"`/`"disabled"`），对齐最新 OpenAI API
+- `OpenAIProvider` 构造函数移除 `enable_thinking_` 参数，handler 级别不再控制 thinking
+- `OpenAIStreamHandler` 不再需要 `enable_thinking_` 标志
+- `reasoning_content` 解析不再受 `enable_thinking_` 门控
+- 默认 `thinking: false`
+
+### 场景残余清理
+- 移除 `scene/ui_renderer.cc/h`（功能迁至 `virtual_sprite/ui_renderer`）
+- `asset_define.h`、`layout_config.h` 从 `scene/` 移至 `virtual_sprite/`
+- CMake 构建移除 `scene/` 目录扫描和 include 路径
+- `UIRenderer` 重构：新增 `SetOnToggleChat(WindowCallback)`（按窗口切换气泡）、`SetOnShowMainWindow`、`SetOnOpenSettings`、`SetOnNewSprite` 回调；`SetOnToggleChat` 签名从无参改为 `Window*` 参数
+- ESC 键仅隐藏中央窗口（不再切换上下文菜单）
+
+### 颜色扩展
+- 奶油色系: `Cream70`、`CreamTranslucent`、`CreamOpaque90`
+- 橙色系: `OrangeLightest`、`OrangeWarm`、`OrangeDeep`
+- 聊天气泡色: `BluePale`、`GreenPale`、`Gray20a`
+- 白色系: `White80`
+
+### 工具函数新增
+- `time_wrapper.h`: `FormatCurrentTime(format)` 自定义格式时间戳；`GetCurrentEpochSeconds()` 秒级时间戳
+- `sprite_manager`: `FindByWindow()` 窗口指针查找精灵；`GetFocusedSpriteName()` 焦点精灵显示名
+- `agent_role_loader`: role JSON 解析新增 `display_name` 字段
+
+### 构建 & 配置
+- CMake: MinGW 安装器包含 SSL ca-bundle.crt 证书包
+- Makefile: 包名正式改为 `Prosophor`，版本 `0.6.0`；移除 `release` 目标；`deploy` 简化从 install/bin 直接打包；`run_win` 自动传递 `SSL_CERT_FILE=ca-bundle.crt`
+- settings.json: 默认 `thinking` 改为 `false`
+
+### 文件统计
+- 变更文件：54 个
+- 新增：+3,486 行
+- 删除：-879 行
+- 净变化：+2,607 行
+
+---
+
 ## [Unreleased] — 2026-05-17 角色配置全面 JSON 化 + 新增 6 个角色精灵
 
 本期重点：角色配置全面 JSON 化 + 新增 6 个角色精灵；对话摘要策略重构（贝尔曼衰减）；SpeechBubble/ChatPanel 接入 Widget 渲染树；多精灵管理器动态注册；ImGui 抽象层扩展；Provider 流处理优化；CPack 打包与一键部署。净变化 +328 行。

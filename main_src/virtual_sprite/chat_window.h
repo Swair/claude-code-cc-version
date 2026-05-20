@@ -40,6 +40,10 @@ public:
 
 private:
     void RenderChatUI();
+    void RenderMenuBar(float win_w_f);
+    void UpdateLayout(int win_w, int win_h);
+    void RenderChatContent();
+    void RenderRightPanel(int win_w, int win_h);
     void RenderSettingsWindow();
     void RenderAboutWindow();
     void CreateTrayWindow();

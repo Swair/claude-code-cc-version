@@ -116,6 +116,7 @@ namespace Colors {
     constexpr Color BlueRoyal{65, 105, 225, 255};
     constexpr Color BlueSlate{50, 80, 150, 180};
     constexpr Color BlueLight{180, 220, 255, 255};
+    constexpr Color BlueLightSoft{210, 240, 255, 210};
     constexpr Color BlueMedium{60, 100, 180, 255};
     constexpr Color BlueGray{70, 90, 120, 255};
     constexpr Color BlueGrayDark{50, 70, 90, 255};
@@ -128,6 +129,7 @@ namespace Colors {
     constexpr Color OrangeDeep{180, 100, 40, 255};
     constexpr Color Gold{255, 215, 0, 255};
     constexpr Color GoldDark{200, 180, 100, 255};
+    constexpr Color GoldLight{255, 235, 185, 200};
     constexpr Color BeigeWarm{245, 245, 220, 255};
 
     // ── 紫色系 ──
@@ -149,6 +151,7 @@ namespace Colors {
     constexpr Color WhiteTranslucent{255, 255, 255, 220};
     constexpr Color White70{255, 255, 255, 178};
     constexpr Color White80{255, 255, 255, 204};
+    constexpr Color MilkyWhite{253, 251, 245, 255};       // 乳白色
 
     // ── 聊天消息背景色 ──
     constexpr Color BluePale{235, 245, 255, 200};

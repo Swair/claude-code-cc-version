@@ -93,8 +93,6 @@ Window::Window(const char* title, int width, int height,
         LOG_ERROR("[Window] Failed to create window '{}': {}", title, SDL_GetError());
         return;
     }
-    SDL_SetRenderLogicalPresentation(impl_->renderer, width, height,
-        SDL_LOGICAL_PRESENTATION_LETTERBOX);
 
     impl_->imgui_ctx = ImGui::CreateContext();
     SetupImGui(impl_->imgui_ctx, impl_->window, impl_->renderer, cfg, width, height);
@@ -122,9 +120,6 @@ void Window::SetWindowSize(int w, int h) {
     impl_->width = w;
     impl_->height = h;
     if (impl_->window) SDL_SetWindowSize(impl_->window, w, h);
-    if (impl_->renderer)
-        SDL_SetRenderLogicalPresentation(impl_->renderer, w, h,
-            SDL_LOGICAL_PRESENTATION_LETTERBOX);
 }
 
 void Window::BeginFrame(uint8_t clear_r, uint8_t clear_g,
@@ -174,6 +169,18 @@ void Window::RenderFrame(const std::function<void()>& ui_fn,
 void Window::NotifyResized(int w, int h) {
     impl_->width = w;
     impl_->height = h;
+}
+
+void Window::SetAspectRatio(float ratio) {
+    if (impl_->window) {
+        SDL_SetWindowAspectRatio(impl_->window, ratio, ratio);
+    }
+}
+
+void Window::SetMinSize(int min_w, int min_h) {
+    if (impl_->window) {
+        SDL_SetWindowMinimumSize(impl_->window, min_w, min_h);
+    }
 }
 
 void Window::Show() {

@@ -107,13 +107,15 @@ void SpeechBubble::Render(const media_engine::RenderContext& ctx) {
     media_engine::ImGuiWindow::SetNextSize(bubble_width, bubble_total_h);
     media_engine::ImGuiWindow::SetNextBgAlpha(0.0f);
 
-    media_engine::Style::PushVar_WindowBorderSize(0.0f);
+    auto _border = media_engine::ScopedStyleVar::WindowBorderSize(0.0f);
 
     bool bubble_open = true;
-    media_engine::ImGuiWindow::Begin("speech_bubble", &bubble_open,
-        media_engine::ImGuiWindowFlags_NoDecoration |
-        media_engine::ImGuiWindowFlags_NoMove |
-        media_engine::ImGuiWindowFlags_NoSavedSettings);
+    auto _bubble = media_engine::ScopedGuard(
+        media_engine::ImGuiWindow::Begin("speech_bubble", &bubble_open,
+            media_engine::ImGuiWindowFlags_NoDecoration |
+            media_engine::ImGuiWindowFlags_NoMove |
+            media_engine::ImGuiWindowFlags_NoSavedSettings),
+        []{ media_engine::ImGuiWindow::End(); });
 
     DrawBubbleBody(bubble_width, bubble_body_h);
     if (!maximized) { DrawTail(bubble_width, bubble_body_h); }
@@ -152,8 +154,6 @@ void SpeechBubble::Render(const media_engine::RenderContext& ctx) {
         bubble_snapshot);
 
     if (!bubble_open) { visible_ = false; }
-    media_engine::ImGuiWindow::End();
-    media_engine::Style::PopVar();  // WindowBorderSize
 }
 
 // ── 气泡主体 ──

@@ -38,8 +38,10 @@ void ChatPanel::Render(const media_engine::RenderContext& ctx) {
     scroll_window_->SetPosition(win_x + panel_->GetContentX(), win_y + panel_->GetContentY());
     scroll_window_->SetSize(panel_->GetContentWidth(), panel_->GetContentHeight());
 
-    media_engine::Style::PushVar_ScrollbarSize(3.0f);
-    scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight);
+    auto _scroll = media_engine::ScopedStyleVar::ScrollbarSize(3.0f);
+    auto _msgs = media_engine::ScopedGuard(
+        scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight),
+        [this]{ scroll_window_->End(); });
     RenderMessages(snapshot_);
 
     // Auto-scroll to bottom when new content arrives.
@@ -53,9 +55,6 @@ void ChatPanel::Render(const media_engine::RenderContext& ctx) {
         media_engine::Scroll::SetY(media_engine::Scroll::GetMaxY());
     }
     last_msg_count_ = msg_count;
-
-    scroll_window_->End();
-    media_engine::Style::PopVar();
 }
 
 void ChatPanel::SetSnapshot(const RenderSnapshot& snap) {
@@ -80,8 +79,10 @@ void ChatPanel::RenderContentInRect(float x, float y, float w, float h,
     if (!visible_) return;
     scroll_window_->SetPosition(x, y);
     scroll_window_->SetSize(w, h);
-    media_engine::Style::PushVar_ScrollbarSize(3.0f);
-    scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight);
+    auto _scroll = media_engine::ScopedStyleVar::ScrollbarSize(3.0f);
+    auto _msgs = media_engine::ScopedGuard(
+        scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight),
+        [this]{ scroll_window_->End(); });
     RenderMessages(snapshot);
     // Auto-scroll to bottom when new content arrives.
     // Between content updates, user can freely drag the scrollbar.
@@ -94,9 +95,6 @@ void ChatPanel::RenderContentInRect(float x, float y, float w, float h,
         media_engine::Scroll::SetY(media_engine::Scroll::GetMaxY());
     }
     last_msg_count_ = msg_count;
-
-    scroll_window_->End();
-    media_engine::Style::PopVar();
 }
 
 void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {

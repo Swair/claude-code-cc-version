@@ -68,6 +68,10 @@ public:
     // Window title
     void SetTitle(const char* title);
 
+    // Aspect ratio lock (width/height, e.g. 4/3 ≈ 1.333f)
+    void SetAspectRatio(float ratio);
+    void SetMinSize(int min_w, int min_h);
+
 
 private:
     friend class MediaCore;

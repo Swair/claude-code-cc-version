@@ -251,6 +251,86 @@ public:
     static void PopVar(int count = 1);
 };
 
+/// RAII 辅助：作用域内临时修改 StyleVar（单次 PushVar/PopVar）
+class ScopedStyleVar {
+public:
+    ~ScopedStyleVar() { Style::PopVar(1); }
+    ScopedStyleVar(const ScopedStyleVar&) = delete;
+    ScopedStyleVar& operator=(const ScopedStyleVar&) = delete;
+
+    static ScopedStyleVar ScrollbarSize(float size) {
+        Style::PushVar_ScrollbarSize(size); return ScopedStyleVar();
+    }
+    static ScopedStyleVar WindowBorderSize(float size) {
+        Style::PushVar_WindowBorderSize(size); return ScopedStyleVar();
+    }
+    static ScopedStyleVar ItemSpacing(float x, float y) {
+        Style::PushVar_ItemSpacing(x, y); return ScopedStyleVar();
+    }
+    static ScopedStyleVar WindowPadding(float x, float y) {
+        Style::PushVar_WindowPadding(x, y); return ScopedStyleVar();
+    }
+private:
+    ScopedStyleVar() = default;
+    ScopedStyleVar(ScopedStyleVar&&) = default;
+    ScopedStyleVar& operator=(ScopedStyleVar&&) = default;
+};
+
+/// RAII 辅助：作用域内临时修改颜色（支持链式 Then 多组颜色）
+class ScopedColors {
+public:
+    explicit ScopedColors(int color_index, const Color& color) {
+        Style::PushColor(color_index, color);
+    }
+    ~ScopedColors() { Style::PopColor(count_); }
+
+    ScopedColors Then(int color_index, const Color& color) & {
+        Style::PushColor(color_index, color);
+        ++count_;
+        return std::move(*this);
+    }
+    ScopedColors Then(int color_index, const Color& color) && {
+        Style::PushColor(color_index, color);
+        ++count_;
+        return std::move(*this);
+    }
+
+    ScopedColors(const ScopedColors&) = delete;
+    ScopedColors& operator=(const ScopedColors&) = delete;
+    ScopedColors(ScopedColors&& other) noexcept : count_(other.count_) { other.count_ = 0; }
+    ScopedColors& operator=(ScopedColors&&) = delete;
+private:
+    int count_ = 1;
+};
+
+/// RAII 辅助：作用域内临时修改 ItemWidth
+class ScopedItemWidth {
+public:
+    explicit ScopedItemWidth(float width) { Style::PushItemWidth(width); }
+    ~ScopedItemWidth() { Style::PopItemWidth(); }
+    ScopedItemWidth(const ScopedItemWidth&) = delete;
+    ScopedItemWidth& operator=(const ScopedItemWidth&) = delete;
+};
+
+/// RAII 辅助：通用的 Begin/End 自动配对
+class ScopedGuard {
+public:
+    template<typename F>
+    explicit ScopedGuard(bool active, F&& cleanup)
+        : active_(active), cleanup_(std::forward<F>(cleanup)) {}
+    ~ScopedGuard() { if (active_) cleanup_(); }
+    explicit operator bool() const { return active_; }
+    ScopedGuard(const ScopedGuard&) = delete;
+    ScopedGuard& operator=(const ScopedGuard&) = delete;
+    ScopedGuard(ScopedGuard&&) = delete;
+    ScopedGuard& operator=(ScopedGuard&&) = delete;
+protected:
+    ScopedGuard() = default;  // 供派生类使用
+private:
+    bool active_ = false;
+    std::function<void()> cleanup_;
+};
+
 /// 弹出窗口/模态框
 class Popup {
 public:
@@ -302,6 +382,57 @@ class Menu {
 public:
     static bool Begin(const char* label, bool enabled = true);
     static void End();
+};
+
+/// RAII 辅助：Child 窗口
+class ScopedChild : public ScopedGuard {
+public:
+    ScopedChild(const char* name, float w = 0.0f, float h = 0.0f,
+                int child_flags = 0, int window_flags = 0)
+        : ScopedGuard(Child::Begin(name, w, h, child_flags, window_flags),
+                      []{ Child::End(); }) {}
+};
+
+/// RAII 辅助：Popup 菜单
+class ScopedPopupMenu : public ScopedGuard {
+public:
+    explicit ScopedPopupMenu(const char* name)
+        : ScopedGuard(Popup::Begin(name), []{ Popup::End(); }) {}
+};
+
+/// RAII 辅助：Popup 模态框
+class ScopedModal : public ScopedGuard {
+public:
+    ScopedModal(const char* name, bool* open, int flags = 0)
+        : ScopedGuard(Popup::BeginModal(name, open, flags), []{ Popup::End(); }) {}
+};
+
+/// RAII 辅助：MenuBar
+class ScopedMenuBar : public ScopedGuard {
+public:
+    ScopedMenuBar()
+        : ScopedGuard(MenuBar::Begin(), []{ MenuBar::End(); }) {}
+};
+
+/// RAII 辅助：Menu
+class ScopedMenu : public ScopedGuard {
+public:
+    ScopedMenu(const char* label, bool enabled = true)
+        : ScopedGuard(Menu::Begin(label, enabled), []{ Menu::End(); }) {}
+};
+
+/// RAII 辅助：TabBar
+class ScopedTabBar : public ScopedGuard {
+public:
+    explicit ScopedTabBar(const char* name)
+        : ScopedGuard(TabBar::BeginBar(name), []{ TabBar::EndBar(); }) {}
+};
+
+/// RAII 辅助：TabItem
+class ScopedTabItem : public ScopedGuard {
+public:
+    explicit ScopedTabItem(const char* name)
+        : ScopedGuard(TabBar::BeginItem(name), []{ TabBar::EndItem(); }) {}
 };
 
 } // namespace media_engine

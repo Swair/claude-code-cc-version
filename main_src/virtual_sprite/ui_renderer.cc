@@ -31,14 +31,11 @@ void UIRenderer::RenderContextMenu(media_engine::Window* current_win) {
         context_menu_requests_.erase(it);
     }
 
-    media_engine::Style::PushColor(media_engine::Color::Slot::PopupBg,
-                                 media_engine::Colors::CreamOpaque90);
-    media_engine::Style::PushColor(media_engine::Color::Slot::Text,
-                                 media_engine::Colors::Black);
-    if (!media_engine::Popup::Begin("sprite_context_menu")) {
-        media_engine::Style::PopColor(2);
-        return;
-    }
+    auto _col = media_engine::ScopedColors(media_engine::Color::Slot::PopupBg,
+                                         media_engine::Colors::CreamOpaque90)
+                .Then(media_engine::Color::Slot::Text, media_engine::Colors::Black);
+    auto _popup = media_engine::ScopedPopupMenu("sprite_context_menu");
+    if (!_popup) return;
 
     auto& L = I18n::Instance();
     if (media_engine::Popup::MenuItem(L.Get("ctx_chat").c_str())) {
@@ -54,9 +51,6 @@ void UIRenderer::RenderContextMenu(media_engine::Window* current_win) {
     if (media_engine::Popup::MenuItem(L.Get("ctx_quit").c_str())) {
         media_engine::MediaCore::Instance().Quit();
     }
-
-    media_engine::Popup::End();
-    media_engine::Style::PopColor(2);  // PopupBg + Text
 }
 
 }  // namespace prosophor

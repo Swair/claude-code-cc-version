@@ -39,9 +39,12 @@ bool ChatWindow::Create(int width, int height) {
     height_ = height;
 
     media_engine::WindowConfig cfg;
-    cfg.resizable = false;
+    cfg.resizable = true;
     auto* win = media_engine::MediaCore::Instance().CreateMediaWindow(
         I18n::Instance().Get("window_title").c_str(), width_, height_, cfg);
+
+    // Minimum size to keep layout usable
+    win->SetMinSize(800, 500);
 
     auto chat_panel = std::make_unique<ChatPanel>(0, 0, 100, 100);
     auto input_panel = std::make_unique<media_engine::InputPanel>(0, 0, 100, 100);
@@ -58,18 +61,15 @@ bool ChatWindow::Create(int width, int height) {
     // Register render handler internally
     media_engine::MediaCore::Instance().RegRenderHandler(win, [win, this]() {
         // Apple-style: white background, subtle borders, orange accent
-        constexpr int kColorCount = 5;
-        media_engine::Style::PushColor(media_engine::Color::Slot::WindowBg, media_engine::Colors::White80);
-        media_engine::Style::PushColor(media_engine::Color::Slot::Text, media_engine::Colors::Gray40);
-        media_engine::Style::PushColor(media_engine::Color::Slot::FrameBg, media_engine::Colors::White);
-        media_engine::Style::PushColor(media_engine::Color::Slot::PopupBg, media_engine::Colors::White);
-        media_engine::Style::PushColor(media_engine::Color::Slot::Border, media_engine::Colors::CreamBorder);
+        auto _app = media_engine::ScopedColors(media_engine::Color::Slot::WindowBg, media_engine::Colors::MilkyWhite)
+                    .Then(media_engine::Color::Slot::Text, media_engine::Colors::Gray40)
+                    .Then(media_engine::Color::Slot::FrameBg, media_engine::Colors::White)
+                    .Then(media_engine::Color::Slot::PopupBg, media_engine::Colors::White)
+                    .Then(media_engine::Color::Slot::Border, media_engine::Colors::CreamBorder);
         Render();
 
         // Right-click context menu (shared singleton)
         UIRenderer::Instance().RenderContextMenu(win);
-
-        media_engine::Style::PopColor(kColorCount);
     });
 
     // Right-click on chat window → context menu
@@ -119,7 +119,6 @@ void ChatWindow::Render() {
 }
 
 void ChatWindow::RenderChatUI() {
-    auto& L = I18n::Instance();
     int win_w = impl_->window->GetWidth();
     int win_h = impl_->window->GetHeight();
 
@@ -128,76 +127,85 @@ void ChatWindow::RenderChatUI() {
     media_engine::ImGuiWindow::SetNextSize(static_cast<float>(win_w), static_cast<float>(win_h));
     media_engine::ImGuiWindow::SetNextBgAlpha(0.0f);
     bool chat_root_open = true;
-    media_engine::ImGuiWindow::Begin("chat_root", &chat_root_open,
-        media_engine::ImGuiWindowFlags_MenuBar |
-        media_engine::ImGuiWindowFlags_NoDecoration |
-        media_engine::ImGuiWindowFlags_NoMove |
-        media_engine::ImGuiWindowFlags_NoSavedSettings |
-        media_engine::ImGuiWindowFlags_NoScrollWithMouse);
+    auto _root = media_engine::ScopedGuard(
+        media_engine::ImGuiWindow::Begin("chat_root", &chat_root_open,
+            media_engine::ImGuiWindowFlags_MenuBar |
+            media_engine::ImGuiWindowFlags_NoDecoration |
+            media_engine::ImGuiWindowFlags_NoMove |
+            media_engine::ImGuiWindowFlags_NoSavedSettings |
+            media_engine::ImGuiWindowFlags_NoScrollWithMouse),
+        []{ media_engine::ImGuiWindow::End(); });
 
-    // Opaque white base covers the SDL black clear; White80 elements blend to
-    // pure white instead of gray over black.
-    float win_w_f = static_cast<float>(win_w);
-    media_engine::DrawList::RoundRect(0, 0, win_w_f, static_cast<float>(win_h),
-        0, media_engine::Colors::White);
+    // 乳白色背景
+    media_engine::DrawList::RoundRect(0, 0, static_cast<float>(win_w),
+        static_cast<float>(win_h), 0, media_engine::Colors::MilkyWhite);
 
-    // ── Menu bar (File | Help  ···  S  x) ──
-    if (media_engine::MenuBar::Begin()) {
-        if (media_engine::Menu::Begin(L.Get("menu_file").c_str())) {
-            if (media_engine::Popup::MenuItem(L.Get("ctx_settings").c_str())) {
-                settings_open_ = true;
-            }
-            media_engine::ImGuiWidget::Separator();
-            if (media_engine::Popup::MenuItem(L.Get("ctx_quit").c_str())) {
-                media_engine::MediaCore::Instance().Quit();
-            }
-            media_engine::Menu::End();
-        }
-        if (media_engine::Menu::Begin(L.Get("menu_help").c_str())) {
-            if (media_engine::Popup::MenuItem(L.Get("menu_about").c_str())) {
-                about_open_ = true;
-            }
-            media_engine::Menu::End();
-        }
+    RenderMenuBar(static_cast<float>(win_w));
+    UpdateLayout(win_w, win_h);
+    RenderChatContent();
+    RenderRightPanel(win_w, win_h);
 
-        // Right-side quick buttons
-        float btn_sz = LayoutConfig{}.close_btn_size;
-        float gear_x = win_w_f - btn_sz * 2 - 8.0f;
-        float close_x = win_w_f - btn_sz - 4.0f;
+    RenderSettingsWindow();
+    RenderAboutWindow();
+}
 
-        if (media_engine::ImGuiWidget::IconButton("settings", "S",
-                                            gear_x, 0.0f, btn_sz,
-                                            media_engine::Colors::CreamDark,
-                                            media_engine::Colors::WhiteTranslucent)) {
+void ChatWindow::RenderMenuBar(float win_w_f) {
+    auto& L = I18n::Instance();
+    auto _bar = media_engine::ScopedMenuBar();
+    if (!_bar) return;
+
+    if (auto _file = media_engine::ScopedMenu(L.Get("menu_file").c_str())) {
+        if (media_engine::Popup::MenuItem(L.Get("ctx_settings").c_str())) {
             settings_open_ = true;
         }
-
-        if (media_engine::ImGuiWidget::IconButton("close_chat", "x",
-                                            close_x, 0.0f, btn_sz,
-                                            media_engine::Colors::CreamDark,
-                                            media_engine::Colors::WhiteTranslucent)) {
-            SetVisible(false);
+        media_engine::ImGuiWidget::Separator();
+        if (media_engine::Popup::MenuItem(L.Get("ctx_quit").c_str())) {
+            media_engine::MediaCore::Instance().Quit();
         }
-
-        media_engine::MenuBar::End();
+    }
+    if (auto _help = media_engine::ScopedMenu(L.Get("menu_help").c_str())) {
+        if (media_engine::Popup::MenuItem(L.Get("menu_about").c_str())) {
+            about_open_ = true;
+        }
     }
 
-    // Skip layout recalculation if window hasn't been resized
+    // Right-side quick buttons
+    float btn_sz = LayoutConfig{}.close_btn_size;
+    float gear_x = win_w_f - btn_sz * 2 - 8.0f;
+    float close_x = win_w_f - btn_sz - 4.0f;
+
+    if (media_engine::ImGuiWidget::IconButton("settings", "S",
+                                        gear_x, 0.0f, btn_sz,
+                                        media_engine::Colors::CreamDark,
+                                        media_engine::Colors::WhiteTranslucent)) {
+        settings_open_ = true;
+    }
+
+    if (media_engine::ImGuiWidget::IconButton("close_chat", "x",
+                                        close_x, 0.0f, btn_sz,
+                                        media_engine::Colors::CreamDark,
+                                        media_engine::Colors::WhiteTranslucent)) {
+        SetVisible(false);
+    }
+}
+
+void ChatWindow::UpdateLayout(int win_w, int win_h) {
+    if (win_w == prev_layout_w_ && win_h == prev_layout_h_) return;
+    prev_layout_w_ = win_w;
+    prev_layout_h_ = win_h;
+
     constexpr float kLeftRatio = 0.75f;
-    if (win_w != prev_layout_w_ || win_h != prev_layout_h_) {
-        prev_layout_w_ = win_w;
-        prev_layout_h_ = win_h;
+    LayoutConfig cfg;
+    float menu_pct = 22.0f / win_h * 100.0f;
+    float input_pct = cfg.input_area_height / win_h * 100.0f;
+    float content_h_pct = 100.0f - menu_pct - input_pct;
+    impl_->chat_panel->SetRoot(win_w, win_h);
+    impl_->chat_panel->SetPosition(0, menu_pct, kLeftRatio * 100, content_h_pct);
+    impl_->input_panel->SetRoot(win_w, win_h);
+    impl_->input_panel->SetPosition(0, 100 - input_pct, kLeftRatio * 100, input_pct);
+}
 
-        LayoutConfig cfg;
-        float menu_pct = 22.0f / win_h * 100.0f;
-        float input_pct = cfg.input_area_height / win_h * 100.0f;
-        float content_h_pct = 100.0f - menu_pct - input_pct;
-        impl_->chat_panel->SetRoot(win_w, win_h);
-        impl_->chat_panel->SetPosition(0, menu_pct, kLeftRatio * 100, content_h_pct);
-        impl_->input_panel->SetRoot(win_w, win_h);
-        impl_->input_panel->SetPosition(0, 100 - input_pct, kLeftRatio * 100, input_pct);
-    }
-
+void ChatWindow::RenderChatContent() {
     // Show focused sprite's session (set by clicking a sprite)
     auto& engine = AgentEngine::GetInstance();
     std::string sid = SpriteManager::GetInstance().GetFocusedSession();
@@ -205,135 +213,127 @@ void ChatWindow::RenderChatUI() {
                             : engine.GetSessionSnapshot(sid);
     impl_->chat_panel->SetSnapshot(snap.value_or(RenderSnapshot{}));
 
-    // Set assistant label to the focused sprite's display name
     std::string sprite_name = SpriteManager::GetInstance().GetFocusedSpriteName();
     if (!sprite_name.empty()) {
         impl_->chat_panel->SetAssistantDisplayName(sprite_name);
     }
 
     impl_->chat_panel->Render(media_engine::RenderContext{});
-
     impl_->input_panel->Render(media_engine::RenderContext{});
+}
 
-    // ── Right panel: role character cards ──
+void ChatWindow::RenderRightPanel(int win_w, int win_h) {
+    auto& L = I18n::Instance();
+    constexpr float kLeftRatio = 0.75f;
+    float panel_left = static_cast<float>(win_w) * kLeftRatio;
+    float right_w = static_cast<float>(win_w) - panel_left;
+
+    // Decorative divider (warm two-tone gradient look)
+    media_engine::DrawList::RoundRect(panel_left, 3.0f, 2.0f,
+                 static_cast<float>(win_h) - 3.0f, 0,
+                 media_engine::Colors::OrangeWarm);
+    media_engine::DrawList::RoundRect(panel_left + 2, 3.0f, 1.0f,
+                 static_cast<float>(win_h) - 3.0f, 0,
+                 media_engine::Colors::CreamBorder);
+
+    // Right panel background
+    media_engine::DrawList::RoundRect(panel_left + 3, 3.0f,
+                 right_w - 3, static_cast<float>(win_h) - 6.0f,
+                 0, media_engine::Colors::CreamLight);
+
+    // Decorative corner ornament (top-right of right panel)
+    media_engine::DrawList::RoundRect(panel_left + right_w - 18.0f, 6.0f,
+                 14.0f, 14.0f, 7.0f,
+                 media_engine::Colors::OrangeLight);
+    media_engine::DrawList::RoundRect(panel_left + right_w - 14.0f, 10.0f,
+                 6.0f, 6.0f, 3.0f,
+                 media_engine::Colors::OrangeWarm);
+
+    // Scrolling area for cards (thin scrollbar)
+    auto _scroll = media_engine::ScopedStyleVar::ScrollbarSize(3.0f);
+    media_engine::Layout::SetCursorScreenPos(panel_left + 4, 44.0f);
+    auto _panel = media_engine::ScopedChild(
+        "role_panel", right_w - 7, static_cast<float>(win_h) - 52.0f,
+        0, media_engine::ImGuiWindowFlags_AlwaysVerticalScrollbar);
+
+    // Header with decorative accent and language switch
     {
-        float panel_left = static_cast<float>(win_w) * kLeftRatio;
-        float right_w = static_cast<float>(win_w) - panel_left;
-
-        // Decorative divider (warm two-tone gradient look)
-        media_engine::DrawList::RoundRect(panel_left, 3.0f, 2.0f,
-                     static_cast<float>(win_h) - 3.0f, 0,
-                     media_engine::Colors::OrangeWarm);
-        media_engine::DrawList::RoundRect(panel_left + 2, 3.0f, 1.0f,
-                     static_cast<float>(win_h) - 3.0f, 0,
-                     media_engine::Colors::CreamBorder);
-
-        // Right panel background
-        media_engine::DrawList::RoundRect(panel_left + 3, 3.0f,
-                     right_w - 3, static_cast<float>(win_h) - 6.0f,
-                     0, media_engine::Colors::CreamLight);
-
-        // Decorative corner ornament (top-right of right panel)
-        media_engine::DrawList::RoundRect(panel_left + right_w - 18.0f, 6.0f,
-                     14.0f, 14.0f, 7.0f,
-                     media_engine::Colors::OrangeLight);
-        media_engine::DrawList::RoundRect(panel_left + right_w - 14.0f, 10.0f,
-                     6.0f, 6.0f, 3.0f,
-                     media_engine::Colors::OrangeWarm);
-
-        // Scrolling area for cards
-        media_engine::Layout::SetCursorScreenPos(panel_left + 4, 44.0f);
-        media_engine::Child::Begin("role_panel", right_w - 7,
-                                 static_cast<float>(win_h) - 52.0f,
-                                 0, media_engine::ImGuiWindowFlags_AlwaysVerticalScrollbar);
-
-        // Header with decorative accent and language switch
-        {
-            std::string hdr = L.Get("role_panel_header");
-            // Small decorative line before header
-            media_engine::DrawList::RoundRect(panel_left + 10.0f, 48.0f, 3.0f, 12.0f, 1.5f,
-                         media_engine::Colors::Orange);
-            media_engine::Text::Colored(media_engine::Colors::OrangeWarm, (" " + hdr).c_str());
-            media_engine::Layout::SameLine();
-            bool is_zh = L.GetLanguage() == "zh-CN";
-            if (media_engine::ImGuiWidget::Button(is_zh ? "EN" : "中", 36.0f, 20.0f)) {
-                L.SetLanguage(is_zh ? "en" : "zh-CN");
-                if (impl_ && impl_->window) {
-                    impl_->window->SetTitle(L.Get("window_title").c_str());
-                }
+        std::string hdr = L.Get("role_panel_header");
+        media_engine::DrawList::RoundRect(panel_left + 4.0f, 48.0f, 3.0f, 12.0f, 1.5f,
+                     media_engine::Colors::Orange);
+        media_engine::Layout::Dummy(8, 0);
+        media_engine::Layout::SameLine();
+        media_engine::Text::Colored(media_engine::Colors::OrangeWarm, hdr.c_str());
+        media_engine::Layout::SameLine();
+        bool is_zh = L.GetLanguage() == "zh-CN";
+        if (media_engine::ImGuiWidget::Button(is_zh ? "EN" : "中", 36.0f, 20.0f)) {
+            L.SetLanguage(is_zh ? "en" : "zh-CN");
+            if (impl_ && impl_->window) {
+                impl_->window->SetTitle(L.Get("window_title").c_str());
             }
         }
-        // Decorative thin separator
-        media_engine::DrawList::RoundRect(panel_left + 8.0f, 66.0f, right_w - 16.0f, 1.0f, 0,
-                     media_engine::Colors::CreamBorder);
+    }
+    // Decorative thin separator
+    media_engine::DrawList::RoundRect(panel_left + 8.0f, 66.0f, right_w - 16.0f, 1.0f, 0,
+                 media_engine::Colors::CreamBorder);
+    media_engine::Layout::Dummy(0, 4);
+
+    auto& sprites = SpriteManager::GetInstance().GetAll();
+    std::string focused_sid = SpriteManager::GetInstance().GetFocusedSession();
+    float card_w = right_w - 10 - 6;
+    constexpr float kCardH = 64.0f;
+
+    for (auto& s : sprites) {
+        bool focused = (s->GetSessionId() == focused_sid);
+
+        float cx, cy;
+        media_engine::Layout::GetCursorScreenPos(&cx, &cy);
+
+        media_engine::DrawList::RoundRect(cx, cy, card_w, kCardH, 6.0f,
+            focused ? media_engine::Colors::OrangeLightest
+                    : media_engine::Colors::White);
+
+        if (focused) {
+            media_engine::DrawList::RoundRectOutline(cx, cy, card_w, kCardH, 6.0f,
+                media_engine::Colors::OrangeWarm, 1.5f);
+        }
+
+        // Thumbnail: first spritesheet frame
+        constexpr float kThumbW = 48.0f;
+        constexpr float kThumbH = 48.0f;
+        float thumb_x = cx + 8.0f;
+        float thumb_y = cy + (kCardH - kThumbH) / 2;
+        std::string tex_path = s->GetSpritesheetPath();
+        if (!tex_path.empty()) {
+            auto it = impl_->thumbnails.find(tex_path);
+            if (it == impl_->thumbnails.end()) {
+                auto tex = std::make_unique<media_engine::Texture>(
+                    *impl_->window, tex_path);
+                if (tex->GetOriginWidth() > 0 && tex->GetOriginHeight() > 0) {
+                    it = impl_->thumbnails.emplace(tex_path, std::move(tex)).first;
+                }
+            }
+            if (it != impl_->thumbnails.end() && it->second) {
+                it->second->DrawImGui(thumb_x, thumb_y, kThumbW, kThumbH,
+                                      0.0f, 0.0f, 1.0f / 8.0f, 1.0f / 9.0f);
+            }
+        }
+
+        float text_x = cx + 12.0f + kThumbW + 6.0f;
+        float text_y = cy + (kCardH - 16.0f) / 2;
+        media_engine::DrawList::Text(text_x, text_y,
+            focused ? media_engine::Colors::OrangeDeep
+                    : media_engine::Colors::Black,
+            s->GetName().c_str());
+
+        if (media_engine::ImGuiWidget::InvisibleButton(
+                ("card_" + s->GetSessionId()).c_str(), card_w, kCardH)) {
+            SpriteManager::GetInstance().SetFocusedSession(s->GetSessionId());
+        }
+
         media_engine::Layout::Dummy(0, 4);
-
-        auto& sprites = SpriteManager::GetInstance().GetAll();
-        std::string focused_sid = SpriteManager::GetInstance().GetFocusedSession();
-        float card_w = right_w - 10 - 6;  // padding + scrollbar
-        constexpr float kCardH = 64.0f;
-
-        for (auto& s : sprites) {
-            bool focused = (s->GetSessionId() == focused_sid);
-
-            float cx, cy;
-            media_engine::Layout::GetCursorScreenPos(&cx, &cy);
-
-            // Card background
-            media_engine::DrawList::RoundRect(cx, cy, card_w, kCardH, 6.0f,
-                focused ? media_engine::Colors::OrangeLightest
-                        : media_engine::Colors::White);
-
-            if (focused) {
-                media_engine::DrawList::RoundRectOutline(cx, cy, card_w, kCardH, 6.0f,
-                    media_engine::Colors::OrangeWarm, 1.5f);
-            }
-
-            // Thumbnail: first spritesheet frame
-            constexpr float kThumbW = 48.0f;
-            constexpr float kThumbH = 48.0f;
-            float thumb_x = cx + 8.0f;
-            float thumb_y = cy + (kCardH - kThumbH) / 2;
-            std::string tex_path = s->GetSpritesheetPath();
-            if (!tex_path.empty()) {
-                auto it = impl_->thumbnails.find(tex_path);
-                if (it == impl_->thumbnails.end()) {
-                    auto tex = std::make_unique<media_engine::Texture>(
-                        *impl_->window, tex_path);
-                    if (tex->GetOriginWidth() > 0 && tex->GetOriginHeight() > 0) {
-                        it = impl_->thumbnails.emplace(tex_path, std::move(tex)).first;
-                    }
-                }
-                if (it != impl_->thumbnails.end() && it->second) {
-                    it->second->DrawImGui(thumb_x, thumb_y, kThumbW, kThumbH,
-                                          0.0f, 0.0f, 1.0f / 8.0f, 1.0f / 9.0f);
-                }
-            }
-
-            // Name text (indented past thumbnail)
-            float text_x = cx + 12.0f + kThumbW + 6.0f;
-            float text_y = cy + (kCardH - 16.0f) / 2;
-            media_engine::DrawList::Text(text_x, text_y,
-                focused ? media_engine::Colors::OrangeDeep
-                        : media_engine::Colors::Black,
-                s->GetName().c_str());
-
-            // Invisible button for click detection
-            if (media_engine::ImGuiWidget::InvisibleButton(
-                    ("card_" + s->GetSessionId()).c_str(), card_w, kCardH)) {
-                SpriteManager::GetInstance().SetFocusedSession(s->GetSessionId());
-            }
-
-            media_engine::Layout::Dummy(0, 4);
-        }
-
-        media_engine::Child::End();
     }
 
-    RenderSettingsWindow();
-    RenderAboutWindow();
-
-    media_engine::ImGuiWindow::End();
 }
 
 void ChatWindow::RenderAboutWindow() {
@@ -342,10 +342,10 @@ void ChatWindow::RenderAboutWindow() {
     auto& L = I18n::Instance();
     media_engine::Popup::Open("About");
     media_engine::ImGuiWindow::SetNextSize(400.0f, 300.0f, media_engine::ImGuiCond_Appearing);
-    if (!media_engine::Popup::BeginModal(L.Get("about_title").c_str(), &about_open_,
-                                            media_engine::ImGuiWindowFlags_NoSavedSettings)) {
-        return;
-    }
+    auto _about = media_engine::ScopedModal(
+        L.Get("about_title").c_str(), &about_open_,
+        media_engine::ImGuiWindowFlags_NoSavedSettings);
+    if (!_about) return;
 
     media_engine::Text::Colored(media_engine::Colors::OrangeDeep, "Prosophor v" PROSOPHOR_VERSION);
     media_engine::Layout::Dummy(0, 8);
@@ -365,8 +365,6 @@ void ChatWindow::RenderAboutWindow() {
     if (media_engine::ImGuiWidget::Button(L.Get("btn_close").c_str(), btn_w, 0)) {
         about_open_ = false;
     }
-
-    media_engine::Popup::End();
 }
 
 void ChatWindow::RenderSettingsWindow() {
@@ -375,10 +373,10 @@ void ChatWindow::RenderSettingsWindow() {
     auto& L = I18n::Instance();
     media_engine::Popup::Open("Settings");
     media_engine::ImGuiWindow::SetNextSize(520.0f, 380.0f, media_engine::ImGuiCond_Appearing);
-    if (!media_engine::Popup::BeginModal(L.Get("settings_title").c_str(), &settings_open_,
-                                            media_engine::ImGuiWindowFlags_NoSavedSettings)) {
-        return;
-    }
+    auto _set = media_engine::ScopedModal(
+        L.Get("settings_title").c_str(), &settings_open_,
+        media_engine::ImGuiWindowFlags_NoSavedSettings);
+    if (!_set) return;
 
     auto& config = ProsophorConfig::GetInstance();
 
@@ -417,9 +415,9 @@ void ChatWindow::RenderSettingsWindow() {
     }
     auto reset_on_close = [&] { first_open = true; };
 
-    if (media_engine::TabBar::BeginBar("SettingsTabs")) {
+    if (auto _bar = media_engine::ScopedTabBar("SettingsTabs")) {
         // ── General tab ──
-        if (media_engine::TabBar::BeginItem(L.Get("tab_general").c_str())) {
+        if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_general").c_str())) {
             media_engine::Text::Raw(L.Get("general_log_level").c_str());
             media_engine::Layout::SameLine();
             const char* levels[] = {"trace", "debug", "info", "warn", "error"};
@@ -444,11 +442,10 @@ void ChatWindow::RenderSettingsWindow() {
                 edit_sprite_dir = dir_buf;
             }
 
-            media_engine::TabBar::EndItem();
         }
 
         // ── Roles tab ──
-        if (media_engine::TabBar::BeginItem(L.Get("tab_roles").c_str())) {
+        if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_roles").c_str())) {
             media_engine::Text::Raw(L.Get("roles_select_hint").c_str());
             media_engine::ImGuiWidget::Separator();
             for (size_t i = 0; i < all_role_ids.size(); ++i) {
@@ -456,11 +453,10 @@ void ChatWindow::RenderSettingsWindow() {
                 media_engine::ImGuiWidget::Checkbox(all_role_ids[i].c_str(), &checked);
                 role_checked[i] = checked ? 1 : 0;
             }
-            media_engine::TabBar::EndItem();
         }
 
         // ── Providers tab ──
-        if (media_engine::TabBar::BeginItem(L.Get("tab_providers").c_str())) {
+        if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_providers").c_str())) {
             media_engine::Text::Raw(L.Get("providers_readonly").c_str());
             media_engine::ImGuiWidget::Separator();
             for (const auto& [name, prov] : config.providers) {
@@ -477,10 +473,8 @@ void ChatWindow::RenderSettingsWindow() {
                     media_engine::ImGuiWidget::TreePop();
                 }
             }
-            media_engine::TabBar::EndItem();
         }
 
-        media_engine::TabBar::EndBar();
     }
 
     // ── Save / Cancel ──
@@ -511,8 +505,6 @@ void ChatWindow::RenderSettingsWindow() {
         settings_open_ = false;
         reset_on_close();
     }
-
-    media_engine::Popup::End();
 }
 
 void ChatWindow::CreateTrayWindow() {
@@ -523,6 +515,7 @@ void ChatWindow::CreateTrayWindow() {
     tcfg.skip_taskbar = true;
     tcfg.always_on_top = true;
     tcfg.resizable = false;
+    tcfg.use_shared_font = false;
 
     LayoutConfig tcfg_layout;
     tray_window_ = media_engine::MediaCore::Instance().CreateMediaWindow(

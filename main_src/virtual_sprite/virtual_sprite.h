@@ -40,6 +40,8 @@ class VirtualSprite : public Noncopyable {
     void GlobalInit();
     void Shutdown();
 
+    bool shutdown_ = false;
+
     InputCallback saved_callback_;
     InputCallback input_callback_;
 

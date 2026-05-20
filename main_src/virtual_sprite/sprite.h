@@ -95,7 +95,6 @@ class Sprite : public Noncopyable {
     void LoadCurrentPet();
     void LoadPetBySpriteId(const std::string& sprite_id);
     void LoadPetFromDir(const std::string& assets_dir);
-    void LoadBackground();
     SpriteBinding LoadSpriteBindingFromRole(const std::string& role_id);
 
     // ── Root widget: draws pet bg + pet sprite + name text + nav bar ──
@@ -124,7 +123,6 @@ class Sprite : public Noncopyable {
     std::vector<PetEntry> pet_list_;
     int current_pet_index_ = 0;
     std::unique_ptr<Spritesheet> pet_sprite_;
-    std::unique_ptr<media_engine::Texture> bg_texture_;
     float animation_time_ = 0.0f;
     AgentRuntimeState agent_state_ = AgentRuntimeState::IDLE;
     std::string state_details_;

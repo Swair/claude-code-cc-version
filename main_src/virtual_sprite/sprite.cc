@@ -85,7 +85,6 @@ bool Sprite::Create() {
     LOG_INFO("[Sprite] Session '{}' created for '{}' (role='{}')", session_id_, name_, effective_role);
 
     // ── Pet loading (textures tied to this sprite window's renderer) ──
-    LoadBackground();
     auto binding = LoadSpriteBindingFromRole(effective_role);
     if (!binding.spritesheet_file.empty()) {
         auto& eng_cfg = AgentEngine::GetInstance().GetConfig();
@@ -170,22 +169,22 @@ bool Sprite::Create() {
         root_widget_.Render(media_engine::RenderContext{});
 
         // ── Debug borders (window outline + sprite hitbox) ──
-#ifndef NDEBUG
-        {
-            int ww = sprite_window_->GetWidth();
-            int wh = sprite_window_->GetHeight();
-            media_engine::DrawList::OverlayRectOutline(0.0f, 0.0f,
-                static_cast<float>(ww), static_cast<float>(wh),
-                0.0f, media_engine::Colors::White, 1.5f);
-        }
+// #ifndef NDEBUG
+//         {
+//             int ww = sprite_window_->GetWidth();
+//             int wh = sprite_window_->GetHeight();
+//             media_engine::DrawList::OverlayRectOutline(0.0f, 0.0f,
+//                 static_cast<float>(ww), static_cast<float>(wh),
+//                 0.0f, media_engine::Colors::White, 1.5f);
+//         }
 
-        if (pet_sprite_ && pet_sprite_->IsValid()) {
-            auto& b = sprite_bounds_;
-            media_engine::DrawList::OverlayRectOutline(b.x, b.y,
-                b.width, b.height,
-                0.0f, media_engine::Colors::White, 1.0f);
-        }
-#endif  // !NDEBUG
+//         if (pet_sprite_ && pet_sprite_->IsValid()) {
+//             auto& b = sprite_bounds_;
+//             media_engine::DrawList::OverlayRectOutline(b.x, b.y,
+//                 b.width, b.height,
+//                 0.0f, media_engine::Colors::White, 1.0f);
+//         }
+// #endif  // !NDEBUG
 
         // Global context menu (singleton)
         UIRenderer::Instance().RenderContextMenu(sprite_window_);
@@ -338,16 +337,6 @@ void Sprite::EndDrag() {
 }
 
 // ── Background ────────────────────────────────────────────────────────
-
-void Sprite::LoadBackground() {
-    std::string bg_path = BackwallDir() + "solitude.jpg";
-    if (std::filesystem::exists(bg_path)) {
-        bg_texture_ = std::make_unique<media_engine::Texture>(*sprite_window_, bg_path);
-        LOG_INFO("Loaded background: {}", bg_path);
-    } else {
-        LOG_WARN("Background not found: {}", bg_path);
-    }
-}
 
 // ── Pet list ─────────────────────────────────────────────────────────
 

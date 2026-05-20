@@ -22,7 +22,7 @@ VirtualSprite& VirtualSprite::GetInstance() {
 VirtualSprite::VirtualSprite() = default;
 
 VirtualSprite::~VirtualSprite() {
-    Shutdown();
+    if (!shutdown_) Shutdown();
 }
 
 void VirtualSprite::HandleTextInput(const char* text) {
@@ -197,17 +197,20 @@ void VirtualSprite::Shutdown() {
     SpriteManager::GetInstance().Clear();
     media_engine::MediaCore::Instance().Shutdown();
     LOG_INFO("SDL application shutdown complete.");
+    shutdown_ = true;
 }
 
 int VirtualSprite::Run() {
     try {
         GlobalInit();
         media_engine::MediaCore::Instance().MainRun();
-        return 0;
     } catch (const std::exception& e) {
         LOG_ERROR("SDL app fatal error: {}", e.what());
+        Shutdown();
         return 1;
     }
+    Shutdown();
+    return 0;
 }
 
 void VirtualSprite::Stop() {

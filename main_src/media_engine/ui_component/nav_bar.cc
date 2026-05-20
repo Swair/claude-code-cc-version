@@ -22,9 +22,11 @@ void NavBar::Render(float parent_width, const std::string& status_text,
 
     // Compact window at bottom center, auto-sized to content
     ImGui::SetNextWindowPos(ImVec2(parent_width * 0.5f, nav_y), ImGuiCond_Always, ImVec2(0.5f, 0.0f));
-    ImGuiWindow::Begin("##nav_bar", nullptr,
-        ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
-        ImGuiWindowFlags_AlwaysAutoResize);
+    auto _nav = ScopedGuard(
+        ImGuiWindow::Begin("##nav_bar", nullptr,
+            ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
+            ImGuiWindowFlags_AlwaysAutoResize),
+        []{ ImGuiWindow::End(); });
 
     // Background bar matching content width
     float content_w = ImGui::GetWindowWidth();
@@ -41,8 +43,6 @@ void NavBar::Render(float parent_width, const std::string& status_text,
         }
         if (i + 1 < items.size()) ImGui::SameLine(0, 0);
     }
-
-    ImGuiWindow::End();
 }
 
 }  // namespace media_engine
