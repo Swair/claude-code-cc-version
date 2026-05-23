@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(prosophor_core VERSION 1.0.0 LANGUAGES CXX)
+project(prosophor_core VERSION ${PACKAGE_VERSION_CLEAN} LANGUAGES CXX)
 
 
 include(FetchContent)
@@ -103,7 +103,13 @@ if(NOT PROSOPHOR_SDL_UI)
         ${CMAKE_CURRENT_LIST_DIR}/ai_coding/*.cc
     )
 
-    add_executable(prosophor ${TUI_SOURCES} main.cc)
+    add_executable(prosophor ${TUI_SOURCES} main.cc
+        ${CMAKE_CURRENT_LIST_DIR}/resources/app.rc
+    )
+
+    set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/resources/app.rc
+        PROPERTIES SOURCE_FILE_DEPENDENCIES ${CMAKE_CURRENT_LIST_DIR}/resources/app.ico
+    )
 
     target_include_directories(prosophor PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
@@ -128,12 +134,20 @@ if(PROSOPHOR_SDL_UI)
     file(GLOB_RECURSE COMPONENTS_SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/components/*.cc
     )
-# WIN32
     add_executable(prosophor
         main.cc
         ${GUI_SOURCES}
         ${COMPONENTS_SOURCES}
+        ${CMAKE_CURRENT_LIST_DIR}/resources/app.rc
     )
+
+    set_source_files_properties(${CMAKE_CURRENT_LIST_DIR}/resources/app.rc
+        PROPERTIES SOURCE_FILE_DEPENDENCIES ${CMAKE_CURRENT_LIST_DIR}/resources/app.ico
+    )
+
+    if(CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo|MinSizeRel")
+        set_target_properties(prosophor PROPERTIES WIN32_EXECUTABLE TRUE)
+    endif()
 
     target_include_directories(prosophor PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}

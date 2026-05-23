@@ -23,7 +23,7 @@ void ActiveTriggerManager::Initialize(const std::string& active_dir) {
     active_dir_ = ExpandHome(active_dir);
 
     // 确保目录存在
-    if (!std::filesystem::exists(active_dir_)) {
+    if (!DirExists(active_dir_)) {
         std::error_code ec;
         if (!std::filesystem::create_directories(active_dir_, ec)) {
             LOG_WARN("Failed to create active plugins directory: {}", ec.message());
@@ -84,7 +84,7 @@ void ActiveTriggerManager::ScanAndLoadPlugins() {
     periodic_plugins_.clear();
     idle_plugins_.clear();
 
-    if (!std::filesystem::exists(active_dir_)) {
+    if (!DirExists(active_dir_)) {
         LOG_INFO("Active plugins directory does not exist: {}", active_dir_);
         return;
     }
@@ -110,7 +110,7 @@ void ActiveTriggerManager::ScanAndLoadPlugins() {
 
 bool ActiveTriggerManager::LoadPlugin(const std::string& plugin_dir) {
     std::string config_path = plugin_dir + "/trigger_mode.cfg";
-    if (!std::filesystem::exists(config_path)) {
+    if (!FileExists(config_path)) {
         LOG_DEBUG("No trigger_mode.cfg found in {}", plugin_dir);
         return false;
     }
@@ -129,7 +129,7 @@ bool ActiveTriggerManager::LoadPlugin(const std::string& plugin_dir) {
     std::string trigger_path = plugin_dir + "/" + plugin.script;
 
     // 如果配置的文件不存在，尝试自动检测
-    if (!std::filesystem::exists(trigger_path)) {
+    if (!FileExists(trigger_path)) {
         // 尝试常见的脚本文件名
         std::vector<std::string> candidates = {
             "trigger", "trigger.bat", "trigger.exe", "trigger.py",
@@ -139,7 +139,7 @@ bool ActiveTriggerManager::LoadPlugin(const std::string& plugin_dir) {
         bool found = false;
         for (const auto& candidate : candidates) {
             std::string candidate_path = plugin_dir + "/" + candidate;
-            if (std::filesystem::exists(candidate_path)) {
+            if (FileExists(candidate_path)) {
                 trigger_path = candidate_path;
                 plugin.script = candidate;
                 found = true;
@@ -217,7 +217,7 @@ bool ActiveTriggerManager::ParseTriggerModeConfig(const std::string& config_path
 
 std::string ActiveTriggerManager::ReadPromptMd(const std::string& plugin_path) const {
     std::string prompt_path = plugin_path + "/ACTIVE.md";
-    if (!std::filesystem::exists(prompt_path)) {
+    if (!FileExists(prompt_path)) {
         LOG_WARN("ACTIVE.md not found in {}", plugin_path);
         return "";
     }

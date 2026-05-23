@@ -83,12 +83,6 @@ endif()
 
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/.prosophor/ DESTINATION ${PROSOPHOR_INSTALL_DIR})
 
-# Install assets directory to bin/assets (relative to executable)
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/assets/ DESTINATION bin/assets)
-
-# Also install config to bin/.prosophor/ for portable use (fallback path)
-install(DIRECTORY ${CMAKE_SOURCE_DIR}/config/.prosophor/ DESTINATION bin/.prosophor)
-
 # ============================================================================
 # Runtime DLL bundling (MinGW on Windows)
 # ============================================================================

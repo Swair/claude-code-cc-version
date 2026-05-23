@@ -6,7 +6,7 @@
 #include <functional>
 #include <memory>
 
-namespace media_engine { class Window; class InputPanel; }
+namespace media_engine { class Window; class InputPanel; class Texture; }
 namespace prosophor { class ChatPanel; }
 
 namespace prosophor {
@@ -53,6 +53,7 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
     media_engine::Window* tray_window_ = nullptr;
+    std::unique_ptr<media_engine::Texture> tray_texture_;
 
     bool          visible_    = true;
     bool          tray_showing_ = false;

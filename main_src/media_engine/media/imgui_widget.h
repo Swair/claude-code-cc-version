@@ -141,6 +141,11 @@ public:
                                  const Color& color, float thickness = 1.0f);
     static void OverlayRectOutline(float x, float y, float w, float h, float radius,
                                    const Color& color, float thickness = 1.0f);
+    static void CircleFilled(float cx, float cy, float radius, const Color& color);
+    static void CircleOutline(float cx, float cy, float radius, const Color& color,
+                              float thickness = 1.0f);
+    static void Line(float x1, float y1, float x2, float y2, const Color& color,
+                     float thickness = 1.0f);
     static void FilledTriangle(float x1, float y1, float x2, float y2,
                                float x3, float y3, const Color& color);
     static void TriangleOutline(float x1, float y1, float x2, float y2,
@@ -313,12 +318,19 @@ public:
 };
 
 /// RAII 辅助：通用的 Begin/End 自动配对
+/// 注意 ImGui 有两类规则：
+///   - Begin()/End(), BeginChild()/EndChild(): ALWAYS call End (unconditional)
+///   - BeginMenu/EndMenu, BeginPopup/EndPopup: only call if Begin returned true (conditional)
+/// 用 `always_call=true` 处理第一类，`false`（默认）处理第二类。
 class ScopedGuard {
 public:
+    /// @param active      Begin 返回值
+    /// @param cleanup     End 回调
+    /// @param always_call true=无条件调用 cleanup（Begin/Child），false=仅 active 时调用
     template<typename F>
-    explicit ScopedGuard(bool active, F&& cleanup)
-        : active_(active), cleanup_(std::forward<F>(cleanup)) {}
-    ~ScopedGuard() { if (active_) cleanup_(); }
+    explicit ScopedGuard(bool active, F&& cleanup, bool always_call = false)
+        : always_call_(always_call), active_(active), cleanup_(std::forward<F>(cleanup)) {}
+    ~ScopedGuard() { if (always_call_ || active_) cleanup_(); }
     explicit operator bool() const { return active_; }
     ScopedGuard(const ScopedGuard&) = delete;
     ScopedGuard& operator=(const ScopedGuard&) = delete;
@@ -327,6 +339,7 @@ public:
 protected:
     ScopedGuard() = default;  // 供派生类使用
 private:
+    bool always_call_ = false;
     bool active_ = false;
     std::function<void()> cleanup_;
 };
@@ -390,42 +403,42 @@ public:
     ScopedChild(const char* name, float w = 0.0f, float h = 0.0f,
                 int child_flags = 0, int window_flags = 0)
         : ScopedGuard(Child::Begin(name, w, h, child_flags, window_flags),
-                      []{ Child::End(); }) {}
+                      []{ Child::End(); }, true) {}  // BeginChild: always call EndChild
 };
 
 /// RAII 辅助：Popup 菜单
 class ScopedPopupMenu : public ScopedGuard {
 public:
     explicit ScopedPopupMenu(const char* name)
-        : ScopedGuard(Popup::Begin(name), []{ Popup::End(); }) {}
+        : ScopedGuard(Popup::Begin(name), []{ Popup::End(); }) {}  // conditional
 };
 
 /// RAII 辅助：Popup 模态框
 class ScopedModal : public ScopedGuard {
 public:
     ScopedModal(const char* name, bool* open, int flags = 0)
-        : ScopedGuard(Popup::BeginModal(name, open, flags), []{ Popup::End(); }) {}
+        : ScopedGuard(Popup::BeginModal(name, open, flags), []{ Popup::End(); }) {}  // conditional
 };
 
 /// RAII 辅助：MenuBar
 class ScopedMenuBar : public ScopedGuard {
 public:
     ScopedMenuBar()
-        : ScopedGuard(MenuBar::Begin(), []{ MenuBar::End(); }) {}
+        : ScopedGuard(MenuBar::Begin(), []{ MenuBar::End(); }) {}  // conditional
 };
 
 /// RAII 辅助：Menu
 class ScopedMenu : public ScopedGuard {
 public:
     ScopedMenu(const char* label, bool enabled = true)
-        : ScopedGuard(Menu::Begin(label, enabled), []{ Menu::End(); }) {}
+        : ScopedGuard(Menu::Begin(label, enabled), []{ Menu::End(); }) {}  // conditional
 };
 
 /// RAII 辅助：TabBar
 class ScopedTabBar : public ScopedGuard {
 public:
     explicit ScopedTabBar(const char* name)
-        : ScopedGuard(TabBar::BeginBar(name), []{ TabBar::EndBar(); }) {}
+        : ScopedGuard(TabBar::BeginBar(name), []{ TabBar::EndBar(); }) {}  // conditional
 };
 
 /// RAII 辅助：TabItem

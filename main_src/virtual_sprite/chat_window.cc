@@ -12,6 +12,7 @@
 #include "media_engine/media_engine.h"
 #include "common/log_wrapper.h"
 #include "common/i18n.h"
+#include "common/file_utils.h"
 #include "config/config.h"
 
 #include <filesystem>
@@ -41,7 +42,7 @@ bool ChatWindow::Create(int width, int height) {
     media_engine::WindowConfig cfg;
     cfg.resizable = true;
     auto* win = media_engine::MediaCore::Instance().CreateMediaWindow(
-        I18n::Instance().Get("window_title").c_str(), width_, height_, cfg);
+        (I18n::Instance().Get("window_title") + " v" PROSOPHOR_VERSION).c_str(), width_, height_, cfg);
 
     // Minimum size to keep layout usable
     win->SetMinSize(800, 500);
@@ -134,7 +135,9 @@ void ChatWindow::RenderChatUI() {
             media_engine::ImGuiWindowFlags_NoMove |
             media_engine::ImGuiWindowFlags_NoSavedSettings |
             media_engine::ImGuiWindowFlags_NoScrollWithMouse),
-        []{ media_engine::ImGuiWindow::End(); });
+        []{ media_engine::ImGuiWindow::End(); },
+        true);  // Begin: always call End
+    if (!_root) return;
 
     // 乳白色背景
     media_engine::DrawList::RoundRect(0, 0, static_cast<float>(win_w),
@@ -255,6 +258,7 @@ void ChatWindow::RenderRightPanel(int win_w, int win_h) {
     auto _panel = media_engine::ScopedChild(
         "role_panel", right_w - 7, static_cast<float>(win_h) - 52.0f,
         0, media_engine::ImGuiWindowFlags_AlwaysVerticalScrollbar);
+    if (!_panel) return;
 
     // Header with decorative accent and language switch
     {
@@ -269,7 +273,7 @@ void ChatWindow::RenderRightPanel(int win_w, int win_h) {
         if (media_engine::ImGuiWidget::Button(is_zh ? "EN" : "中", 36.0f, 20.0f)) {
             L.SetLanguage(is_zh ? "en" : "zh-CN");
             if (impl_ && impl_->window) {
-                impl_->window->SetTitle(L.Get("window_title").c_str());
+                impl_->window->SetTitle((L.Get("window_title") + " v" PROSOPHOR_VERSION).c_str());
             }
         }
     }
@@ -399,7 +403,7 @@ void ChatWindow::RenderSettingsWindow() {
         // Scan available roles
         all_role_ids.clear();
         std::string roles_dir = std::string(PROSOPHOR_SOURCE_DIR) + "/config/.prosophor/roles";
-        if (std::filesystem::exists(roles_dir)) {
+        if (DirExists(roles_dir)) {
             for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
                 if (entry.is_regular_file() && entry.path().extension() == ".json") {
                     all_role_ids.push_back(entry.path().stem().string());
@@ -530,6 +534,10 @@ void ChatWindow::CreateTrayWindow() {
     tray_window_->SetPosition(dw - tcfg_layout.tray_margin, dh - tcfg_layout.tray_margin);
     tray_window_->Hide();
 
+    // Preload tray texture
+    std::string icon_path = std::string(PROSOPHOR_SOURCE_DIR) + "/main_src/resources/robot_icon.png";
+    tray_texture_ = std::make_unique<media_engine::Texture>(*tray_window_, icon_path);
+
     media_engine::MediaCore::Instance().RegRenderHandler(tray_window_, [this]() {
         RenderTray();
     });
@@ -556,14 +564,31 @@ void ChatWindow::ShowTray(bool show) {
 }
 
 void ChatWindow::RenderTray() {
-    float s = static_cast<float>(LayoutConfig{}.tray_icon_size), pad = 3.0f;
-    media_engine::DrawList::Panel(pad, pad, s - pad * 2.0f, s - pad * 2.0f, 20.0f,
-                                   media_engine::Colors::Orange, media_engine::Colors::CreamBorder, 1.5f);
-    int tx, ty;
-    tray_window_->GetPosition(&tx, &ty);
-    media_engine::Layout::SetCursorScreenPos(
-        static_cast<float>(tx) + 16.0f, static_cast<float>(ty) + 10.0f);
-    media_engine::Text::Colored(media_engine::Colors::White, "P");
+    float s = static_cast<float>(LayoutConfig{}.tray_icon_size);
+
+    // Full-size transparent canvas
+    media_engine::ImGuiWindow::SetNextPos(0, 0);
+    media_engine::ImGuiWindow::SetNextSize(s, s);
+    bool canvas_open = true;
+    int canvas_flags = 0
+        | media_engine::ImGuiWindowFlags_NoDecoration
+        | media_engine::ImGuiWindowFlags_NoMove
+        | media_engine::ImGuiWindowFlags_NoMouseInputs
+        | media_engine::ImGuiWindowFlags_NoBackground
+        | media_engine::ImGuiWindowFlags_NoSavedSettings;
+    if (!media_engine::ImGuiWindow::Begin("tray", &canvas_open, canvas_flags)) {
+        media_engine::ImGuiWindow::End();
+        return;
+    }
+
+    // Draw the robot icon texture, scaled to fit with 1px padding
+    float pad = 1.0f;
+    if (tray_texture_) {
+        tray_texture_->DrawImGui(pad, pad, s - pad * 2.0f, s - pad * 2.0f,
+                                  0.0f, 0.0f, 1.0f, 1.0f);
+    }
+
+    media_engine::ImGuiWindow::End();
 }
 
 }  // namespace prosophor

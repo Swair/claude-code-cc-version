@@ -8,6 +8,7 @@
 #include <filesystem>
 
 #include "config/config.h"
+#include "common/file_utils.h"
 #include "common/log_wrapper.h"
 #include "platform/platform.h"
 
@@ -65,13 +66,13 @@ std::vector<std::string> GetSearchPaths() {
 std::string FindServerBinary() {
     const auto& config = ProsophorConfig::GetInstance();
     for (const auto& lm : config.local_models) {
-        if (!lm.server_path.empty() && std::filesystem::exists(lm.server_path)) {
+        if (!lm.server_path.empty() && FileExists(lm.server_path)) {
             return lm.server_path;
         }
     }
 
     for (const auto& path : GetSearchPaths()) {
-        if (std::filesystem::exists(path)) {
+        if (FileExists(path)) {
             LOG_DEBUG("Found llama-server at: {}", path);
             return path;
         }
@@ -81,7 +82,7 @@ std::string FindServerBinary() {
     std::string which = platform::RunShellCommand("which llama-server 2>/dev/null");
     if (!which.empty()) {
         if (which.back() == '\n') which.pop_back();
-        if (std::filesystem::exists(which)) {
+        if (FileExists(which)) {
             return which;
         }
     }

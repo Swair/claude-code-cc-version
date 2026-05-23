@@ -169,22 +169,22 @@ bool Sprite::Create() {
         root_widget_.Render(media_engine::RenderContext{});
 
         // ── Debug borders (window outline + sprite hitbox) ──
-// #ifndef NDEBUG
-//         {
-//             int ww = sprite_window_->GetWidth();
-//             int wh = sprite_window_->GetHeight();
-//             media_engine::DrawList::OverlayRectOutline(0.0f, 0.0f,
-//                 static_cast<float>(ww), static_cast<float>(wh),
-//                 0.0f, media_engine::Colors::White, 1.5f);
-//         }
+#ifndef NDEBUG
+        {
+            int ww = sprite_window_->GetWidth();
+            int wh = sprite_window_->GetHeight();
+            media_engine::DrawList::OverlayRectOutline(0.0f, 0.0f,
+                static_cast<float>(ww), static_cast<float>(wh),
+                0.0f, media_engine::Colors::White, 1.5f);
+        }
 
-//         if (pet_sprite_ && pet_sprite_->IsValid()) {
-//             auto& b = sprite_bounds_;
-//             media_engine::DrawList::OverlayRectOutline(b.x, b.y,
-//                 b.width, b.height,
-//                 0.0f, media_engine::Colors::White, 1.0f);
-//         }
-// #endif  // !NDEBUG
+        if (pet_sprite_ && pet_sprite_->IsValid()) {
+            auto& b = sprite_bounds_;
+            media_engine::DrawList::OverlayRectOutline(b.x, b.y,
+                b.width, b.height,
+                0.0f, media_engine::Colors::White, 1.0f);
+        }
+#endif  // !NDEBUG
 
         // Global context menu (singleton)
         UIRenderer::Instance().RenderContextMenu(sprite_window_);
@@ -383,7 +383,7 @@ void Sprite::LoadCurrentPet() {
 
 Sprite::SpriteBinding Sprite::LoadSpriteBindingFromRole(const std::string& role_id) {
     std::string path = std::string(PROSOPHOR_SOURCE_DIR) + "/config/.prosophor/roles/" + role_id + ".json";
-    if (!std::filesystem::exists(path)) return {};
+    if (!FileExists(path)) return {};
     try {
         std::ifstream ifs(path);
         nlohmann::json j;
@@ -404,7 +404,7 @@ void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
     auto& config = AgentEngine::GetInstance().GetConfig();
     if (!config.sprite_assets_dir.empty()) {
         std::string dir = config.sprite_assets_dir + "/" + sprite_id;
-        if (std::filesystem::exists(dir)) {
+        if (DirExists(dir)) {
             LoadPetFromDir(dir);
             if (pet_sprite_) return;
         }
@@ -413,7 +413,7 @@ void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
     // Priority 1b: config sprite_assets_dir/{sprite_id}.webp directly
     if (!config.sprite_assets_dir.empty()) {
         std::string webp_path = config.sprite_assets_dir + "/" + sprite_id + ".webp";
-        if (std::filesystem::exists(webp_path)) {
+        if (FileExists(webp_path)) {
             pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, sprite_id, config.sprite_assets_dir + "/");
             if (pet_sprite_->IsValid()) {
                 std::string display = pet_sprite_->GetDisplayName();
@@ -431,7 +431,7 @@ void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
 
     // Priority 2: petdex-sprites recursive search
     std::string kPetdexDir = PetdexSpritesDir();
-    if (!std::filesystem::exists(kPetdexDir)) {
+    if (!DirExists(kPetdexDir)) {
         LOG_WARN("Petdex directory not found: {}", kPetdexDir);
         LOG_WARN("No sprite found for sprite_id='{}'", sprite_id);
         return;
@@ -483,7 +483,7 @@ void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
 }
 
 void Sprite::LoadPetFromDir(const std::string& assets_dir) {
-    if (!std::filesystem::exists(assets_dir)) {
+    if (!DirExists(assets_dir)) {
         LOG_WARN("Sprite assets dir not found: {}", assets_dir);
         return;
     }
@@ -492,7 +492,7 @@ void Sprite::LoadPetFromDir(const std::string& assets_dir) {
     std::string display_name;
     std::string spritesheet_file;
     std::string meta_path = assets_dir + "/meta.json";
-    if (std::filesystem::exists(meta_path)) {
+    if (FileExists(meta_path)) {
         try {
             std::ifstream mf(meta_path);
             nlohmann::json mj;
@@ -541,7 +541,7 @@ void Sprite::LoadPetFromDir(const std::string& assets_dir) {
 
     if (load_webp(assets_dir)) return;
     std::string sub_dir = assets_dir + "/sprites";
-    if (std::filesystem::exists(sub_dir) && load_webp(sub_dir)) return;
+    if (DirExists(sub_dir) && load_webp(sub_dir)) return;
 
     LOG_WARN("No valid spritesheet found in assets dir: {}", assets_dir);
 }

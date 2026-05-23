@@ -87,7 +87,7 @@ struct AgentRole {
     std::string LoadMemoryContent() const {
         std::ostringstream content;
 
-        if (memory_dir.empty() || !std::filesystem::exists(memory_dir)) {
+        if (memory_dir.empty() || !DirExists(memory_dir)) {
             return "";
         }
 

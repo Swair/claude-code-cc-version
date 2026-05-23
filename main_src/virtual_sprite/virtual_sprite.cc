@@ -10,6 +10,8 @@
 #include "common/i18n.h"
 #include "agent_engine.h"
 
+#include "providers/tts/tts_speaker.h"
+#include "media_engine/media/audio_streamer.h"
 #include <memory>
 
 namespace prosophor {
@@ -89,13 +91,34 @@ void VirtualSprite::GlobalInit() {
         LOG_INFO("Central window created (primary)");
     }
 
+    // ── Wire up TTS streaming audio playback ─────────────────
+    {
+        auto& tts = TtsSpeaker::GetInstance();
+        tts.SetOnStreamStarted([this](int sample_rate, int channels) {
+            std::lock_guard<std::mutex> lock(audio_mutex_);
+            current_streamer_ = std::make_unique<media_engine::AudioStreamer>(sample_rate, channels);
+        });
+        tts.SetOnAudioChunk([this](const uint8_t* data, size_t len) {
+            std::lock_guard<std::mutex> lock(audio_mutex_);
+            if (current_streamer_) {
+                current_streamer_->PushChunk(data, len);
+            }
+        });
+    }
+
     // Route session state changes to the matching sprite
     AgentEngine::GetInstance().SetOutputCallback(
         [this](const std::string& session_id, const std::string& /*role_id*/,
                AgentRuntimeState state, const std::string& state_msg,
-               const std::optional<MessageSchema>& /*reply*/) {
+               const std::optional<MessageSchema>& reply) {
             if (auto* s = SpriteManager::GetInstance().FindBySessionId(session_id)) {
                 s->SetAgentState(state, state_msg);
+            }
+            // Trigger TTS when a reply completes
+            if ((state == AgentRuntimeState::COMPLETE ||
+                 state == AgentRuntimeState::STREAM_MODE_COMPLETE) &&
+                reply && !reply->text().empty()) {
+                TtsSpeaker::GetInstance().SpeakStream(reply->text());
             }
         });
 

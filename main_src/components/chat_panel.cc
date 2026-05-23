@@ -41,7 +41,8 @@ void ChatPanel::Render(const media_engine::RenderContext& ctx) {
     auto _scroll = media_engine::ScopedStyleVar::ScrollbarSize(3.0f);
     auto _msgs = media_engine::ScopedGuard(
         scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight),
-        [this]{ scroll_window_->End(); });
+        [this]{ scroll_window_->End(); },
+        true);  // BeginChild: always call End
     RenderMessages(snapshot_);
 
     // Auto-scroll to bottom when new content arrives.
@@ -82,7 +83,8 @@ void ChatPanel::RenderContentInRect(float x, float y, float w, float h,
     auto _scroll = media_engine::ScopedStyleVar::ScrollbarSize(3.0f);
     auto _msgs = media_engine::ScopedGuard(
         scroll_window_->Begin("______________________________", &media_engine::Colors::CreamLight),
-        [this]{ scroll_window_->End(); });
+        [this]{ scroll_window_->End(); },
+        true);  // BeginChild: always call End
     RenderMessages(snapshot);
     // Auto-scroll to bottom when new content arrives.
     // Between content updates, user can freely drag the scrollbar.

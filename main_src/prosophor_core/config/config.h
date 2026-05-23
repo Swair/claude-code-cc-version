@@ -170,6 +170,23 @@ struct SecurityConfig {
     }
 };
 
+/// Configuration for TTS (Text-to-Speech)
+struct TtsConfig {
+    std::string backend = "edge-tts";  // "edge-tts" or "gpt-sovits"
+
+    // GPT-SoVITS settings
+    std::string gs_url = "http://127.0.0.1:9880";
+    std::string gs_install_path;       // Path to GPT-SoVITS installation dir
+    bool gs_auto_start = true;         // Auto-start api_v2.py as subprocess
+    int gs_port = 9880;
+    std::string gs_ref_audio_path;
+    std::string gs_ref_audio_text;
+    std::string gs_ref_audio_lang = "zh";
+    std::string gs_text_lang = "zh";
+
+    static TtsConfig FromJson(const nlohmann::json& json);
+};
+
 /// Top-level Prosophor configuration
 struct ProsophorConfig {
     std::string log_level = "info";
@@ -183,6 +200,7 @@ struct ProsophorConfig {
     std::unordered_map<std::string, ProviderConfig> providers;
     ToolConfig tools;
     SkillsConfig skills;
+    TtsConfig tts;
     std::vector<LocalModelConfig> local_models;
 
     /// Get singleton instance
@@ -200,6 +218,8 @@ struct ProsophorConfig {
     static std::string ExpandHome(const std::string& path);
     static std::string DefaultConfigPath();
     static std::filesystem::path BaseDir();
+    /// Directory containing shipped read-only config (exe-adjacent .prosophor/)
+    static std::filesystem::path InstallConfigDir();
     static void CreateDefaultConfig(const std::string& filepath = DefaultConfigPath());
 
     /// Save config to file

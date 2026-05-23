@@ -1,5 +1,58 @@
 # Changelog
 
+## [Unreleased] — 2026-05-23 TTS 多后端重构 + GPT-SoVITS 流式语音 + Windows 安装发布
+
+本期重点：TTS 从单一服务迁移为 Provider 架构，新增 edge-tts 与 GPT-SoVITS 双后端；接入 GPT-SoVITS 本地 API 生命周期管理和 WAV/PCM 流式播放；VirtualSprite 在回复完成后自动触发语音合成；修复 ImGui Begin/End RAII 配对规则；增强托盘图标、窗口版本号、Release 日志和 Windows NSIS/Gitee 发布流程。净变化 +893 行。
+
+### TTS Provider 架构
+- 新增 `TtsProvider` 抽象基类，统一同步合成与流式合成接口
+- 新增 `EdgeTtsProvider`，保留 edge-tts 子进程合成能力并作为默认后端
+- 新增 `GptSoVitsProvider`，通过本地 HTTP `/tts` 接口支持普通 WAV 输出和 streaming_mode=2 流式输出
+- `TtsSpeaker` 从 `services/` 迁移到 `providers/tts/`，改为多后端门面，支持运行时切换后端、语音选择、合成完成回调和音频 chunk 回调
+- 非流式后端通过临时 WAV 文件读取方式提供统一的流式回退路径
+
+### GPT-SoVITS 集成
+- 新增 `GptSoVitsManager`，负责启动/停止 GPT-SoVITS `api_v2.py` 子进程、端口等待和进程存活检测
+- `TtsConfig` 新增 `tts` 配置段，支持 `backend`、`gs_url`、`gs_install_path`、`gs_auto_start`、`gs_port`、参考音频路径/文本/语言和输入文本语言
+- `GptSoVitsProvider` 支持参考音频参数、文本语言配置、WAV header 解析，以及从首包中剥离 PCM 数据后转发给播放器
+
+### 语音播放接入
+- `VirtualSprite::GlobalInit()` 绑定 `TtsSpeaker` 流式回调，创建 `AudioStreamer` 并推送 PCM chunk 播放
+- Agent 回复进入 `COMPLETE` / `STREAM_MODE_COMPLETE` 后，自动对最终回复文本执行 `SpeakStream()`
+- `media_engine.h` 导出 `audio_streamer.h`，便于上层窗口系统直接接入流式音频播放
+
+### UI / ImGui 修复与增强
+- 修复 `ScopedGuard` 对 ImGui `Begin()/End()`、`BeginChild()/EndChild()` 的配对规则：普通窗口和 Child 即使 Begin 返回 false 也会调用 End，Popup/Menu/Tab 仍按条件调用
+- ChatPanel、SpeechBubble、NavBar、ChatWindow 等窗口/Child 使用新的 always-call RAII 规则，避免 ImGui 栈不匹配
+- `DrawList` 新增 `CircleFilled`、`CircleOutline`、`Line` 绘制接口，颜色表新增 Cyan/Pink 科技色系
+- ChatWindow 标题显示 `PROSOPHOR_VERSION`，语言切换后同步更新带版本号标题
+- 托盘窗口改为预加载 `robot_icon.png` 纹理并绘制真实图标，不再绘制文字 P 占位
+- Debug 构建重新启用精灵窗口轮廓和 hitbox 边框叠加
+
+### 配置、路径与日志
+- `ProsophorConfig::BaseDir()` 明确使用用户目录 `~/.prosophor` 作为可写配置目录，新增 `InstallConfigDir()` 表示 exe 同级只读配置目录
+- 多处路径存在性判断改用 `FileExists()` / `DirExists()`，统一平台兼容行为
+- Release 构建增加文件日志输出到 `~/.prosophor/log/log-YYYYMMDD.txt`，Debug 构建保持 stdout 日志
+
+### 构建与发布
+- Makefile 版本升级到 `0.6.3`，默认构建类型改为 `RelWithDebInfo`
+- 新增 `package` 目标，使用 NSIS 生成 Windows 安装包 `Prosophor-<version>-win64-setup.exe`
+- `deploy` 改为发布 NSIS 安装包到 GitHub Releases；新增 `deploy_gitee` 和 `deploy_all` 支持发布到 Gitee/双平台
+- CMake 为 GUI/TUI 目标加入 `app.rc` 和 `app.ico`，Release/RelWithDebInfo/MinSizeRel 下设置 `WIN32_EXECUTABLE`
+- 移除根 CMake 中旧的 assets 与 bin/.prosophor 额外安装步骤
+
+### 资源清理
+- 删除旧 ayaka 资产配置与 demo 截图资源
+- 新增 Windows 应用图标资源 `main_src/resources/app.ico` / `app.rc`
+
+### 文件统计
+- 变更文件：46 个
+- 新增：+1,202 行
+- 删除：-309 行
+- 净变化：+893 行
+
+---
+
 ## [Unreleased] — 2026-05-20 托盘窗口独立字体 + 精灵背景纹理清理
 
 本期重点：Tray 窗口独立字体配置（`use_shared_font=false`），避免共享 CJK 字体上下文冲突；移除 Sprite 中废弃的 `LoadBackground()` 方法和 `bg_texture_` 成员（精灵窗口不再使用静态背景纹理）。

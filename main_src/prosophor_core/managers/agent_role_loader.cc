@@ -12,6 +12,7 @@
 #define PROSOPHOR_SOURCE_DIR "."
 #endif
 
+#include "common/file_utils.h"
 #include "common/log_wrapper.h"
 #include "config/config.h"
 #include "tools/tool_registry.h"
@@ -45,7 +46,7 @@ AgentRole AgentRoleLoader::LoadRole(const std::string& role_path) {
 std::vector<AgentRole> AgentRoleLoader::LoadAllRoles(const std::string& roles_dir) {
     std::vector<AgentRole> roles;
 
-    if (!std::filesystem::exists(roles_dir)) {
+    if (!DirExists(roles_dir)) {
         LOG_WARN("Roles directory does not exist: {}", roles_dir);
         return roles;
     }
@@ -99,7 +100,7 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
     if (provider_to_use.empty()) {
         std::string primary_role = config.default_role.empty() ? "default" : config.default_role[0];
         std::string default_role_path = "config/.prosophor/roles/" + primary_role + ".json";
-        if (std::filesystem::exists(default_role_path)) {
+        if (FileExists(default_role_path)) {
             auto& loader = AgentRoleLoader::GetInstance();
             try {
                 AgentRole default_role = loader.LoadRole(default_role_path);
@@ -169,7 +170,7 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
         // 2. Fallback: petdex-sprites recursive search
         if (sj.empty()) {
             static const char* kPetdexDir = PROSOPHOR_SOURCE_DIR "/assets/petdex-sprites/by-collection";
-            if (!std::filesystem::exists(kPetdexDir)) {
+            if (!DirExists(kPetdexDir)) {
                 LOG_WARN("Petdex directory not found: {}", kPetdexDir);
             } else {
                 for (const auto& entry : std::filesystem::recursive_directory_iterator(kPetdexDir)) {

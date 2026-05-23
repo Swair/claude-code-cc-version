@@ -40,7 +40,7 @@ void ProviderRouter::Initialize(const ProsophorConfig& config) {
     // Load the default role to get its provider_name
     std::string primary_role = config.default_role.empty() ? "default" : config.default_role[0];
     std::string role_path = "config/.prosophor/roles/" + primary_role + ".json";
-    if (std::filesystem::exists(role_path)) {
+    if (FileExists(role_path)) {
         auto& loader = AgentRoleLoader::GetInstance();
         try {
             AgentRole role = loader.LoadRole(role_path);

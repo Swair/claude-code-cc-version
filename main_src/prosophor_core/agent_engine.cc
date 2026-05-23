@@ -211,7 +211,7 @@ void AgentEngine::StopSession(const std::string& session_id) {
 }
 
 void AgentEngine::ChangeWorkspace(const std::string& new_path) {
-    if (!std::filesystem::exists(new_path)) {
+    if (!DirExists(new_path)) {
         LOG_ERROR("Workspace path does not exist: {}", new_path);
         return;
     }

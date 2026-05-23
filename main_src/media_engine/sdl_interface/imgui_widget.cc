@@ -441,6 +441,23 @@ void DrawList::RoundRectOutline(float x, float y, float w, float h,
         ImVec2(x, y), ImVec2(x + w, y + h), ColorToRGBA(color), radius, 0, thickness);
 }
 
+void DrawList::CircleFilled(float cx, float cy, float radius, const Color& color) {
+    ImGui::GetWindowDrawList()->AddCircleFilled(
+        ImVec2(cx, cy), radius, ColorToRGBA(color), 0);
+}
+
+void DrawList::CircleOutline(float cx, float cy, float radius, const Color& color,
+                              float thickness) {
+    ImGui::GetWindowDrawList()->AddCircle(
+        ImVec2(cx, cy), radius, ColorToRGBA(color), 0, thickness);
+}
+
+void DrawList::Line(float x1, float y1, float x2, float y2, const Color& color,
+                     float thickness) {
+    ImGui::GetWindowDrawList()->AddLine(
+        ImVec2(x1, y1), ImVec2(x2, y2), ColorToRGBA(color), thickness);
+}
+
 void DrawList::OverlayRectOutline(float x, float y, float w, float h,
                                   float radius, const Color& color,
                                   float thickness) {

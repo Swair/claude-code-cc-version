@@ -366,7 +366,7 @@ void CommandRegistry::Initialize() {
             // Complete role names from config/.prosophor/roles/
             std::vector<std::string> completions;
             std::string roles_dir = "config/.prosophor/roles";
-            if (std::filesystem::exists(roles_dir)) {
+            if (DirExists(roles_dir)) {
                 for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
                     if (entry.is_regular_file() && entry.path().extension() == ".json") {
                         std::string role_id = entry.path().stem().string();
@@ -636,7 +636,7 @@ std::vector<std::string> CommandRegistry::CompleteRole(const std::string& partia
     std::vector<std::string> completions;
     std::string roles_dir = "config/.prosophor/roles";
 
-    if (std::filesystem::exists(roles_dir)) {
+    if (DirExists(roles_dir)) {
         for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 std::string role_id = entry.path().stem().string();
@@ -1920,7 +1920,7 @@ CommandResult CommandRegistry::CmdMemory(const CommandContext& ctx, const std::v
 
         // List daily memory files
         std::filesystem::path memory_dir = mem_mgr.GetBaseDir() / "memory";
-        if (!std::filesystem::exists(memory_dir)) {
+        if (!DirExists(memory_dir.string())) {
             return CommandResult::Ok("No memory entries found. Use /memory add <note> to create one.");
         }
 
@@ -1992,7 +1992,7 @@ CommandResult CommandRegistry::CmdMemory(const CommandContext& ctx, const std::v
         std::string date = args[1];
         std::filesystem::path memory_file = mem_mgr.GetBaseDir() / "memory" / (date + ".md");
 
-        if (std::filesystem::exists(memory_file)) {
+        if (FileExists(memory_file.string())) {
             std::filesystem::remove(memory_file);
             return CommandResult::Ok("Memory entry deleted: " + date);
         }
@@ -2101,7 +2101,7 @@ CommandResult CommandRegistry::CmdRoles(const CommandContext&, const std::vector
     std::ostringstream oss;
     oss << "Available roles:\n";
     std::string roles_dir = "config/.prosophor/roles";
-    if (std::filesystem::exists(roles_dir)) {
+    if (DirExists(roles_dir)) {
         for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 std::string role_id = entry.path().stem().string();
@@ -2136,7 +2136,7 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
         // List available roles
         oss << "\nAvailable roles:\n";
         std::string roles_dir = "config/.prosophor/roles";
-        if (std::filesystem::exists(roles_dir)) {
+        if (DirExists(roles_dir)) {
             for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
                 if (entry.is_regular_file() && entry.path().extension() == ".json") {
                     std::string role_id = entry.path().stem().string();
@@ -2156,7 +2156,7 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
 
     // Validate role exists
     std::string role_path = "config/.prosophor/roles/" + new_role_id + ".json";
-    if (!std::filesystem::exists(role_path)) {
+    if (!FileExists(role_path)) {
         return CommandResult::Fail("Unknown role: " + new_role_id);
     }
 
@@ -2502,7 +2502,7 @@ CommandResult CommandRegistry::CmdSetup(const CommandContext&, const std::vector
     // Also search recursively in common locations
     for (const auto& dir : {".", "../llamacpp_model"}) {
         std::error_code ec;
-        if (!std::filesystem::exists(dir, ec)) continue;
+        if (!DirExists(dir)) continue;
         for (auto it = std::filesystem::recursive_directory_iterator(dir, ec);
              it != std::filesystem::recursive_directory_iterator(); ++it) {
             if (it->path().extension() == ".gguf") {
@@ -2628,7 +2628,7 @@ CommandResult CommandRegistry::CmdWorkspace(const CommandContext& ctx, const std
 
     new_path = std::filesystem::absolute(new_path).string();
 
-    if (!std::filesystem::exists(new_path)) {
+    if (!DirExists(new_path)) {
         return CommandResult::Fail("Path does not exist: " + new_path);
     }
 

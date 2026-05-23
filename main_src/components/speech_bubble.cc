@@ -115,7 +115,8 @@ void SpeechBubble::Render(const media_engine::RenderContext& ctx) {
             media_engine::ImGuiWindowFlags_NoDecoration |
             media_engine::ImGuiWindowFlags_NoMove |
             media_engine::ImGuiWindowFlags_NoSavedSettings),
-        []{ media_engine::ImGuiWindow::End(); });
+        []{ media_engine::ImGuiWindow::End(); },
+        true);  // Begin: always call End
 
     DrawBubbleBody(bubble_width, bubble_body_h);
     if (!maximized) { DrawTail(bubble_width, bubble_body_h); }

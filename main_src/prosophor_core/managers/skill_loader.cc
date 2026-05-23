@@ -11,6 +11,7 @@
 #include <stack>
 #include <unordered_set>
 
+#include "common/file_utils.h"
 #include "common/log_wrapper.h"
 #include "platform/platform.h"
 
@@ -29,7 +30,7 @@ std::vector<SkillMetadata> SkillLoader::LoadSkillsFromDirectory(
     const std::filesystem::path& skills_dir) {
     std::vector<SkillMetadata> skills;
 
-    if (!std::filesystem::exists(skills_dir)) {
+    if (!DirExists(skills_dir.string())) {
         LOG_DEBUG("Skills directory does not exist: {}", skills_dir.string());
         return skills;
     }
@@ -106,7 +107,7 @@ bool SkillLoader::CheckSkillGating(const SkillMetadata& skill) {
                 expanded = std::string(home) + expanded.substr(1);
             }
         }
-        if (!std::filesystem::exists(expanded)) {
+        if (!FileExists(expanded)) {
             LOG_DEBUG("Skill gating failed: config '{}' not found", config_file);
             return false;
         }
@@ -240,7 +241,7 @@ std::vector<std::string> SkillLoader::GetAllSkillIds() const {
 
     std::unordered_set<std::string> seen;
     for (const auto& dir : dirs) {
-        if (!std::filesystem::exists(dir)) continue;
+        if (!DirExists(dir.string())) continue;
 
         for (const auto& entry : std::filesystem::directory_iterator(dir)) {
             if (entry.is_regular_file() && entry.path().filename() == "SKILL.md") {
@@ -413,7 +414,7 @@ SkillMetadata SkillLoader::ParseSkillFile(
     skill.root_dir = skill_file.parent_path();
     auto check_resource_dir = [&](const std::string& subdir) -> std::string {
         auto p = skill.root_dir / subdir;
-        if (std::filesystem::exists(p) && std::filesystem::is_directory(p)) {
+        if (DirExists(p.string())) {
             return p.string();
         }
         return "";

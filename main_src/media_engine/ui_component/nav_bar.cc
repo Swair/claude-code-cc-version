@@ -26,7 +26,8 @@ void NavBar::Render(float parent_width, const std::string& status_text,
         ImGuiWindow::Begin("##nav_bar", nullptr,
             ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground |
             ImGuiWindowFlags_AlwaysAutoResize),
-        []{ ImGuiWindow::End(); });
+        []{ ImGuiWindow::End(); },
+        true);  // Begin: always call End
 
     // Background bar matching content width
     float content_w = ImGui::GetWindowWidth();

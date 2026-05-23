@@ -153,6 +153,11 @@ namespace Colors {
     constexpr Color White80{255, 255, 255, 204};
     constexpr Color MilkyWhite{253, 251, 245, 255};       // 乳白色
 
+    // ── 科技色系 ──
+    constexpr Color CyanLight{100, 200, 255, 255};
+    constexpr Color PinkBlush{255, 180, 180, 100};
+    constexpr Color Pink{255, 180, 180, 255};
+
     // ── 聊天消息背景色 ──
     constexpr Color BluePale{235, 245, 255, 200};
     constexpr Color GreenPale{235, 245, 235, 200};

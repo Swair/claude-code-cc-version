@@ -27,9 +27,15 @@ void AgentSessionManager::Initialize(ToolExecutorCallback tool_executor) {
     tool_executor_ = tool_executor;
     LOG_DEBUG("AgentSessionManager initialized");
 
-    // Load roles from ~/.prosophor/roles/
-    auto roles_dir = prosophor::ProsophorConfig::BaseDir() / "roles";
-    LoadRolesFromDirectory(roles_dir.string());
+    // Load roles from install config dir (shipped with app), fallback to user data dir
+    auto install_roles = prosophor::ProsophorConfig::InstallConfigDir() / "roles";
+    if (DirExists(install_roles.string())) {
+        LoadRolesFromDirectory(install_roles.string());
+    }
+    auto user_roles = prosophor::ProsophorConfig::BaseDir() / "roles";
+    if (DirExists(user_roles.string())) {
+        LoadRolesFromDirectory(user_roles.string());
+    }
 }
 
 void AgentSessionManager::SetToolExecutor(ToolExecutorCallback tool_executor) {
@@ -505,7 +511,7 @@ std::vector<SystemSchema> AgentSessionManager::BuildSystemPrompt(const AgentSess
 
     // 2. Session History (项目上下文 - 决策/待办)
     if (!session.GetSessionHistoryDir().empty() &&
-        std::filesystem::exists(session.GetSessionHistoryDir())) {
+        DirExists(session.GetSessionHistoryDir())) {
         prompt << "## 项目上下文\n\n";
 
         // 加载 Session History 文件

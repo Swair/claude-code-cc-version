@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <algorithm>
 
+#include "common/file_utils.h"
 #include "common/log_wrapper.h"
 #include "common/constants.h"
 
@@ -77,17 +78,17 @@ std::string PluginManager::ExpandHome(const std::string& path) const {
 std::string PluginManager::FindPluginManifest(const std::string& plugin_dir) const {
     // Look for plugin.json or .claude-plugin/plugin.json
     std::string manifest = plugin_dir + "/plugin.json";
-    if (std::filesystem::exists(manifest)) {
+    if (FileExists(manifest)) {
         return manifest;
     }
 
     manifest = plugin_dir + "/.claude-plugin/plugin.json";
-    if (std::filesystem::exists(manifest)) {
+    if (FileExists(manifest)) {
         return manifest;
     }
 
     manifest = plugin_dir + "/.claude-plugin/manifest.json";
-    if (std::filesystem::exists(manifest)) {
+    if (FileExists(manifest)) {
         return manifest;
     }
 
@@ -113,7 +114,7 @@ nlohmann::json PluginManager::LoadManifest(const std::string& manifest_path) con
 void PluginManager::DiscoverPluginContents(Plugin& plugin, const std::string& plugin_dir) {
     // Discover commands
     std::string commands_dir = plugin_dir + "/commands";
-    if (std::filesystem::exists(commands_dir)) {
+    if (DirExists(commands_dir)) {
         for (const auto& entry : std::filesystem::directory_iterator(commands_dir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".md") {
                 plugin.commands.push_back(entry.path().string());
@@ -123,7 +124,7 @@ void PluginManager::DiscoverPluginContents(Plugin& plugin, const std::string& pl
 
     // Discover agents
     std::string agents_dir = plugin_dir + "/agents";
-    if (std::filesystem::exists(agents_dir)) {
+    if (DirExists(agents_dir)) {
         for (const auto& entry : std::filesystem::directory_iterator(agents_dir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".md") {
                 plugin.agents.push_back(entry.path().string());
@@ -133,7 +134,7 @@ void PluginManager::DiscoverPluginContents(Plugin& plugin, const std::string& pl
 
     // Discover skills
     std::string skills_dir = plugin_dir + "/skills";
-    if (std::filesystem::exists(skills_dir)) {
+    if (DirExists(skills_dir)) {
         for (const auto& entry : std::filesystem::directory_iterator(skills_dir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".md") {
                 plugin.skills.push_back(entry.path().string());
@@ -143,7 +144,7 @@ void PluginManager::DiscoverPluginContents(Plugin& plugin, const std::string& pl
 }
 
 void PluginManager::LoadAllPlugins() {
-    if (!std::filesystem::exists(plugins_dir_)) {
+    if (!DirExists(plugins_dir_)) {
         LOG_INFO("Plugins directory does not exist: {}", plugins_dir_);
         return;
     }

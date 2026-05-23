@@ -45,7 +45,7 @@ const AgentConfig& ProsophorConfig::GetAgentConfig() const {
     // Load default role to get its provider and agent config
     std::string primary_role = default_role.empty() ? "default" : default_role[0];
     std::string role_path = "config/.prosophor/roles/" + primary_role + ".json";
-    if (std::filesystem::exists(role_path)) {
+    if (FileExists(role_path)) {
         auto& loader = AgentRoleLoader::GetInstance();
         try {
             AgentRole role = loader.LoadRole(role_path);
@@ -352,6 +352,20 @@ nlohmann::json LocalModelConfig::ToJson() const {
     return j;
 }
 
+TtsConfig TtsConfig::FromJson(const nlohmann::json& json) {
+    TtsConfig config;
+    config.backend = json.value("backend", "edge-tts");
+    config.gs_url = json.value("gs_url", json.value("gsUrl", "http://127.0.0.1:9880"));
+    config.gs_install_path = json.value("gs_install_path", json.value("gsInstallPath", ""));
+    config.gs_auto_start = json.value("gs_auto_start", json.value("gsAutoStart", true));
+    config.gs_port = json.value("gs_port", json.value("gsPort", 9880));
+    config.gs_ref_audio_path = json.value("gs_ref_audio_path", json.value("gsRefAudioPath", ""));
+    config.gs_ref_audio_text = json.value("gs_ref_audio_text", json.value("gsRefAudioText", ""));
+    config.gs_ref_audio_lang = json.value("gs_ref_audio_lang", json.value("gsRefAudioLang", "zh"));
+    config.gs_text_lang = json.value("gs_text_lang", json.value("gsTextLang", "zh"));
+    return config;
+}
+
 ToolConfig ToolConfig::FromJson(const nlohmann::json& json) {
     ToolConfig config;
     config.enabled = json.value("enabled", true);
@@ -459,6 +473,9 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
     if (json.contains("skills") && json["skills"].is_object()) {
         config.skills = SkillsConfig::FromJson(json["skills"]);
     }
+    if (json.contains("tts") && json["tts"].is_object()) {
+        config.tts = TtsConfig::FromJson(json["tts"]);
+    }
     if (json.contains("local_models") && json["local_models"].is_array()) {
         for (const auto& m : json["local_models"]) {
             config.local_models.push_back(LocalModelConfig::FromJson(m));
@@ -470,7 +487,7 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
 ProsophorConfig ProsophorConfig::LoadFromFile(const std::string& filepath) {
     std::string expanded_path = ExpandHome(filepath);
 
-    if (!std::filesystem::exists(expanded_path)) {
+    if (!FileExists(expanded_path)) {
         throw std::runtime_error("Config file not found: " + expanded_path);
     }
 
@@ -513,12 +530,23 @@ std::string ProsophorConfig::DefaultConfigPath() {
     std::string exe_path = platform::GetSelfExePath();
     if (!exe_path.empty()) {
         auto local_config = std::filesystem::path(exe_path).parent_path() / ".prosophor" / "settings.json";
-        if (std::filesystem::exists(local_config)) {
+        if (FileExists(local_config.string())) {
             return local_config.string();
         }
     }
     // Cross-platform: use user home directory
     return ExpandHome("~/.prosophor/settings.json");
+}
+
+std::filesystem::path ProsophorConfig::InstallConfigDir() {
+    std::string exe_path = platform::GetSelfExePath();
+    if (!exe_path.empty()) {
+        auto local_dir = std::filesystem::path(exe_path).parent_path() / ".prosophor";
+        if (DirExists(local_dir.string())) {
+            return local_dir;
+        }
+    }
+    return {};
 }
 
 std::filesystem::path ProsophorConfig::BaseDir() {
@@ -527,15 +555,7 @@ std::filesystem::path ProsophorConfig::BaseDir() {
     if (env_path != nullptr && env_path[0] != '\0') {
         return std::filesystem::path(env_path).parent_path();
     }
-    // Portable: check for local .prosophor/ next to the executable
-    std::string exe_path = platform::GetSelfExePath();
-    if (!exe_path.empty()) {
-        auto local_dir = std::filesystem::path(exe_path).parent_path() / ".prosophor";
-        if (std::filesystem::exists(local_dir)) {
-            return local_dir;
-        }
-    }
-    // Cross-platform: use user home directory
+    // Use user home directory (always writable)
     return ExpandHome("~/.prosophor");
 }
 
@@ -548,13 +568,13 @@ void ProsophorConfig::CreateDefaultConfig(const std::string& filepath) {
     std::filesystem::create_directories(parent_dir);
 
     // Don't overwrite existing config
-    if (std::filesystem::exists(expanded_path)) {
+    if (FileExists(expanded_path)) {
         return;
     }
 
     // Check if there's a demo config at config/.prosophor/settings.json
     std::string demo_config_path = "config/.prosophor/settings.json";
-    if (std::filesystem::exists(demo_config_path)) {
+    if (FileExists(demo_config_path)) {
         // Copy demo config to ~/.prosophor/settings.json
         try {
             std::filesystem::copy_file(demo_config_path, expanded_path,
@@ -709,6 +729,21 @@ nlohmann::json ProsophorConfig::ToJson() const {
     if (!tools.allowed_cmds.empty()) tools_json["allowed_cmds"] = tools.allowed_cmds;
     if (!tools.denied_cmds.empty()) tools_json["denied_cmds"] = tools.denied_cmds;
     json["tools"] = tools_json;
+
+    // Serialize TTS
+    nlohmann::json tts_json = nlohmann::json::object();
+    tts_json["backend"] = tts.backend;
+    if (tts.backend == "gpt-sovits") {
+        tts_json["gs_url"] = tts.gs_url;
+        tts_json["gs_install_path"] = tts.gs_install_path;
+        tts_json["gs_auto_start"] = tts.gs_auto_start;
+        tts_json["gs_port"] = tts.gs_port;
+        tts_json["gs_ref_audio_path"] = tts.gs_ref_audio_path;
+        tts_json["gs_ref_audio_text"] = tts.gs_ref_audio_text;
+        tts_json["gs_ref_audio_lang"] = tts.gs_ref_audio_lang;
+        tts_json["gs_text_lang"] = tts.gs_text_lang;
+    }
+    json["tts"] = tts_json;
 
     // Serialize local models
     if (!local_models.empty()) {

@@ -44,7 +44,7 @@ void MemoryManager::LoadWorkspaceFiles() {
          {"SOUL.md", "USER.md", "MEMORY.md", "AGENTS.md", "TOOLS.md"}) {
         try {
             auto filepath = workspace_path_ / name;
-            if (std::filesystem::exists(filepath)) {
+            if (FileExists(filepath.string())) {
                 auto content = ReadFileContent(filepath);
                 if (!content.empty()) {
                     LOG_DEBUG("Loaded {} ({} bytes)", name, content.size());
@@ -61,7 +61,7 @@ void MemoryManager::LoadWorkspaceFiles() {
 
     // 3. Load daily memory files
     auto memory_dir = workspace_path_ / "memory";
-    if (std::filesystem::exists(memory_dir)) {
+    if (DirExists(memory_dir.string())) {
         int loaded_count = 0;
         for (const auto& entry : std::filesystem::directory_iterator(memory_dir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".md") {
@@ -98,7 +98,7 @@ std::string MemoryManager::ReadToolsFile() const {
 void MemoryManager::LoadprosophorFilesRecursively(const std::filesystem::path& dir) {
     // Load PROSOPHOR.md from current directory if exists
     auto prosophor_file = dir / "PROSOPHOR.md";
-    if (std::filesystem::exists(prosophor_file)) {
+    if (FileExists(prosophor_file.string())) {
         try {
             auto content = ReadFileContent(prosophor_file);
             if (!content.empty()) {
@@ -144,7 +144,7 @@ std::vector<std::string> MemoryManager::SearchMemory(
     }
 
     auto memory_dir = workspace_path_ / "memory";
-    if (std::filesystem::exists(memory_dir)) {
+    if (DirExists(memory_dir.string())) {
         for (const auto& entry : std::filesystem::directory_iterator(memory_dir)) {
             if (entry.is_regular_file() && entry.path().extension() == ".md") {
                 try {
@@ -193,7 +193,7 @@ void MemoryManager::StartFileWatcher() {
         for (const auto& name :
              {"SOUL.md", "USER.md", "MEMORY.md", "AGENTS.md", "TOOLS.md"}) {
             auto path = workspace_path_ / name;
-            if (std::filesystem::exists(path)) {
+            if (FileExists(path.string())) {
                 file_mtimes_[name] = std::filesystem::last_write_time(path);
             }
         }
@@ -209,7 +209,7 @@ void MemoryManager::StartFileWatcher() {
             for (const auto& name :
                  {"SOUL.md", "USER.md", "MEMORY.md", "AGENTS.md", "TOOLS.md"}) {
                 auto path = workspace_path_ / name;
-                if (!std::filesystem::exists(path)) {
+                if (!FileExists(path.string())) {
                     continue;
                 }
                 auto mtime = std::filesystem::last_write_time(path);

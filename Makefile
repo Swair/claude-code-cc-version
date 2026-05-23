@@ -16,9 +16,9 @@ NUM_JOB ?= 8
 export PATH := /e/devtool/msys64/mingw64/bin:$(PATH)
 
 PACKAGE_NAME ?= Prosophor
-PACKAGE_VERSION ?= 0.6.0
-# BUILD_TYPE ?= RelWithDebInfo
-BUILD_TYPE ?= Debug
+PACKAGE_VERSION ?= 0.6.3
+BUILD_TYPE ?= RelWithDebInfo
+# BUILD_TYPE ?= Debug
 
 
 all:
@@ -107,32 +107,63 @@ run_win:
 	cd $(INSTALL_DIR_WIN)/bin && SSL_CERT_FILE=ca-bundle.crt ./prosophor.exe
 .PHONY: run_win
 
-# 一键发布：从 install/bin 直接打包（排除 assets/.prosophor）
-deploy: build_win_sdl
-	cp /e/devtool/msys64/mingw64/etc/ssl/certs/ca-bundle.crt $(INSTALL_DIR_WIN)/bin/
-	cd $(INSTALL_DIR_WIN)/bin && \
-	cmake -E tar cf $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64.zip \
-	  --format=zip *.exe *.dll *.crt
-.PHONY: deploy
-
-# 全量重构建+打包（清除 cmake 缓存）
-deploy_fresh:
-	rm -rf $(BUILD_DIR_WIN)/CMakeCache.txt
-	$(MAKE) deploy
-.PHONY: deploy_fresh
-
 clean_win:
 	rm -rf ${BUILD_DIR_WIN}
 .PHONY: clean_win
 
-# 构建并发布到 GitHub Releases（需要先 git tag）
-release: deploy
+# NSIS 安装包路径
+NSIS ?= /e/devtool/msys64/mingw64/bin/makensis.exe
+PACKAGE_DIR ?= $(PROJECT_DIR)/tools/packaging
+
+package: build_win_sdl
+	cp /e/devtool/msys64/mingw64/etc/ssl/certs/ca-bundle.crt $(INSTALL_DIR_WIN)/bin/
+	cd $(PACKAGE_DIR) && "$(NSIS)" -DPRODUCT_VERSION=$(PACKAGE_VERSION) installer.nsi
+	mv $(PACKAGE_DIR)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe $(BUILD_DIR_WIN)/
+	@echo "=== Installer created: $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe ==="
+.PHONY: package
+
+# 构建+NSIS 安装包+发布到 GitHub Releases（需要先 git tag）
+deploy: package
 	@echo "Creating GitHub release v$(PACKAGE_VERSION)..."
 	gh release create v$(PACKAGE_VERSION) \
-	  $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64.zip \
+	  $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe \
 	  --title "v$(PACKAGE_VERSION)" \
 	  --generate-notes
-.PHONY: release
+.PHONY: deploy
+
+GITEE_API ?= https://gitee.com/api/v5
+GITEE_OWNER ?= swair
+GITEE_REPO ?= prosophor
+GITEE_TOKEN ?= $(GITEE_ACCESS_TOKEN)
+GITEE_RELEASE_BODY ?= Release v$(PACKAGE_VERSION)
+
+# 构建+NSIS 安装包+发布到 Gitee 发行版（需要先 git tag，需设置 GITEE_TOKEN）
+deploy_gitee: package
+	@if [ -z "$(GITEE_TOKEN)" ]; then \
+	  echo "GITEE_TOKEN is required. Example: make deploy_gitee GITEE_TOKEN=xxxxx"; \
+	  exit 1; \
+	fi
+	@echo "Creating Gitee release v$(PACKAGE_VERSION)..."
+	@release_id=$$(curl -sS -X POST "$(GITEE_API)/repos/$(GITEE_OWNER)/$(GITEE_REPO)/releases" \
+	  -F "access_token=$(GITEE_TOKEN)" \
+	  -F "tag_name=v$(PACKAGE_VERSION)" \
+	  -F "name=v$(PACKAGE_VERSION)" \
+	  -F "body=$(GITEE_RELEASE_BODY)" \
+	  | python -c "import json,sys; data=json.load(sys.stdin); print(data.get('id',''))"); \
+	if [ -z "$$release_id" ]; then \
+	  echo "Failed to create Gitee release"; \
+	  exit 1; \
+	fi; \
+	echo "Uploading installer to Gitee release $$release_id..."; \
+	curl -sS -X POST "$(GITEE_API)/repos/$(GITEE_OWNER)/$(GITEE_REPO)/releases/$$release_id/attach_files" \
+	  -F "access_token=$(GITEE_TOKEN)" \
+	  -F "file=@$(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe"; \
+	echo "Gitee release created: v$(PACKAGE_VERSION)"
+.PHONY: deploy_gitee
+
+# 构建+NSIS 安装包+同时发布到 GitHub 和 Gitee
+deploy_all: deploy deploy_gitee
+.PHONY: deploy_all
 
 # 运行所有单元测试 (执行 bin/tests 目录下所有测试程序)
 .PHONY: run_win_tests
