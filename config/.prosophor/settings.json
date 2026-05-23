@@ -147,6 +147,17 @@
       "start_timeout_ms": 150000
     }
   ],
+  "tts": {
+    "backend": "gpt-sovits",
+    "gs_url": "http://127.0.0.1:9880",
+    "gs_install_path": "E:/ai_ws/GPT-SoVITS-v3lora-20250228/GPT-SoVITS-v3lora-20250228",
+    "gs_auto_start": false,
+    "gs_port": 9880,
+    "gs_ref_audio_path": "",
+    "gs_ref_audio_text": "",
+    "gs_ref_audio_lang": "zh",
+    "gs_text_lang": "zh"
+  },
   "security": {
     "allow_local_execute": true,
     "permission_level": "auto"

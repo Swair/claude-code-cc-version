@@ -135,31 +135,54 @@ GITEE_API ?= https://gitee.com/api/v5
 GITEE_OWNER ?= swair
 GITEE_REPO ?= prosophor
 GITEE_TOKEN ?= $(GITEE_ACCESS_TOKEN)
+GITEE_TARGET_COMMITISH ?= main
+GITEE_MAX_ASSET_BYTES ?= 104857600
 GITEE_RELEASE_BODY ?= Release v$(PACKAGE_VERSION)
 
 # 构建+NSIS 安装包+发布到 Gitee 发行版（需要先 git tag，需设置 GITEE_TOKEN）
-deploy_gitee: package
+deploy_gitee: package upload_gitee
+.PHONY: deploy_gitee
+
+# 仅发布已有安装包到 Gitee，避免 deploy_gitee 失败后重新打包
+upload_gitee:
 	@if [ -z "$(GITEE_TOKEN)" ]; then \
-	  echo "GITEE_TOKEN is required. Example: make deploy_gitee GITEE_TOKEN=xxxxx"; \
+	  echo "GITEE_TOKEN is required. Example: make upload_gitee GITEE_TOKEN=xxxxx"; \
+	  exit 1; \
+	fi
+	@if [ ! -f "$(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe" ]; then \
+	  echo "Installer not found: $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe"; \
 	  exit 1; \
 	fi
 	@echo "Creating Gitee release v$(PACKAGE_VERSION)..."
-	@release_id=$$(curl -sS -X POST "$(GITEE_API)/repos/$(GITEE_OWNER)/$(GITEE_REPO)/releases" \
+	@response=$$(curl -sS -X POST "$(GITEE_API)/repos/$(GITEE_OWNER)/$(GITEE_REPO)/releases" \
 	  -F "access_token=$(GITEE_TOKEN)" \
 	  -F "tag_name=v$(PACKAGE_VERSION)" \
+	  -F "target_commitish=$(GITEE_TARGET_COMMITISH)" \
 	  -F "name=v$(PACKAGE_VERSION)" \
-	  -F "body=$(GITEE_RELEASE_BODY)" \
-	  | python -c "import json,sys; data=json.load(sys.stdin); print(data.get('id',''))"); \
+	  -F "body=$(GITEE_RELEASE_BODY)"); \
+	release_id=$$(printf '%s' "$$response" | PYTHONIOENCODING=utf-8 python -c "import json,sys; data=json.load(sys.stdin); print(data.get('id',''))"); \
 	if [ -z "$$release_id" ]; then \
-	  echo "Failed to create Gitee release"; \
+	  printf '%s' "$$response" | PYTHONIOENCODING=utf-8 python -c "import json,sys; data=json.load(sys.stdin); print('Failed to create Gitee release: ' + str(data.get('message') or data.get('error') or data))"; \
 	  exit 1; \
 	fi; \
+	installer="$(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe"; \
+	installer_size=$$(wc -c < "$$installer"); \
+	if [ "$$installer_size" -gt "$(GITEE_MAX_ASSET_BYTES)" ]; then \
+	  echo "Gitee release created: v$(PACKAGE_VERSION)"; \
+	  echo "Skip Gitee asset upload: $$installer_size bytes exceeds 100 MB limit"; \
+	  exit 0; \
+	fi; \
 	echo "Uploading installer to Gitee release $$release_id..."; \
-	curl -sS -X POST "$(GITEE_API)/repos/$(GITEE_OWNER)/$(GITEE_REPO)/releases/$$release_id/attach_files" \
+	upload_response=$$(curl -sS -X POST "$(GITEE_API)/repos/$(GITEE_OWNER)/$(GITEE_REPO)/releases/$$release_id/attach_files" \
 	  -F "access_token=$(GITEE_TOKEN)" \
-	  -F "file=@$(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe"; \
-	echo "Gitee release created: v$(PACKAGE_VERSION)"
-.PHONY: deploy_gitee
+	  -F "file=@$$installer"); \
+	upload_message=$$(printf '%s' "$$upload_response" | PYTHONIOENCODING=utf-8 python -c "import json,sys; data=json.load(sys.stdin); print(data.get('message',''))"); \
+	if [ -n "$$upload_message" ]; then \
+	  printf '%s' "$$upload_response" | PYTHONIOENCODING=utf-8 python -c "import json,sys; data=json.load(sys.stdin); print('Failed to upload Gitee asset: ' + str(data.get('message') or data))"; \
+	  exit 1; \
+	fi; \
+	echo "Gitee release and asset created: v$(PACKAGE_VERSION)"
+.PHONY: upload_gitee
 
 # 构建+NSIS 安装包+同时发布到 GitHub 和 Gitee
 deploy_all: deploy deploy_gitee
