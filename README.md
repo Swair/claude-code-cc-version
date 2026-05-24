@@ -13,6 +13,7 @@
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue?logo=cplusplus&logoColor=white)](https://en.cppreference.com/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
+<img width="1604" height="847" alt="07195d907b1b3bc15a9be862d5304260" src="https://github.com/user-attachments/assets/dd2062f2-1bb3-4ff5-83c0-e12b0a229cc9" />
 
 </div>
 
