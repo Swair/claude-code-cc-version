@@ -172,7 +172,6 @@ HttpResponse HttpClient::Get(const HttpRequest& request) {
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
     curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, request.headers);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, request.timeout_seconds);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
 
     // Default: collect body (blocking mode)
@@ -181,9 +180,13 @@ HttpResponse HttpClient::Get(const HttpRequest& request) {
 
     // Override with user-provided callback for streaming
     if (is_streaming) {
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);           // no total transfer limit
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);   // 1 byte/sec minimum
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);   // 60s no data → timeout (hung)
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, StreamWriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, request.write_data);
     } else {
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, request.timeout_seconds);
         // Header collection only needed for blocking mode
         curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
         curl_easy_setopt(curl, CURLOPT_HEADERDATA, &res_header);
@@ -244,7 +247,6 @@ HttpResponse HttpClient::Post(const HttpRequest& request) {
     curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, request.headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request.body.c_str());
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, request.timeout_seconds);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
 
     // Default: collect body (blocking mode)
@@ -253,9 +255,13 @@ HttpResponse HttpClient::Post(const HttpRequest& request) {
 
     // Override with user-provided callback for streaming
     if (is_streaming) {
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);           // no total transfer limit
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, 1L);   // 1 byte/sec minimum
+        curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, 60L);   // 60s no data → timeout (hung)
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, StreamWriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, request.write_data);
     } else {
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, request.timeout_seconds);
         // Header collection only needed for blocking mode
         curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HeaderCallback);
         curl_easy_setopt(curl, CURLOPT_HEADERDATA, &res_header);

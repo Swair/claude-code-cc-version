@@ -329,8 +329,8 @@ LocalModelConfig LocalModelConfig::FromJson(const nlohmann::json& json) {
     LocalModelConfig config;
     config.model_path = json.value("model_path", "");
     config.model_path_for_win = json.value("model_path_for_win", "");
-    config.model_path = platform::NormalizePath(
-        platform::SelectPlatformPath(config.model_path, config.model_path_for_win));
+    config.model_path = Platform::NormalizePath(
+        Platform::SelectPlatformPath(config.model_path, config.model_path_for_win));
     config.port = json.value("port", 8080);
     config.n_gpu_layers = json.value("n_gpu_layers", json.value("nGpuLayers", -1));
     config.n_threads = json.value("n_threads", json.value("nThreads", 0));
@@ -343,6 +343,7 @@ LocalModelConfig LocalModelConfig::FromJson(const nlohmann::json& json) {
 nlohmann::json LocalModelConfig::ToJson() const {
     nlohmann::json j;
     j["model_path"] = model_path;
+    if (!model_path_for_win.empty()) j["model_path_for_win"] = model_path_for_win;
     j["port"] = port;
     j["n_gpu_layers"] = n_gpu_layers;
     j["n_threads"] = n_threads;
@@ -354,6 +355,7 @@ nlohmann::json LocalModelConfig::ToJson() const {
 
 TtsConfig TtsConfig::FromJson(const nlohmann::json& json) {
     TtsConfig config;
+    config.enabled = json.value("enabled", true);
     config.backend = json.value("backend", "edge-tts");
     config.gs_url = json.value("gs_url", json.value("gsUrl", "http://127.0.0.1:9880"));
     config.gs_install_path = json.value("gs_install_path", json.value("gsInstallPath", ""));
@@ -526,20 +528,23 @@ std::string ProsophorConfig::DefaultConfigPath() {
     if (env_path != nullptr && env_path[0] != '\0') {
         return env_path;
     }
-    // Portable: check for local .prosophor/ next to the executable
-    std::string exe_path = platform::GetSelfExePath();
+    const auto user_config = ExpandHome("~/.prosophor/settings.json");
+    if (FileExists(user_config)) {
+        return user_config;
+    }
+
+    std::string exe_path = Platform::GetSelfExePath();
     if (!exe_path.empty()) {
         auto local_config = std::filesystem::path(exe_path).parent_path() / ".prosophor" / "settings.json";
         if (FileExists(local_config.string())) {
             return local_config.string();
         }
     }
-    // Cross-platform: use user home directory
-    return ExpandHome("~/.prosophor/settings.json");
+    return user_config;
 }
 
 std::filesystem::path ProsophorConfig::InstallConfigDir() {
-    std::string exe_path = platform::GetSelfExePath();
+    std::string exe_path = Platform::GetSelfExePath();
     if (!exe_path.empty()) {
         auto local_dir = std::filesystem::path(exe_path).parent_path() / ".prosophor";
         if (DirExists(local_dir.string())) {
@@ -685,32 +690,65 @@ int AgentConfig::DynamicMaxIterations() const {
 nlohmann::json ProsophorConfig::ToJson() const {
     nlohmann::json json = nlohmann::json::object();
 
-    json["log_level"] = log_level;
     json["default_role"] = default_role;  // nlohmann_json: vector → JSON array
     json["enable_summary"] = enable_summary;
 
-    // Serialize providers
+    // Serialize local models (before providers, before log_level)
+    if (!local_models.empty()) {
+        nlohmann::json models_json = nlohmann::json::array();
+        for (const auto& m : local_models) {
+            models_json.push_back(m.ToJson());
+        }
+        json["local_models"] = models_json;
+    }
+
+    json["log_level"] = log_level;
+
+    // Serialize providers (each provider name → array of entries)
     nlohmann::json providers_json = nlohmann::json::object();
     for (const auto& [name, config] : providers) {
-        nlohmann::json provider_json = nlohmann::json::object();
-        provider_json["api_key"] = config.api_key;
-        provider_json["base_url"] = config.base_url;
-        provider_json["timeout"] = config.timeout;
-
-        // Serialize agents as array
-        nlohmann::json agents_json = nlohmann::json::array();
-        for (const auto& [agent_name, agent_config] : config.agents) {
-            nlohmann::json agent_json;
-            agent_json["model"] = agent_config.model;
-            agent_json["temperature"] = agent_config.temperature;
-            agent_json["max_tokens"] = agent_config.max_tokens;
-            agent_json["context_window"] = agent_config.context_window;
-            agent_json["enable_streaming"] = agent_config.enable_streaming;
-            agents_json.push_back(agent_json);
+        nlohmann::json entries_json = nlohmann::json::array();
+        if (!config.entries.empty()) {
+            for (const auto& entry : config.entries) {
+                nlohmann::json agents_json = nlohmann::json::array();
+                for (const auto& [agent_name, agent_config] : entry.agents) {
+                    nlohmann::json agent_json;
+                    agent_json["context_window"] = agent_config.context_window;
+                    agent_json["enable_streaming"] = agent_config.enable_streaming;
+                    agent_json["max_tokens"] = agent_config.max_tokens;
+                    agent_json["model"] = agent_config.model;
+                    agent_json["temperature"] = agent_config.temperature;
+                    agent_json["thinking"] = agent_config.thinking;
+                    agents_json.push_back(agent_json);
+                }
+                nlohmann::json entry_json;
+                entry_json["agents"] = agents_json;
+                entry_json["api_key"] = entry.api_key;
+                entry_json["base_url"] = entry.base_url;
+                entry_json["timeout"] = entry.timeout;
+                entries_json.push_back(entry_json);
+            }
+        } else {
+            // Fallback for entries that were never parsed (shouldn't happen)
+            nlohmann::json agents_json = nlohmann::json::array();
+            for (const auto& [agent_name, agent_config] : config.agents) {
+                nlohmann::json agent_json;
+                agent_json["context_window"] = agent_config.context_window;
+                agent_json["enable_streaming"] = agent_config.enable_streaming;
+                agent_json["max_tokens"] = agent_config.max_tokens;
+                agent_json["model"] = agent_config.model;
+                agent_json["temperature"] = agent_config.temperature;
+                agent_json["thinking"] = agent_config.thinking;
+                agents_json.push_back(agent_json);
+            }
+            nlohmann::json entry_json;
+            entry_json["agents"] = agents_json;
+            entry_json["api_key"] = config.api_key;
+            entry_json["base_url"] = config.base_url;
+            entry_json["timeout"] = config.timeout;
+            entries_json.push_back(entry_json);
         }
-        provider_json["agents"] = agents_json;
-
-        providers_json[name] = provider_json;
+        providers_json[name] = entries_json;
     }
     json["providers"] = providers_json;
 
@@ -719,6 +757,8 @@ nlohmann::json ProsophorConfig::ToJson() const {
     security_json["permission_level"] = security.permission_level;
     security_json["allow_local_execute"] = security.allow_local_execute;
     json["security"] = security_json;
+
+    json["sprite_assets_dir"] = sprite_assets_dir;
 
     // Serialize tools
     nlohmann::json tools_json = nlohmann::json::object();
@@ -732,6 +772,7 @@ nlohmann::json ProsophorConfig::ToJson() const {
 
     // Serialize TTS
     nlohmann::json tts_json = nlohmann::json::object();
+    tts_json["enabled"] = tts.enabled;
     tts_json["backend"] = tts.backend;
     if (tts.backend == "gpt-sovits") {
         tts_json["gs_url"] = tts.gs_url;
@@ -744,15 +785,6 @@ nlohmann::json ProsophorConfig::ToJson() const {
         tts_json["gs_text_lang"] = tts.gs_text_lang;
     }
     json["tts"] = tts_json;
-
-    // Serialize local models
-    if (!local_models.empty()) {
-        nlohmann::json models_json = nlohmann::json::array();
-        for (const auto& m : local_models) {
-            models_json.push_back(m.ToJson());
-        }
-        json["local_models"] = models_json;
-    }
 
     return json;
 }

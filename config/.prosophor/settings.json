@@ -1,5 +1,5 @@
 {
-  "default_role": ["ayaka", "sayu", "keqing"],
+  "default_role": ["architect","ayaka", "sayu", "keqing"],
   "log_level": "info",
   "enable_summary": false,
   "sprite_assets_dir": "~/.prosophor/assets",
@@ -130,7 +130,7 @@
             "temperature": 0.7,
             "max_tokens": 8192,
             "context_window": 32768,
-            "thinking": false
+            "thinking": true
           }
         ]
       }
@@ -148,6 +148,7 @@
     }
   ],
   "tts": {
+    "enabled": false,
     "backend": "gpt-sovits",
     "gs_url": "http://127.0.0.1:9880",
     "gs_install_path": "E:/ai_ws/GPT-SoVITS-v3lora-20250228/GPT-SoVITS-v3lora-20250228",

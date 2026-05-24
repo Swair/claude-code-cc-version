@@ -115,7 +115,8 @@ void VirtualSprite::GlobalInit() {
                 s->SetAgentState(state, state_msg);
             }
             // Trigger TTS when a reply completes
-            if ((state == AgentRuntimeState::COMPLETE ||
+            if (AgentEngine::GetInstance().GetConfig().tts.enabled &&
+                (state == AgentRuntimeState::COMPLETE ||
                  state == AgentRuntimeState::STREAM_MODE_COMPLETE) &&
                 reply && !reply->text().empty()) {
                 TtsSpeaker::GetInstance().SpeakStream(reply->text());

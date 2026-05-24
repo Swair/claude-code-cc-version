@@ -35,24 +35,24 @@ bool GptSoVitsManager::Start(const std::string& install_dir, int port, int timeo
     std::string script = install_dir + "/api_v2.py";
     std::string config = install_dir + "/GPT_SoVITS/configs/tts_infer.yaml";
 
-    if (!platform::PathExists(python)) {
+    if (!Platform::PathExists(python)) {
         LOG_ERROR("GptSoVitsManager: python not found at {}", python);
         return false;
     }
-    if (!platform::PathExists(script)) {
+    if (!Platform::PathExists(script)) {
         LOG_ERROR("GptSoVitsManager: api_v2.py not found at {}", script);
         return false;
     }
 
     std::ostringstream cmd;
-    cmd << "cd /d " << platform::ShellEscape(install_dir) << " && ";
-    cmd << platform::ShellEscape(python) << " " << platform::ShellEscape(script);
+    cmd << "cd /d " << Platform::ShellEscape(install_dir) << " && ";
+    cmd << Platform::ShellEscape(python) << " " << Platform::ShellEscape(script);
     cmd << " -a 127.0.0.1 -p " << port;
-    cmd << " -c " << platform::ShellEscape(config);
+    cmd << " -c " << Platform::ShellEscape(config);
 
     LOG_INFO("GptSoVitsManager: starting api_v2.py on port {}...", port);
 
-    int pid = platform::LaunchDetachedCommand(cmd.str());
+    int pid = Platform::LaunchDetachedCommand(cmd.str());
     if (pid < 0) {
         LOG_ERROR("GptSoVitsManager: failed to start api_v2.py");
         return false;
@@ -77,9 +77,9 @@ void GptSoVitsManager::Stop() {
     LOG_INFO("GptSoVitsManager: stopping api_v2.py (PID: {})", pid_);
 
     if (pid_ > 0) {
-        if (!platform::KillProcess(pid_, false)) {
+        if (!Platform::KillProcess(pid_, false)) {
             LOG_WARN("GptSoVitsManager: force stopping...");
-            platform::KillProcess(pid_, true);
+            Platform::KillProcess(pid_, true);
         }
     }
 
@@ -91,14 +91,14 @@ void GptSoVitsManager::Stop() {
 bool GptSoVitsManager::IsRunning() const {
     if (!running_.load()) return false;
 
-    if (pid_ > 0 && !platform::IsProcessAlive(pid_)) {
+    if (pid_ > 0 && !Platform::IsProcessAlive(pid_)) {
         running_.store(false);
         return false;
     }
 
     if (pid_ > 0) return true;
 
-    if (platform::CheckPortOpen(port_)) return true;
+    if (Platform::CheckPortOpen(port_)) return true;
 
     running_.store(false);
     return false;
@@ -108,7 +108,7 @@ bool GptSoVitsManager::WaitForPort(int port, int timeout_ms) const {
     auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
 
     while (std::chrono::steady_clock::now() < deadline) {
-        if (platform::CheckPortOpen(port)) {
+        if (Platform::CheckPortOpen(port)) {
             return true;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(500));

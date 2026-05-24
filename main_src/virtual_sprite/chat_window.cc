@@ -14,12 +14,19 @@
 #include "common/i18n.h"
 #include "common/file_utils.h"
 #include "config/config.h"
+#include "config/role_config_manager.h"
+#include "managers/local_model_manager.h"
 
 #include <filesystem>
 #include <fstream>
 #include <cstring>
 #include <algorithm>
 #include <unordered_map>
+#include <future>
+#include <thread>
+#include <nlohmann/json.hpp>
+
+#include "platform/platform.h"
 
 namespace prosophor {
 
@@ -28,8 +35,15 @@ struct ChatWindow::Impl {
     std::unique_ptr<ChatPanel> chat_panel;
     std::unique_ptr<media_engine::InputPanel> input_panel;
     std::unordered_map<std::string, std::unique_ptr<media_engine::Texture>> thumbnails;
+    std::atomic<bool> lm_starting{false};
 
 };
+
+// Settings edit state (shared between settings window and StartLLM button)
+static std::string edit_lm_model_path;
+static int edit_lm_port = 8080;
+static bool edit_lm_auto_start;
+static int edit_lm_start_timeout = 150000;
 
 ChatWindow::ChatWindow() = default;
 
@@ -276,6 +290,69 @@ void ChatWindow::RenderRightPanel(int win_w, int win_h) {
                 impl_->window->SetTitle((L.Get("window_title") + " v" PROSOPHOR_VERSION).c_str());
             }
         }
+
+        // Local model server start/stop buttons
+        bool lm_starting = impl_->lm_starting.load();
+        bool lm_running = LocalModelManager::GetInstance().IsRunning();
+
+        media_engine::Layout::SameLine();
+        // Start button — disabled while busy or already running
+        {
+            bool disabled = lm_starting || lm_running;
+            auto _btn_c = media_engine::ScopedColors(
+                media_engine::Color::Slot::Button, media_engine::Colors::Transparent)
+                .Then(media_engine::Color::Slot::ButtonHovered, media_engine::Colors::Transparent)
+                .Then(media_engine::Color::Slot::ButtonActive, media_engine::Colors::Transparent)
+                .Then(media_engine::Color::Slot::Text, media_engine::Colors::OrangeWarm);
+            const char* label = lm_starting ? "..." : (is_zh ? "启动LLM" : "StartLLM");
+            if (!disabled && media_engine::ImGuiWidget::Button(label, 52.0f, 20.0f)) {
+                const auto& cfg = ProsophorConfig::GetInstance();
+                if (!cfg.local_models.empty()) {
+                    auto lm_cfg = cfg.local_models[0];
+                    if (Platform::kIsWindows) {
+                        lm_cfg.model_path_for_win = edit_lm_model_path;
+                    } else {
+                        lm_cfg.model_path = edit_lm_model_path;
+                    }
+                    lm_cfg.port = edit_lm_port;
+                    lm_cfg.auto_start = edit_lm_auto_start;
+                    lm_cfg.start_timeout_ms = edit_lm_start_timeout;
+                    impl_->lm_starting.store(true);
+                    std::thread([this, lm = std::move(lm_cfg)]() {
+                        auto& mgr = LocalModelManager::GetInstance();
+                        mgr.Start(lm);
+                        impl_->lm_starting.store(false);
+                    }).detach();
+                }
+            }
+            // Draw visual-only dimmed button when disabled
+            if (disabled) {
+                media_engine::ImGuiWidget::Button(label, 52.0f, 20.0f);
+            }
+        }
+
+        // Stop button — disabled while busy or already stopped
+        media_engine::Layout::SameLine();
+        {
+            bool disabled = lm_starting || !lm_running;
+            auto _btn_c = media_engine::ScopedColors(
+                media_engine::Color::Slot::Button, media_engine::Colors::Transparent)
+                .Then(media_engine::Color::Slot::ButtonHovered, media_engine::Colors::Transparent)
+                .Then(media_engine::Color::Slot::ButtonActive, media_engine::Colors::Transparent)
+                .Then(media_engine::Color::Slot::Text, media_engine::Colors::OrangeWarm);
+            const char* label = lm_starting ? "..." : (is_zh ? "关闭LLM" : "StopLLM");
+            if (!disabled && media_engine::ImGuiWidget::Button(label, 52.0f, 20.0f)) {
+                impl_->lm_starting.store(true);
+                std::thread([this]() {
+                    auto& mgr = LocalModelManager::GetInstance();
+                    mgr.Stop();
+                    impl_->lm_starting.store(false);
+                }).detach();
+            }
+            if (disabled) {
+                media_engine::ImGuiWidget::Button(label, 52.0f, 20.0f);
+            }
+        }
     }
     // Decorative thin separator
     media_engine::DrawList::RoundRect(panel_left + 8.0f, 66.0f, right_w - 16.0f, 1.0f, 0,
@@ -344,14 +421,16 @@ void ChatWindow::RenderAboutWindow() {
     if (!about_open_) return;
 
     auto& L = I18n::Instance();
-    media_engine::Popup::Open("About");
+    media_engine::Popup::Open("about_modal");
     media_engine::ImGuiWindow::SetNextSize(400.0f, 300.0f, media_engine::ImGuiCond_Appearing);
+    const auto about_title = L.Get("about_title") + "###about_modal";
     auto _about = media_engine::ScopedModal(
-        L.Get("about_title").c_str(), &about_open_,
+        about_title.c_str(), &about_open_,
         media_engine::ImGuiWindowFlags_NoSavedSettings);
     if (!_about) return;
 
-    media_engine::Text::Colored(media_engine::Colors::OrangeDeep, "Prosophor v" PROSOPHOR_VERSION);
+    std::string title = L.Get("app_name") + " v" PROSOPHOR_VERSION;
+    media_engine::Text::Colored(media_engine::Colors::OrangeDeep, title.c_str());
     media_engine::Layout::Dummy(0, 8);
     media_engine::Text::Wrapped("AI Desktop Companion \xe2\x80\x94 Desktop Pet + LLM Chat",
                                 media_engine::ImGuiWindow::GetWidth() - 30.0f,
@@ -375,14 +454,25 @@ void ChatWindow::RenderSettingsWindow() {
     if (!settings_open_) return;
 
     auto& L = I18n::Instance();
-    media_engine::Popup::Open("Settings");
-    media_engine::ImGuiWindow::SetNextSize(520.0f, 380.0f, media_engine::ImGuiCond_Appearing);
+    auto& config = ProsophorConfig::GetInstance();
+
+    // Light settings panel
+    auto _colors = media_engine::ScopedColors(media_engine::Color::Slot::TitleBg, media_engine::Colors::BluePale)
+                   .Then(media_engine::Color::Slot::TitleBgActive, media_engine::Colors::BlueLightSoft)
+                   .Then(media_engine::Color::Slot::WindowBg, media_engine::Colors::White)
+                   .Then(media_engine::Color::Slot::ChildBg, media_engine::Colors::White)
+                   .Then(media_engine::Color::Slot::Text, media_engine::Colors::Gray40)
+                   .Then(media_engine::Color::Slot::FrameBg, media_engine::Colors::White)
+                   .Then(media_engine::Color::Slot::PopupBg, media_engine::Colors::White)
+                   .Then(media_engine::Color::Slot::Border, media_engine::Colors::CreamBorder);
+
+    media_engine::Popup::Open("settings_modal");
+    media_engine::ImGuiWindow::SetNextSize(560.0f, 460.0f, media_engine::ImGuiCond_Appearing);
+    const auto settings_title = L.Get("settings_title") + "###settings_modal";
     auto _set = media_engine::ScopedModal(
-        L.Get("settings_title").c_str(), &settings_open_,
+        settings_title.c_str(), &settings_open_,
         media_engine::ImGuiWindowFlags_NoSavedSettings);
     if (!_set) return;
-
-    auto& config = ProsophorConfig::GetInstance();
 
     // Editable copies (re-init each open via static flag)
     static bool first_open = true;
@@ -393,16 +483,58 @@ void ChatWindow::RenderSettingsWindow() {
     static std::vector<int> role_checked;
     static std::vector<std::string> all_role_ids;
 
+    // Model selection per role
+    static std::vector<std::string> available_models;
+    static std::vector<int> role_model_idx;
+
+    // Security
+    static std::string edit_perm_level;
+    static bool edit_allow_local_exec;
+
+    // TTS
+    static bool edit_tts_enabled;
+    static std::string edit_tts_backend;
+    static std::string edit_gs_url;
+    static int edit_gs_port = 9880;
+    static std::string edit_gs_install_path;
+    static bool edit_gs_auto_start;
+    static std::string edit_gs_ref_audio_path;
+    static std::string edit_gs_ref_audio_text;
+    static std::string edit_gs_ref_audio_lang;
+    static std::string edit_gs_text_lang;
+
     if (first_open) {
         edit_log_level = config.log_level;
         edit_enable_summary = config.enable_summary;
         edit_sprite_dir = config.sprite_assets_dir;
         edit_roles = config.default_role;
-        first_open = false;
+
+        edit_perm_level = config.security.permission_level;
+        edit_allow_local_exec = config.security.allow_local_execute;
+
+        edit_tts_enabled = config.tts.enabled;
+        edit_tts_backend = config.tts.backend;
+        edit_gs_url = config.tts.gs_url;
+        edit_gs_port = config.tts.gs_port;
+        edit_gs_install_path = config.tts.gs_install_path;
+        edit_gs_auto_start = config.tts.gs_auto_start;
+        edit_gs_ref_audio_path = config.tts.gs_ref_audio_path;
+        edit_gs_ref_audio_text = config.tts.gs_ref_audio_text;
+        edit_gs_ref_audio_lang = config.tts.gs_ref_audio_lang;
+        edit_gs_text_lang = config.tts.gs_text_lang;
+
+        if (!config.local_models.empty()) {
+            edit_lm_port = config.local_models[0].port;
+            edit_lm_auto_start = config.local_models[0].auto_start;
+            edit_lm_start_timeout = config.local_models[0].start_timeout_ms;
+            edit_lm_model_path = Platform::kIsWindows
+                ? config.local_models[0].model_path_for_win
+                : config.local_models[0].model_path;
+        }
 
         // Scan available roles
         all_role_ids.clear();
-        std::string roles_dir = std::string(PROSOPHOR_SOURCE_DIR) + "/config/.prosophor/roles";
+        std::string roles_dir = (ProsophorConfig::BaseDir() / "roles").string();
         if (DirExists(roles_dir)) {
             for (const auto& entry : std::filesystem::directory_iterator(roles_dir)) {
                 if (entry.is_regular_file() && entry.path().extension() == ".json") {
@@ -416,6 +548,50 @@ void ChatWindow::RenderSettingsWindow() {
                 role_checked[i] = 1;
             }
         }
+
+        // Collect available models from all providers (display: "[protocal] model (provider)")
+        available_models.clear();
+        for (const auto& [pname, prov] : config.providers) {
+            for (const auto& [agent_name, agent] : prov.agents) {
+                std::string display = "[" + pname + "] " + agent.model;
+                if (std::find(available_models.begin(), available_models.end(), display)
+                    == available_models.end()) {
+                    available_models.push_back(display);
+                }
+            }
+        }
+        // Read each role's current model
+        role_model_idx.assign(all_role_ids.size(), 0);
+        for (size_t i = 0; i < all_role_ids.size(); ++i) {
+            std::string rp = (ProsophorConfig::BaseDir() / "roles" / (all_role_ids[i] + ".json")).string();
+            std::ifstream f(rp);
+            if (f.is_open()) {
+                try {
+                    auto rj = nlohmann::json::parse(f);
+                    std::string rm = rj["llm"]["model"];
+                    // Match against available_models[ai] = "[protocal] model"
+                    std::string rp_proto = rj["llm"]["protocal"];
+                    for (size_t ai = 0; ai < available_models.size(); ++ai) {
+                        auto bracket_end = available_models[ai].find("] ");
+                        if (bracket_end != std::string::npos && available_models[ai].substr(bracket_end + 2) == rm) {
+                            role_model_idx[i] = static_cast<int>(ai);
+                            break;
+                        }
+                    }
+                    // Fallback: if model not found, pick first model under the same protocal
+                    if (role_model_idx[i] == 0 && !available_models.empty()) {
+                        for (size_t ai = 0; ai < available_models.size(); ++ai) {
+                            auto bracket_end = available_models[ai].find("] ");
+                            if (bracket_end != std::string::npos && available_models[ai].substr(1, bracket_end - 1) == rp_proto) {
+                                role_model_idx[i] = static_cast<int>(ai);
+                                break;
+                            }
+                        }
+                    }
+                } catch (...) {}
+            }
+        }
+        first_open = false;
     }
     auto reset_on_close = [&] { first_open = true; };
 
@@ -445,7 +621,13 @@ void ChatWindow::RenderSettingsWindow() {
             if (media_engine::ImGuiWidget::InputText("##sprite_dir", dir_buf, sizeof(dir_buf))) {
                 edit_sprite_dir = dir_buf;
             }
-
+            media_engine::Layout::SameLine();
+            if (media_engine::ImGuiWidget::Button("...", 30, 0)) {
+                std::string sel = Platform::BrowseForDirectory();
+                if (!sel.empty()) {
+                    edit_sprite_dir = sel;
+                }
+            }
         }
 
         // ── Roles tab ──
@@ -456,43 +638,251 @@ void ChatWindow::RenderSettingsWindow() {
                 bool checked = (role_checked[i] != 0);
                 media_engine::ImGuiWidget::Checkbox(all_role_ids[i].c_str(), &checked);
                 role_checked[i] = checked ? 1 : 0;
+
+                // Model selector combo
+                media_engine::Layout::SameLine();
+                std::string combo_id = "##model_" + all_role_ids[i];
+                std::vector<const char*> cstrs;
+                for (const auto& m : available_models) cstrs.push_back(m.c_str());
+                if (media_engine::ImGuiWidget::Combo(
+                        combo_id.c_str(), &role_model_idx[i], cstrs.data(),
+                        static_cast<int>(cstrs.size()))) {
+                    // selection changed
+                }
             }
         }
 
-        // ── Providers tab ──
+        // ── Providers tab (editable) ──
         if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_providers").c_str())) {
-            media_engine::Text::Raw(L.Get("providers_readonly").c_str());
-            media_engine::ImGuiWidget::Separator();
-            for (const auto& [name, prov] : config.providers) {
-                if (media_engine::ImGuiWidget::TreeNode(name.c_str())) {
-                    media_engine::Text::Fmt("  API Key: %s...", prov.api_key.empty() ? "" : prov.api_key.substr(0, 12).c_str());
-                    media_engine::Text::Fmt("  Base URL: %s", prov.base_url.c_str());
-                    media_engine::Text::Fmt("  Timeout: %ds", prov.timeout);
-                    media_engine::Text::Raw("  Agents:");
-                    for (const auto& [agent_name, agent] : prov.agents) {
-                        media_engine::ImGuiWidget::BulletText("%s (%s, T=%.1f, max=%d)",
-                                          agent_name.c_str(), agent.model.c_str(),
-                                          agent.temperature, agent.max_tokens);
+            for (auto& [pname, prov] : config.providers) {
+                if (media_engine::ImGuiWidget::TreeNode(pname.c_str())) {
+                    if (prov.entries.empty()) {
+                        media_engine::Text::Raw("(legacy format, no editable entries)");
+                    } else {
+                        for (size_t ei = 0; ei < prov.entries.size(); ++ei) {
+                            auto& entry = prov.entries[ei];
+                            std::string label = "Entry " + std::to_string(ei + 1);
+                            if (media_engine::ImGuiWidget::TreeNode(label.c_str())) {
+                                // api_key
+                                char buf[1024];
+                                std::strncpy(buf, entry.api_key.c_str(), sizeof(buf) - 1);
+                                buf[sizeof(buf) - 1] = '\0';
+                                media_engine::Text::Raw("API Key");
+                                std::string kid = "##api_" + pname + "_" + std::to_string(ei);
+                                if (media_engine::ImGuiWidget::InputText(kid.c_str(), buf, sizeof(buf))) {
+                                    entry.api_key = buf;
+                                }
+
+                                // base_url
+                                std::strncpy(buf, entry.base_url.c_str(), sizeof(buf) - 1);
+                                buf[sizeof(buf) - 1] = '\0';
+                                media_engine::Text::Raw("Base URL");
+                                std::string uid = "##url_" + pname + "_" + std::to_string(ei);
+                                if (media_engine::ImGuiWidget::InputText(uid.c_str(), buf, sizeof(buf))) {
+                                    entry.base_url = buf;
+                                }
+
+                                // timeout
+                                media_engine::Text::Raw("Timeout (s)");
+                                media_engine::Layout::SameLine();
+                                std::string tid = "##to_" + pname + "_" + std::to_string(ei);
+                                media_engine::ImGuiWidget::InputInt(tid.c_str(), &entry.timeout);
+
+                                // agents
+                                if (!entry.agents.empty()) {
+                                    media_engine::ImGuiWidget::Separator();
+                                    media_engine::Text::Raw("Agents");
+                                    // Build a list from the map for indexed access
+                                    std::vector<std::string> agent_keys;
+                                    for (auto& [ak, av] : entry.agents) agent_keys.push_back(ak);
+                                    for (size_t ai = 0; ai < agent_keys.size(); ++ai) {
+                                        auto& agent = entry.agents[agent_keys[ai]];
+                                        std::string alabel = agent.model;
+                                        if (media_engine::ImGuiWidget::TreeNode(alabel.c_str())) {
+                                            std::string prefix = "##" + pname + "_" + std::to_string(ei) + "_" + std::to_string(ai);
+
+                                            // model
+                                            char mbuf[256];
+                                            std::strncpy(mbuf, agent.model.c_str(), sizeof(mbuf) - 1);
+                                            mbuf[sizeof(mbuf) - 1] = '\0';
+                                            media_engine::Text::Raw("Model");
+                                            std::string mid = prefix + "_model";
+                                            if (media_engine::ImGuiWidget::InputText(mid.c_str(), mbuf, sizeof(mbuf))) {
+                                                agent.model = mbuf;
+                                            }
+
+                                            // temperature
+                                            media_engine::Text::Raw("Temperature");
+                                            media_engine::Layout::SameLine();
+                                            std::string tepid = prefix + "_temp";
+                                            media_engine::ImGuiWidget::SliderFloat(tepid.c_str(), &agent.temperature, 0.0f, 2.0f, "%.1f");
+
+                                            // max_tokens
+                                            media_engine::Text::Raw("Max Tokens");
+                                            media_engine::Layout::SameLine();
+                                            std::string mtid = prefix + "_maxtok";
+                                            media_engine::ImGuiWidget::InputInt(mtid.c_str(), &agent.max_tokens);
+
+                                            // context_window
+                                            media_engine::Text::Raw("Context Window");
+                                            media_engine::Layout::SameLine();
+                                            std::string cwid = prefix + "_ctx";
+                                            media_engine::ImGuiWidget::InputInt(cwid.c_str(), &agent.context_window);
+
+                                            // thinking
+                                            media_engine::Text::Raw("Thinking");
+                                            media_engine::Layout::SameLine();
+                                            std::string thid = prefix + "_think";
+                                            media_engine::ImGuiWidget::Checkbox(thid.c_str(), &agent.thinking);
+
+                                            // enable_streaming
+                                            media_engine::Text::Raw("Streaming");
+                                            media_engine::Layout::SameLine();
+                                            std::string stid = prefix + "_stream";
+                                            media_engine::ImGuiWidget::Checkbox(stid.c_str(), &agent.enable_streaming);
+
+                                            media_engine::ImGuiWidget::TreePop();
+                                        }
+                                    }
+                                }
+                                media_engine::ImGuiWidget::TreePop();
+                            }
+                        }
+
+                        // Add Entry button
+                        media_engine::Layout::Dummy(0, 4);
+                        if (media_engine::ImGuiWidget::Button("+ Add Entry", 0, 0)) {
+                            ProviderEntryConfig new_entry;
+                            new_entry.timeout = 30;
+                            prov.entries.push_back(std::move(new_entry));
+                        }
                     }
                     media_engine::ImGuiWidget::TreePop();
                 }
             }
         }
 
+        // ── Security tab ──
+        if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_security").c_str())) {
+            media_engine::Text::Raw(L.Get("security_permission_level").c_str());
+            media_engine::Layout::SameLine();
+            const char* perm_levels[] = {"auto", "allow", "deny"};
+            int pl_idx = 0;
+            for (int i = 0; i < 3; ++i) {
+                if (edit_perm_level == perm_levels[i]) { pl_idx = i; break; }
+            }
+            media_engine::ImGuiWidget::Combo("##perm_level", &pl_idx, perm_levels, 3);
+            edit_perm_level = perm_levels[pl_idx];
+
+            media_engine::Layout::Dummy(0, 8);
+            media_engine::Text::Raw(L.Get("security_allow_local_exec").c_str());
+            media_engine::Layout::SameLine();
+            media_engine::ImGuiWidget::Checkbox("##allow_local_exec", &edit_allow_local_exec);
+        }
+
+        // ── TTS tab ──
+        if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_tts").c_str())) {
+            media_engine::Text::Raw(L.Get("tts_enabled").c_str());
+            media_engine::Layout::SameLine();
+            media_engine::ImGuiWidget::Checkbox("##tts_enabled", &edit_tts_enabled);
+
+            media_engine::Layout::Dummy(0, 8);
+            media_engine::Text::Raw(L.Get("tts_backend").c_str());
+            media_engine::Layout::SameLine();
+            const char* backends[] = {"edge-tts", "gpt-sovits"};
+            int bk_idx = (edit_tts_backend == "gpt-sovits") ? 1 : 0;
+            media_engine::ImGuiWidget::Combo("##tts_backend", &bk_idx, backends, 2);
+            edit_tts_backend = backends[bk_idx];
+
+            if (edit_tts_backend == "gpt-sovits") {
+                media_engine::ImGuiWidget::Separator();
+                media_engine::Text::Raw("GPT-SoVITS");
+
+                auto input_field = [&](const char* label, const char* id, std::string& var) {
+                    media_engine::Layout::Dummy(0, 4);
+                    media_engine::Text::Raw(label);
+                    char buf[512];
+                    std::strncpy(buf, var.c_str(), sizeof(buf) - 1);
+                    buf[sizeof(buf) - 1] = '\0';
+                    if (media_engine::ImGuiWidget::InputText(id, buf, sizeof(buf))) {
+                        var = buf;
+                    }
+                };
+
+                input_field(L.Get("tts_gs_url").c_str(), "##gs_url", edit_gs_url);
+
+                media_engine::Layout::Dummy(0, 4);
+                media_engine::Text::Raw(L.Get("tts_gs_port").c_str());
+                media_engine::Layout::SameLine();
+                media_engine::ImGuiWidget::InputInt("##gs_port", &edit_gs_port);
+
+                input_field(L.Get("tts_gs_install_path").c_str(), "##gs_install_path", edit_gs_install_path);
+
+                media_engine::Layout::Dummy(0, 8);
+                media_engine::Text::Raw(L.Get("tts_gs_auto_start").c_str());
+                media_engine::Layout::SameLine();
+                media_engine::ImGuiWidget::Checkbox("##gs_auto_start", &edit_gs_auto_start);
+
+                input_field(L.Get("tts_ref_audio_path").c_str(), "##gs_ref_audio_path", edit_gs_ref_audio_path);
+                input_field(L.Get("tts_ref_audio_text").c_str(), "##gs_ref_audio_text", edit_gs_ref_audio_text);
+                input_field(L.Get("tts_ref_audio_lang").c_str(), "##gs_ref_audio_lang", edit_gs_ref_audio_lang);
+                input_field(L.Get("tts_text_lang").c_str(), "##gs_text_lang", edit_gs_text_lang);
+            }
+        }
+
+        // ── Local Models tab ──
+        if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_local_models").c_str())) {
+            if (config.local_models.empty()) {
+                media_engine::Text::Raw(L.Get("providers_readonly").c_str());
+            } else {
+                char model_buf[512];
+                std::strncpy(model_buf, edit_lm_model_path.c_str(), sizeof(model_buf) - 1);
+                model_buf[sizeof(model_buf) - 1] = '\0';
+                media_engine::Text::Raw(L.Get("local_model_model_path").c_str());
+                if (media_engine::ImGuiWidget::InputText("##lm_model_path", model_buf, sizeof(model_buf))) {
+                    edit_lm_model_path = model_buf;
+                }
+                media_engine::Layout::SameLine();
+                if (media_engine::ImGuiWidget::Button("...##lm_browse", 36, 0)) {
+                    std::string path = Platform::BrowseForFile("GGUF Model (*.gguf)\0*.gguf\0All Files (*.*)\0*.*\0");
+                    if (!path.empty()) {
+                        edit_lm_model_path = path;
+                    }
+                }
+
+                media_engine::Layout::Dummy(0, 8);
+                media_engine::Text::Raw(L.Get("local_model_auto_start").c_str());
+                media_engine::Layout::SameLine();
+                media_engine::ImGuiWidget::Checkbox("##lm_auto_start", &edit_lm_auto_start);
+
+                media_engine::Layout::Dummy(0, 8);
+                media_engine::Text::Raw(L.Get("local_model_port").c_str());
+                media_engine::Layout::SameLine();
+                media_engine::ImGuiWidget::InputInt("##lm_port", &edit_lm_port);
+
+                media_engine::Layout::Dummy(0, 8);
+                media_engine::Text::Raw(L.Get("local_model_start_timeout").c_str());
+                media_engine::Layout::SameLine();
+                media_engine::ImGuiWidget::InputInt("##lm_start_timeout", &edit_lm_start_timeout);
+            }
+        }
     }
 
     // ── Save / Cancel ──
     media_engine::ImGuiWidget::Separator();
     media_engine::Layout::Dummy(0, 4);
     float btn_w = 100.0f;
-    media_engine::Layout::SetCursorPosX(media_engine::ImGuiWindow::GetWidth() - btn_w * 2.0f - 12.0f);
+    float spacing = 8.0f;
+    media_engine::Layout::SetCursorPosX(media_engine::ImGuiWindow::GetWidth() - btn_w * 2.0f - spacing - 12.0f);
     if (media_engine::ImGuiWidget::Button(L.Get("btn_cancel").c_str(), btn_w, 0)) {
+        // Reload config to discard any in-place edits (providers are edited directly)
+        config = ProsophorConfig::LoadFromFile(ProsophorConfig::DefaultConfigPath());
         settings_open_ = false;
         reset_on_close();
     }
     media_engine::Layout::SameLine();
     if (media_engine::ImGuiWidget::Button(L.Get("btn_save").c_str(), btn_w, 0)) {
-        // Write back editable copies
+        // Write back General
         config.log_level = edit_log_level;
         config.enable_summary = edit_enable_summary;
         config.sprite_assets_dir = edit_sprite_dir;
@@ -505,7 +895,62 @@ void ChatWindow::RenderSettingsWindow() {
         }
         config.default_role = edit_roles;
 
+        // Persist per-role model selection
+        for (size_t i = 0; i < all_role_ids.size(); ++i) {
+            if (role_checked[i]) {
+                auto display = available_models[role_model_idx[i]];
+                auto bracket_end = display.find("] ");
+                if (bracket_end != std::string::npos) {
+                    std::string provider = display.substr(1, bracket_end - 1);
+                    std::string model = display.substr(bracket_end + 2);
+                    RoleConfigManager::SaveModel(all_role_ids[i], provider, model);
+                }
+            }
+        }
+
+        // Write back Security
+        config.security.permission_level = edit_perm_level;
+        config.security.allow_local_execute = edit_allow_local_exec;
+
+        // Write back TTS
+        config.tts.enabled = edit_tts_enabled;
+        config.tts.backend = edit_tts_backend;
+        config.tts.gs_url = edit_gs_url;
+        config.tts.gs_port = edit_gs_port;
+        config.tts.gs_install_path = edit_gs_install_path;
+        config.tts.gs_auto_start = edit_gs_auto_start;
+        config.tts.gs_ref_audio_path = edit_gs_ref_audio_path;
+        config.tts.gs_ref_audio_text = edit_gs_ref_audio_text;
+        config.tts.gs_ref_audio_lang = edit_gs_ref_audio_lang;
+        config.tts.gs_text_lang = edit_gs_text_lang;
+
+        // Write back Local Models
+        if (!config.local_models.empty()) {
+            config.local_models[0].port = edit_lm_port;
+            config.local_models[0].auto_start = edit_lm_auto_start;
+            config.local_models[0].start_timeout_ms = edit_lm_start_timeout;
+            if (Platform::kIsWindows) {
+                config.local_models[0].model_path_for_win = edit_lm_model_path;
+            } else {
+                config.local_models[0].model_path = edit_lm_model_path;
+            }
+        }
+
         config.SaveToFile();
+
+        // Hot-switch provider/model for all checked roles
+        for (size_t i = 0; i < all_role_ids.size(); ++i) {
+            if (role_checked[i]) {
+                auto display = available_models[role_model_idx[i]];
+                auto bracket_end = display.find("] ");
+                if (bracket_end != std::string::npos) {
+                    std::string provider = display.substr(1, bracket_end - 1);
+                    std::string model = display.substr(bracket_end + 2);
+                    RoleConfigManager::HotSwitch(all_role_ids[i], provider, model);
+                }
+            }
+        }
+
         settings_open_ = false;
         reset_on_close();
     }

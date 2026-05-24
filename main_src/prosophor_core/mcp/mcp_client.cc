@@ -47,7 +47,7 @@ bool McpClient::ConnectToServer(const McpServerConfig& config) {
     conn->type = config.type;
 
     if (config.type == "stdio") {
-        if (platform::kIsWindows) {
+        if (Platform::kIsWindows) {
             LOG_ERROR("stdio MCP servers not supported on Windows");
             return false;
         }
@@ -60,7 +60,7 @@ bool McpClient::ConnectToServer(const McpServerConfig& config) {
             }
         }
 
-        auto proc = platform::ForkAndExec(config.command, config.args, "", env_vars);
+        auto proc = Platform::ForkAndExec(config.command, config.args, "", env_vars);
         if (proc.pid <= 0) {
             LOG_ERROR("Failed to start MCP server {}", config.name);
             return false;
@@ -71,7 +71,7 @@ bool McpClient::ConnectToServer(const McpServerConfig& config) {
         conn->stdout_fd = proc.stdout_fd;
         conn->type = "stdio";
 
-        platform::SetPipeNonBlocking(conn->stdout_fd);
+        Platform::SetPipeNonBlocking(conn->stdout_fd);
 
         LOG_INFO("Started MCP server {} with PID {}", config.name, proc.pid);
 
@@ -142,12 +142,12 @@ bool McpClient::ConnectToServer(const McpServerConfig& config) {
 void McpClient::DisconnectFromServer(const std::string& server_name) {
     auto it = servers_.find(server_name);
     if (it != servers_.end()) {
-        platform::ClosePipe(it->second->stdin_fd);
-        platform::ClosePipe(it->second->stdout_fd);
+        Platform::ClosePipe(it->second->stdin_fd);
+        Platform::ClosePipe(it->second->stdout_fd);
 
         if (it->second->process_handle) {
             int pid = static_cast<int>(reinterpret_cast<intptr_t>(it->second->process_handle));
-            platform::KillProcess(pid, false);
+            Platform::KillProcess(pid, false);
         }
 
         servers_.erase(it);
@@ -229,7 +229,7 @@ nlohmann::json McpClient::ParseResponse(const std::string& response) {
 }
 
 std::string McpClient::ReadFromServer(ServerConnection& conn) {
-    if (platform::kIsWindows) {
+    if (Platform::kIsWindows) {
         throw std::runtime_error("ReadFromServer not implemented on Windows");
     }
 
@@ -245,7 +245,7 @@ std::string McpClient::ReadFromServer(ServerConnection& conn) {
             throw std::runtime_error("Timeout reading from MCP server " + conn.name);
         }
 
-        int bytes_read = platform::ReadPipe(conn.stdout_fd, buffer, sizeof(buffer) - 1);
+        int bytes_read = Platform::ReadPipe(conn.stdout_fd, buffer, sizeof(buffer) - 1);
         if (bytes_read > 0) {
             buffer[bytes_read] = '\0';
             line += buffer;
@@ -262,24 +262,24 @@ std::string McpClient::ReadFromServer(ServerConnection& conn) {
             }
         } else if (bytes_read == 0) {
             throw std::runtime_error("MCP server " + conn.name + " closed connection");
-        } else if (platform::IsPipeWouldBlock()) {
+        } else if (Platform::IsPipeWouldBlock()) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         } else {
-            throw std::runtime_error("Error reading from MCP server " + conn.name + ": " + platform::GetPipeErrorString());
+            throw std::runtime_error("Error reading from MCP server " + conn.name + ": " + Platform::GetPipeErrorString());
         }
     }
 }
 
 void McpClient::WriteToServer(ServerConnection& conn, const std::string& data) {
-    if (platform::kIsWindows) {
+    if (Platform::kIsWindows) {
         throw std::runtime_error("WriteToServer not implemented on Windows");
     }
 
     LOG_DEBUG("Writing to MCP server {}: {}", conn.name, data);
 
-    int bytes_written = platform::WritePipe(conn.stdin_fd, data.c_str(), data.size());
+    int bytes_written = Platform::WritePipe(conn.stdin_fd, data.c_str(), data.size());
     if (bytes_written < 0) {
-        throw std::runtime_error("Failed to write to MCP server " + conn.name + ": " + platform::GetPipeErrorString());
+        throw std::runtime_error("Failed to write to MCP server " + conn.name + ": " + Platform::GetPipeErrorString());
     }
     if (static_cast<size_t>(bytes_written) < data.size()) {
         throw std::runtime_error("Incomplete write to MCP server " + conn.name);

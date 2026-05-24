@@ -98,7 +98,7 @@ void AiCoding::RegisterCallbacks() {
             if (!command_desc.empty()) std::cout << "  Command: " << command_desc;
             std::cout << "  Reason: " << reason;
             std::cout << "\n  Allow this action? [Y/N]: " << std::flush;
-            std::string response = platform::ReadConsoleLine();
+            std::string response = Platform::ReadConsoleLine();
             return response == "y" || response == "Y";
         });
 }
@@ -120,7 +120,7 @@ void AiCoding::HandleInputEvent(const InputEvent& event) {
         }
         engine.SendUserMessage(session_id_, event.GetCommandText());
     } else if (event.IsText()) {
-        if (platform::kIsWindows) {
+        if (Platform::kIsWindows) {
             std::cout << "> " << event.GetText() << std::endl;
         }
         engine.SendUserMessage(session_id_, event.GetText());

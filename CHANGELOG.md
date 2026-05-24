@@ -1,5 +1,68 @@
 # Changelog
 
+## [Unreleased] — 2026-05-24 Platform API 重构 + 设置面板重写 + 聊天渲染优化
+
+本期重点：Platform API 从 `platform::` 命名空间重构为 `Platform::` 大驼峰类，删除 `pipe_handler.h` 将其功能合并至 Platform 类；设置面板全面重写（多标签页 + StartLLM/StopLLM 按钮 + 浅色主题）；聊天渲染优化（流式滚动长度追踪、thinking 合并显示、气泡过滤 thinking 块）；Config Provider 支持多 entry 数组持久化；角色模型切换至本地 gemma-4；i18n 翻译补充；Debug 构建恢复。净变化 +655 行。
+
+### Platform API 重构
+- `platform::` 命名空间 → `Platform::` 类，所有静态方法改为大驼峰命名：`platform::ReadConsoleLine()` → `Platform::ReadConsoleLine()`、`platform::kIsWindows` → `Platform::kIsWindows`、`platform::HomeDir()` → `Platform::HomeDir()` 等
+- 删除 `platform/pipe_handler.h`，管道/进程操作（`CreatePipe`、`ClosePipe`、`ForkAndExec`、`WaitProcess` 等）合并为 `Platform` 类的静态方法
+- 迁移影响：`file_utils.cc`、`string_utils.cc`、`status_bar.cc`、`main.cc`、`ai_coding.cc`、`config.cc` 等 20+ 文件同步更新调用点
+- `time_wrapper.h` 移除 `platform.h` 依赖，内联 `localtime_s`/`localtime_r` 实现
+
+### 设置面板重写
+- 设置弹窗全面重写，支持多标签页：General、Roles、Providers、Security、TTS、Local Models
+- 新增 StartLLM / StopLLM 按钮，异步启动/停止本地模型服务器（带线程池 detach）
+- 设置面板应用浅色主题配色：白底、蓝标题栏、灰色文字
+- 编辑状态支持日志级别、摘要开关、角色选择、权限级别、TTS 配置、本地模型参数
+- Provider 配置支持 entries 数组读写（多 endpoint 支持）
+- About 弹窗改进：唯一 modal ID 防止 ImGui 哈希冲突、显示 i18n `app_name`
+
+### 聊天渲染优化
+- **ChatPanel 流式滚动**: 新增 `last_streaming_len_` 追踪流式内容长度变化，滚动仅在长度变化时触发，避免流式中间态频繁滚动
+- **thinking 合并渲染**: thinking + text 块合并为单条消息显示，thinking 内容前加 `【thinking】` 标签前缀，保留原始 role 标签
+- **SpeechBubble 过滤 thinking**: 新增 `FilterAssistantText()` 静态方法，气泡模式只提取 assistant 的 text content block，过滤 thinking 块
+
+### Config 重构
+- Provider 序列化从单一 `provider_json` 对象改为 `entries` 数组（支持多 endpoint 配置）
+- `DefaultConfigPath()` 策略调整：优先使用 `~/.prosophor/settings.json`，其次 exe 同级 `.prosophor/`
+- 新增 `sprite_assets_dir`、`tts.enabled` 字段持久化
+- `TtsConfig` 新增 `enabled` 字段，默认 `true`
+- `LocalModelConfig::ToJson()` 新增 `model_path_for_win` 字段写入
+
+### ImGui Widget 扩展
+- 新增 `ImGuiWidget::InputInt()` — 整数输入控件
+- 新增 `ImGuiWidget::SliderFloat()` — 浮点数滑动条（double → float 转换包装）
+- 颜色槽扩展：`Color::Slot::TitleBg`、`TitleBgActive`
+
+### TTS 受控开关
+- TTS 语音合成增加 `tts.enabled` 配置门控，关闭时回复完成不再触发语音播放
+- `settings.json` 中 `tts.enabled` 默认设为 `false`
+
+### 角色配置更新
+- ayaka、kazuha、keqing、sayu 模型从 `deepseek-v4-flash` 切换为 `google_gemma-4-E4B-it-Q4_K_M`，protocol 改为 `openai`
+- linnea-2、skirk-2 保持 `deepseek-v4-flash`，protocol 改为 `openai`
+- architect 精灵图片从 `ayaka.webp` 改为 `skirk-2.webp`
+- settings.json 默认角色新增 `architect`，architect thinking 启用
+
+### i18n 翻译补充
+- en.json / zh-CN.json 新增 Security/TTS/Local Models 配置标签翻译键
+- 新增 `app_name` 键（用于 About 弹窗和窗口标题）
+- 中文标题简化：`智灵(Prosophor)` → `智灵`
+
+### 构建
+- Makefile 构建类型从 `RelWithDebInfo` 切换回 `Debug`
+- 新增 `-DGGML_VULKAN=ON` Vulkan 后端支持
+- 精灵 Debug 边框（窗口轮廓 + hitbox 叠加）暂时注释，`NDEBUG` 条件代码禁用
+
+### 文件统计
+- 变更文件：48 个
+- 新增：+1,157 行
+- 删除：-502 行
+- 净变化：+655 行
+
+---
+
 ## [Unreleased] — 2026-05-23 TTS 多后端重构 + GPT-SoVITS 流式语音 + Windows 安装发布
 
 本期重点：TTS 从单一服务迁移为 Provider 架构，新增 edge-tts 与 GPT-SoVITS 双后端；接入 GPT-SoVITS 本地 API 生命周期管理和 WAV/PCM 流式播放；VirtualSprite 在回复完成后自动触发语音合成；修复 ImGui Begin/End RAII 配对规则；增强托盘图标、窗口版本号、Release 日志和 Windows NSIS/Gitee 发布流程。净变化 +893 行。

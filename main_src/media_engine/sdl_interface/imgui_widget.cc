@@ -698,6 +698,19 @@ bool ImGuiWidget::InputText(const char* label, char* buf, size_t buf_size) {
     return ImGui::InputText(label, buf, buf_size);
 }
 
+bool ImGuiWidget::InputInt(const char* label, int* value) {
+    return ImGui::InputInt(label, value);
+}
+
+bool ImGuiWidget::SliderFloat(const char* label, double* value, float min, float max, const char* fmt) {
+    float v = static_cast<float>(*value);
+    if (ImGui::SliderFloat(label, &v, min, max, fmt)) {
+        *value = static_cast<double>(v);
+        return true;
+    }
+    return false;
+}
+
 bool ImGuiWidget::Button(const char* label, float width, float height) {
     return ImGui::Button(label, ImVec2(width, height));
 }

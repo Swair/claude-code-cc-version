@@ -172,6 +172,7 @@ struct SecurityConfig {
 
 /// Configuration for TTS (Text-to-Speech)
 struct TtsConfig {
+    bool enabled = true;
     std::string backend = "edge-tts";  // "edge-tts" or "gpt-sovits"
 
     // GPT-SoVITS settings

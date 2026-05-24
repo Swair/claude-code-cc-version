@@ -28,7 +28,7 @@ std::string ExpandHome(const std::string& path) {
 }
 
 std::string GetHomeDir() {
-    return platform::HomeDir();
+    return Platform::HomeDir();
 }
 
 bool EnsureDirectory(const std::string& path) {

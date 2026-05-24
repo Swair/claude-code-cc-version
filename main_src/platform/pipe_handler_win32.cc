@@ -3,7 +3,7 @@
 //
 // Windows implementation of pipe and process operations
 
-#include "platform/pipe_handler.h"
+#include "platform/platform.h"
 
 #include <io.h>
 #include <fcntl.h>
@@ -14,15 +14,14 @@
 #include "common/log_wrapper.h"
 
 namespace prosophor {
-namespace platform {
 
-PipePair CreatePipe() {
+PipePair Platform::CreatePipe() {
     PipePair result;
     HANDLE read_handle, write_handle;
 
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
 
-    if (!CreatePipe(&read_handle, &write_handle, &sa, 0)) {
+    if (!::CreatePipe(&read_handle, &write_handle, &sa, 0)) {
         LOG_ERROR("Failed to create pipe: {}", GetLastError());
         return result;
     }
@@ -41,26 +40,26 @@ PipePair CreatePipe() {
     return result;
 }
 
-bool ClosePipe(int fd) {
+bool Platform::ClosePipe(int fd) {
     if (fd >= 0) {
         return _close(fd) == 0;
     }
     return true;
 }
 
-int ReadPipe(int fd, char* buf, size_t size) {
+int Platform::ReadPipe(int fd, char* buf, size_t size) {
     return _read(fd, buf, static_cast<unsigned int>(size));
 }
 
-int WritePipe(int fd, const char* buf, size_t size) {
+int Platform::WritePipe(int fd, const char* buf, size_t size) {
     return _write(fd, buf, static_cast<unsigned int>(size));
 }
 
-bool Dup2Pipe(int /*old_fd*/, int /*new_fd*/) {
+bool Platform::Dup2Pipe(int /*old_fd*/, int /*new_fd*/) {
     return false;
 }
 
-ForkedProcess ForkAndExec(const std::string& command,
+ForkedProcess Platform::ForkAndExec(const std::string& command,
                           const std::vector<std::string>& args,
                           const std::string& workdir,
                           const std::vector<std::string>& /*env*/) {
@@ -72,11 +71,11 @@ ForkedProcess ForkAndExec(const std::string& command,
 
     SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
 
-    if (!CreatePipe(&stdin_read, &stdin_write, &sa, 0)) {
+    if (!::CreatePipe(&stdin_read, &stdin_write, &sa, 0)) {
         LOG_ERROR("Failed to create stdin pipe: {}", GetLastError());
         return result;
     }
-    if (!CreatePipe(&stdout_read, &stdout_write, &sa, 0)) {
+    if (!::CreatePipe(&stdout_read, &stdout_write, &sa, 0)) {
         LOG_ERROR("Failed to create stdout pipe: {}", GetLastError());
         CloseHandle(stdin_read);
         CloseHandle(stdin_write);
@@ -141,7 +140,7 @@ ForkedProcess ForkAndExec(const std::string& command,
     return result;
 }
 
-bool WaitProcess(int pid) {
+bool Platform::WaitProcess(int pid) {
     HANDLE hProcess = OpenProcess(SYNCHRONIZE, FALSE, static_cast<DWORD>(pid));
     if (!hProcess) {
         LOG_ERROR("Failed to open process {}: {}", pid, GetLastError());
@@ -153,10 +152,4 @@ bool WaitProcess(int pid) {
 
     return ret == WAIT_OBJECT_0;
 }
-
-int GetCurrentPid() {
-    return static_cast<int>(GetCurrentProcessId());
-}
-
-}  // namespace platform
 }  // namespace prosophor

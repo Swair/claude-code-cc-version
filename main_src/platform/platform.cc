@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "platform/platform.h"
+#include "common/string_utils.h"
 
 #include <chrono>
 #include <cctype>
@@ -18,6 +19,8 @@
 #include <io.h>
 #include <winsock2.h>
 #include <windows.h>
+#include <commdlg.h>
+#include <shlobj.h>
 #include <process.h>
 #else
 #include <arpa/inet.h>
@@ -34,24 +37,8 @@
 #endif
 
 namespace prosophor {
-namespace platform {
 
-bool IsUtf8(const std::string& input) {
-    for (size_t i = 0; i < input.size(); ++i) {
-        unsigned char c = static_cast<unsigned char>(input[i]);
-        if (c < 0x80) continue;
-        if (c >= 0xC2 && c <= 0xDF) {
-            if (++i >= input.size() || (input[i] & 0xC0) != 0x80) return false;
-        } else if (c >= 0xE0 && c <= 0xEF) {
-            if (i + 2 >= input.size() || (input[++i] & 0xC0) != 0x80 || (input[++i] & 0xC0) != 0x80) return false;
-        } else if (c >= 0xF0 && c <= 0xF4) {
-            if (i + 3 >= input.size() || (input[++i] & 0xC0) != 0x80 || (input[++i] & 0xC0) != 0x80 || (input[++i] & 0xC0) != 0x80) return false;
-        } else return false;
-    }
-    return true;
-}
-
-std::string NativeToUtf8(const std::string& input) {
+std::string Platform::NativeToUtf8(const std::string& input) {
     if (IsUtf8(input)) {
         return input;
     }
@@ -74,7 +61,7 @@ std::string NativeToUtf8(const std::string& input) {
     return input;
 }
 
-std::string ReadLine() {
+std::string Platform::ReadLine() {
 #ifdef _WIN32
     HANDLE h_input = GetStdHandle(STD_INPUT_HANDLE);
     std::string line;
@@ -110,7 +97,7 @@ std::string ReadLine() {
 #endif
 }
 
-std::string HomeDir() {
+std::string Platform::HomeDir() {
     const char* home = std::getenv("HOME");
 #ifdef _WIN32
     if (!home) {
@@ -120,17 +107,7 @@ std::string HomeDir() {
     return home ? std::string(home) : "";
 }
 
-std::tm LocalTime(std::time_t t) {
-    std::tm tm_result{};
-#ifdef _WIN32
-    localtime_s(&tm_result, &t);
-#else
-    localtime_r(&t, &tm_result);
-#endif
-    return tm_result;
-}
-
-std::wstring Utf8ToWide(const std::string& utf8_str) {
+std::wstring Platform::Utf8ToWide(const std::string& utf8_str) {
 #ifdef _WIN32
     int wide_len = MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), -1, nullptr, 0);
     if (wide_len <= 1) return L"";
@@ -143,7 +120,7 @@ std::wstring Utf8ToWide(const std::string& utf8_str) {
 #endif
 }
 
-void SetConsoleUtf8() {
+void Platform::SetConsoleUtf8() {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
@@ -160,7 +137,7 @@ void SetConsoleUtf8() {
 #endif
 }
 
-int GetPid() {
+int Platform::GetPid() {
 #ifdef _WIN32
     return _getpid();
 #else
@@ -168,7 +145,7 @@ int GetPid() {
 #endif
 }
 
-std::string ShellEscape(const std::string& arg) {
+std::string Platform::ShellEscape(const std::string& arg) {
 #ifdef _WIN32
     return "\"" + arg + "\"";
 #else
@@ -182,7 +159,7 @@ std::string ShellEscape(const std::string& arg) {
 #endif
 }
 
-std::string ReadConsoleLine() {
+std::string Platform::ReadConsoleLine() {
 #ifdef _WIN32
     HANDLE hConsole = GetStdHandle(STD_INPUT_HANDLE);
     char buf[256] = {};
@@ -201,7 +178,7 @@ std::string ReadConsoleLine() {
 #endif
 }
 
-std::string GetSelfExePath() {
+std::string Platform::GetSelfExePath() {
     std::string self_path;
 #ifdef __linux__
     char self_buf[4096];
@@ -224,7 +201,7 @@ std::string GetSelfExePath() {
     return self_path;
 }
 
-std::string NormalizePath(const std::string& path) {
+std::string Platform::NormalizePath(const std::string& path) {
 #ifdef _WIN32
     // Step 1: Convert POSIX-style /x/... to Windows-native X:\... format.
     // MinGW may supply paths like /e/ai_ws/... which GetFullPathNameA
@@ -254,11 +231,11 @@ std::string NormalizePath(const std::string& path) {
 #endif
 }
 
-bool PathExists(const std::string& path) {
+bool Platform::PathExists(const std::string& path) {
     return std::filesystem::exists(NormalizePath(path));
 }
 
-std::string SelectPlatformPath(const std::string& default_path, const std::string& win_path) {
+std::string Platform::SelectPlatformPath(const std::string& default_path, const std::string& win_path) {
 #ifdef _WIN32
     return win_path.empty() ? default_path : win_path;
 #else
@@ -267,15 +244,15 @@ std::string SelectPlatformPath(const std::string& default_path, const std::strin
 #endif
 }
 
-bool CheckPortOpen(int port) {
+bool Platform::CheckPortOpen(int port) {
     std::string url = "http://127.0.0.1:" + std::to_string(port);
-    std::string result = RunShellCommand(
+    std::string result = Platform::RunShellCommand(
         ("curl -s -o " + std::string(NullDevice()) + " -w \"%{http_code}\" --connect-timeout 2 "
          + url + " 2>" + NullDevice()).c_str());
     return !result.empty();
 }
 
-std::string RunShellCommand(const char* cmd) {
+std::string Platform::RunShellCommand(const char* cmd) {
 #ifdef _WIN32
     FILE* fp = _popen(cmd, "r");
 #else
@@ -296,7 +273,7 @@ std::string RunShellCommand(const char* cmd) {
     return result;
 }
 
-const char* NullDevice() {
+const char* Platform::NullDevice() {
 #ifdef _WIN32
     return "NUL";
 #else
@@ -304,7 +281,7 @@ const char* NullDevice() {
 #endif
 }
 
-Subprocess LaunchProcess(const std::vector<std::string>& args) {
+Subprocess Platform::LaunchProcess(const std::vector<std::string>& args) {
     if (args.empty()) return {};
 
 #ifdef _WIN32
@@ -391,14 +368,14 @@ Subprocess LaunchProcess(const std::vector<std::string>& args) {
 #endif
 }
 
-int LaunchDetachedCommand(const std::string& command) {
+int Platform::LaunchDetachedCommand(const std::string& command) {
     // Run command and capture PID (script must background and echo PID via "&; echo $!")
-    std::string pid_str = RunShellCommand(command.c_str());
+    std::string pid_str = Platform::RunShellCommand(command.c_str());
     if (pid_str.empty()) return -1;
     return std::atoi(pid_str.c_str());
 }
 
-bool IsProcessAlive(int pid) {
+bool Platform::IsProcessAlive(int pid) {
     if (pid <= 0) return false;
 
 #ifdef _WIN32
@@ -413,7 +390,7 @@ bool IsProcessAlive(int pid) {
 #endif
 }
 
-bool KillProcess(int pid, bool force) {
+bool Platform::KillProcess(int pid, bool force) {
     if (pid <= 0) return true;
 
 #ifdef _WIN32
@@ -441,7 +418,24 @@ bool KillProcess(int pid, bool force) {
 #endif
 }
 
-CommandOutput RunCommandWithOutput(const std::string& command,
+bool Platform::KillProcessByName(const std::string& name) {
+#ifdef _WIN32
+    std::string image_name = name;
+    if (image_name.size() < 4 ||
+        image_name.substr(image_name.size() - 4) != ".exe") {
+        image_name += ".exe";
+    }
+    Platform::RunShellCommand(
+        ("taskkill -IM " + image_name + " -F 2>nul").c_str());
+    return true;
+#else
+    std::string cmd = "pkill -9 " + Platform::ShellEscape(name) + " 2>/dev/null";
+    Platform::RunCommandWithOutput(cmd, 5);
+    return true;
+#endif
+}
+
+CommandOutput Platform::RunCommandWithOutput(const std::string& command,
                                     int timeout_seconds,
                                     const std::string& workdir) {
 #ifdef _WIN32
@@ -450,13 +444,13 @@ CommandOutput RunCommandWithOutput(const std::string& command,
     sa.bInheritHandle = TRUE;
 
     HANDLE read_pipe = nullptr, write_pipe = nullptr;
-    if (!CreatePipe(&read_pipe, &write_pipe, &sa, 0)) {
+    if (!::CreatePipe(&read_pipe, &write_pipe, &sa, 0)) {
         return {"Failed to create pipe", -1};
     }
     SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0);
 
     HANDLE input_read = nullptr, input_write = nullptr;
-    if (!CreatePipe(&input_read, &input_write, &sa, 0)) {
+    if (!::CreatePipe(&input_read, &input_write, &sa, 0)) {
         CloseHandle(read_pipe);
         CloseHandle(write_pipe);
         return {"Failed to create input pipe", -1};
@@ -464,7 +458,7 @@ CommandOutput RunCommandWithOutput(const std::string& command,
     SetHandleInformation(input_read, HANDLE_FLAG_INHERIT, 0);
     CloseHandle(input_write);
 
-    std::wstring wcmd_line = Utf8ToWide(command);
+    std::wstring wcmd_line = Platform::Utf8ToWide(command);
 
     STARTUPINFOW si{};
     si.cb = sizeof(si);
@@ -475,7 +469,7 @@ CommandOutput RunCommandWithOutput(const std::string& command,
     si.wShowWindow = SW_HIDE;
 
     PROCESS_INFORMATION pi{};
-    std::wstring wworkdir = workdir.empty() ? L"" : Utf8ToWide(workdir);
+    std::wstring wworkdir = workdir.empty() ? L"" : Platform::Utf8ToWide(workdir);
 
     BOOL ok = CreateProcessW(nullptr, wcmd_line.data(), nullptr, nullptr,
                              TRUE, CREATE_NO_WINDOW,
@@ -634,7 +628,7 @@ CommandOutput RunCommandWithOutput(const std::string& command,
 // CreatePipe/ClosePipe/ReadPipe/WritePipe/Dup2Pipe/ForkAndExec/WaitProcess
 // are in pipe_handler_posix.cc / pipe_handler_win32.cc
 
-bool SetPipeNonBlocking(int fd) {
+bool Platform::SetPipeNonBlocking(int fd) {
     if (fd < 0) return false;
 #ifndef _WIN32
     int flags = fcntl(fd, F_GETFL, 0);
@@ -646,7 +640,7 @@ bool SetPipeNonBlocking(int fd) {
 #endif
 }
 
-bool IsPipeWouldBlock() {
+bool Platform::IsPipeWouldBlock() {
 #ifndef _WIN32
     return errno == EAGAIN || errno == EWOULDBLOCK;
 #else
@@ -654,7 +648,7 @@ bool IsPipeWouldBlock() {
 #endif
 }
 
-std::string GetPipeErrorString() {
+std::string Platform::GetPipeErrorString() {
 #ifndef _WIN32
     return strerror(errno);
 #else
@@ -675,7 +669,7 @@ std::string GetPipeErrorString() {
 
 // ForkAndExec/WaitProcess are in pipe_handler_posix.cc / pipe_handler_win32.cc
 
-ScriptResult ExecuteScriptWithTimeout(const std::string& script_path, int timeout_ms) {
+ScriptResult Platform::ExecuteScriptWithTimeout(const std::string& script_path, int timeout_ms) {
     ScriptResult result;
 
     if (!PathExists(script_path)) {
@@ -701,7 +695,7 @@ ScriptResult ExecuteScriptWithTimeout(const std::string& script_path, int timeou
     int timeout_sec = timeout_ms / 1000;
     if (timeout_sec < 1) timeout_sec = 1;
 
-    auto cmd_result = RunCommandWithOutput(command, timeout_sec);
+    auto cmd_result = Platform::RunCommandWithOutput(command, timeout_sec);
 
     result.return_code = cmd_result.exit_code;
     result.output = cmd_result.output;
@@ -714,5 +708,55 @@ ScriptResult ExecuteScriptWithTimeout(const std::string& script_path, int timeou
     return result;
 }
 
-}  // namespace platform
+
+
+std::string Platform::BrowseForFile(const char* filter) {
+#ifdef _WIN32
+    char path[MAX_PATH] = {0};
+    OPENFILENAMEA ofn;
+    memset(&ofn, 0, sizeof(ofn));
+    ofn.lStructSize = sizeof(ofn);
+    ofn.lpstrFilter = filter ? filter : "All Files (*.*)\0*.*\0";
+    ofn.lpstrFile = path;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
+    if (GetOpenFileNameA(&ofn)) {
+        return std::string(path);
+    }
+    return {};
+#else
+    (void)filter;
+    return {};
+#endif
+}
+
+std::string Platform::BrowseForDirectory() {
+#ifdef _WIN32
+    BROWSEINFO bi;
+    memset(&bi, 0, sizeof(bi));
+    bi.lpszTitle = "Select Sprite Assets Directory";
+    bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
+    LPITEMIDLIST pidl = SHBrowseForFolder(&bi);
+    if (pidl != nullptr) {
+        char path[MAX_PATH] = {0};
+        if (SHGetPathFromIDListA(pidl, path)) {
+            IMalloc* imalloc = nullptr;
+            if (SUCCEEDED(SHGetMalloc(&imalloc))) {
+                imalloc->Free(pidl);
+                imalloc->Release();
+            }
+            return std::string(path);
+        }
+        IMalloc* imalloc = nullptr;
+        if (SUCCEEDED(SHGetMalloc(&imalloc))) {
+            imalloc->Free(pidl);
+            imalloc->Release();
+        }
+    }
+    return {};
+#else
+    return {};
+#endif
+}
+
 }  // namespace prosophor

@@ -138,12 +138,12 @@ void SpeechBubble::Render(const media_engine::RenderContext& ctx) {
     input_panel_->Render(ctx);
 
     // Render ChatPanel messages via ScrollWindow (needs viewport-absolute coords)
-    // Bubble mode: only show the last assistant reply (compact desktop pet)
+    // Bubble mode: only show the last assistant's text-only reply (no thinking)
     RenderSnapshot bubble_snapshot = snapshot_;
     bubble_snapshot.messages.clear();
     for (auto it = snapshot_.messages.rbegin(); it != snapshot_.messages.rend(); ++it) {
         if (it->role == "assistant") {
-            bubble_snapshot.messages.push_back(*it);
+            bubble_snapshot.messages.push_back(FilterAssistantText(*it));
             break;
         }
     }
@@ -200,6 +200,17 @@ void SpeechBubble::DrawTitleBar(float bx, float by, float bubble_width) {
 
     media_engine::Layout::SetCursorScreenPos(bx + padding_, by + padding_ + 2);
     media_engine::Text::Colored(title_text_color_, title_text_.c_str());
+}
+
+MessageSchema SpeechBubble::FilterAssistantText(const MessageSchema& msg) {
+    MessageSchema result;
+    result.role = msg.role;
+    for (const auto& b : msg.content) {
+        if (b.type != "thinking") {
+            result.content.push_back(b);
+        }
+    }
+    return result;
 }
 
 } // namespace prosophor

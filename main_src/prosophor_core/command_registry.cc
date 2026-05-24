@@ -2581,17 +2581,20 @@ CommandResult CommandRegistry::CmdSetup(const CommandContext&, const std::vector
     }
 
     if (!has_local_entry) {
+        nlohmann::json agent;
+        agent["context_window"] = 32768;
+        agent["max_tokens"] = 8192;
+        agent["model"] = std::filesystem::path(selected_model).stem().string();
+        agent["temperature"] = 0.7;
+
         nlohmann::json local_entry;
+        local_entry["agents"] = nlohmann::json::array({agent});
         local_entry["api_key"] = "";
         local_entry["base_url"] = "http://localhost:8080/v1/chat/completions";
         local_entry["timeout"] = 120;
-        local_entry["agents"]["default"]["model"] = std::filesystem::path(selected_model).stem().string();
-        local_entry["agents"]["default"]["temperature"] = 0.7;
-        local_entry["agents"]["default"]["max_tokens"] = 8192;
-        local_entry["agents"]["default"]["context_window"] = 32768;
 
         // Check if model name looks like quantized (contains Q4, Q8, etc.)
-        std::string model_name = local_entry["agents"]["default"]["model"].get<std::string>();
+        std::string model_name = agent["model"].get<std::string>();
         // Extract a cleaner model name if possible
         auto stem = std::filesystem::path(selected_model).stem().string();
 

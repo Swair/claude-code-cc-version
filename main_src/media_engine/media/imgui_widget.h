@@ -370,6 +370,8 @@ public:
     static bool Checkbox(const char* label, bool* value);
     static bool Combo(const char* label, int* current_item, const char* const items[], int items_count);
     static bool InputText(const char* label, char* buf, size_t buf_size);
+    static bool InputInt(const char* label, int* value);
+    static bool SliderFloat(const char* label, double* value, float min, float max, const char* fmt = "%.3f");
     static bool Button(const char* label, float width = 0.0f, float height = 0.0f);
     static void Separator();
     static bool TreeNode(const char* label);

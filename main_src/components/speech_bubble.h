@@ -66,6 +66,8 @@ private:
     void DrawBubbleBody(float bubble_width, float bubble_body_h);
     void DrawTail(float bubble_width, float bubble_body_h);
     void DrawTitleBar(float bx, float by, float bubble_width);
+    /// Filter an assistant message to only text content (exclude thinking blocks)
+    static MessageSchema FilterAssistantText(const MessageSchema& msg);
     // -- 外观 --
     media_engine::Color bg_color_{media_engine::Colors::Cream70};
     media_engine::Color border_color_{media_engine::Colors::Transparent};

@@ -18,14 +18,14 @@ std::vector<std::string> GetSearchPaths() {
     std::vector<std::string> paths;
 
     // 1. Relative to the running prosophor binary
-    std::string self_path = platform::GetSelfExePath();
+    std::string self_path = Platform::GetSelfExePath();
     if (!self_path.empty()) {
         auto bin_dir = std::filesystem::path(self_path).parent_path().string();
         paths.push_back(bin_dir + "/llama-server");
     }
 
     // 2. ~/.prosophor/bin/llama-server
-    std::string home = platform::HomeDir();
+    std::string home = Platform::HomeDir();
     if (!home.empty()) {
         paths.push_back(home + "/.prosophor/bin/llama-server");
         paths.push_back(home + "/.prosophor/llama-server");
@@ -79,7 +79,7 @@ std::string FindServerBinary() {
     }
 
     // Try `which llama-server`
-    std::string which = platform::RunShellCommand("which llama-server 2>/dev/null");
+    std::string which = Platform::RunShellCommand("which llama-server 2>/dev/null");
     if (!which.empty()) {
         if (which.back() == '\n') which.pop_back();
         if (FileExists(which)) {
@@ -94,8 +94,8 @@ void DetectHardware(int& out_gpu_layers, int& out_threads) {
     out_gpu_layers = 0;
     out_threads = 0;
 
-    if (platform::kIsLinux) {
-        std::string nvidia = platform::RunShellCommand(
+    if (Platform::kIsLinux) {
+        std::string nvidia = Platform::RunShellCommand(
             "nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null");
         if (!nvidia.empty()) {
             int vram_mb = std::atoi(nvidia.c_str());
@@ -114,22 +114,22 @@ void DetectHardware(int& out_gpu_layers, int& out_threads) {
         }
 
         if (out_gpu_layers == 0) {
-            std::string other_gpu = platform::RunShellCommand(
+            std::string other_gpu = Platform::RunShellCommand(
                 "lspci 2>/dev/null | grep -i 'vga\\|3d' | grep -iv 'nvidia' | head -1");
             if (!other_gpu.empty()) {
                 LOG_DEBUG("Detected non-NVIDIA GPU: {}", other_gpu);
             }
         }
 
-        std::string cpu_count_str = platform::RunShellCommand(
+        std::string cpu_count_str = Platform::RunShellCommand(
             "grep -c '^processor' /proc/cpuinfo 2>/dev/null || nproc");
         if (!cpu_count_str.empty()) {
             long cpu_count = std::atol(cpu_count_str.c_str());
             out_threads = std::max(1L, cpu_count - 1);
             LOG_DEBUG("Detected {} CPU threads, recommending {}", cpu_count, out_threads);
         }
-    } else if (platform::kIsMacOS) {
-        std::string ram_str = platform::RunShellCommand("sysctl -n hw.memsize 2>/dev/null");
+    } else if (Platform::kIsMacOS) {
+        std::string ram_str = Platform::RunShellCommand("sysctl -n hw.memsize 2>/dev/null");
         if (!ram_str.empty()) {
             int64_t ram = std::atoll(ram_str.c_str()) / (1024LL * 1024LL * 1024LL);
             LOG_DEBUG("Detected {} GB unified memory", ram);
@@ -142,7 +142,7 @@ void DetectHardware(int& out_gpu_layers, int& out_threads) {
             }
         }
 
-        std::string cpu_str = platform::RunShellCommand("sysctl -n hw.ncpu 2>/dev/null");
+        std::string cpu_str = Platform::RunShellCommand("sysctl -n hw.ncpu 2>/dev/null");
         if (!cpu_str.empty()) {
             out_threads = std::max(1, std::atoi(cpu_str.c_str()) - 2);
         }

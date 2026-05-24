@@ -22,13 +22,13 @@ std::string EdgeTtsProvider::Synthesize(const std::string& text,
     EnsureDirectory(ParentDir(output_path));
 
     std::string cmd = "edge-tts"
-        " -t " + platform::ShellEscape(text) +
-        " -v " + platform::ShellEscape(voice_) +
-        " --write-media " + platform::ShellEscape(output_path);
+        " -t " + Platform::ShellEscape(text) +
+        " -v " + Platform::ShellEscape(voice_) +
+        " --write-media " + Platform::ShellEscape(output_path);
 
     LOG_DEBUG("EdgeTtsProvider: running edge-tts ...");
 
-    auto result = platform::RunCommandWithOutput(cmd, 30);
+    auto result = Platform::RunCommandWithOutput(cmd, 30);
 
     if (result.exit_code == -2) {
         LOG_WARN("EdgeTtsProvider: edge-tts timeout");

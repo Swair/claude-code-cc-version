@@ -17,8 +17,8 @@ export PATH := /e/devtool/msys64/mingw64/bin:$(PATH)
 
 PACKAGE_NAME ?= Prosophor
 PACKAGE_VERSION ?= 0.6.3
-BUILD_TYPE ?= RelWithDebInfo
-# BUILD_TYPE ?= Debug
+# BUILD_TYPE ?= RelWithDebInfo
+BUILD_TYPE ?= Debug
 
 
 all:
@@ -81,6 +81,7 @@ CMAKE_ARGS_WIN ?= \
 	-DPACKAGE_BUILD_DIR=$(BUILD_DIR_WIN) \
 	-DBUILD_SHARED_LIBS=OFF \
 	-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+	-DGGML_VULKAN=ON \
 	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 	-DPACKAGE_VERSION=$(PACKAGE_VERSION) \
 	$(CMAKE_EXTRA_ARGS)
@@ -216,4 +217,3 @@ stop_llamacpp_server:
 stop_llamacpp_server_win:
 	-taskkill -IM llama-server.exe -F 2>/dev/null || true
 .PHONY: stop_llamacpp_server_win
-

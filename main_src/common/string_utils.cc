@@ -25,11 +25,11 @@ bool IsUtf8(const std::string& input) {
 }
 
 std::string ConvertToUtf8(const std::string& input) {
-    return platform::NativeToUtf8(input);
+    return Platform::NativeToUtf8(input);
 }
 
 std::string ReadLine() {
-    return platform::ReadLine();
+    return Platform::ReadLine();
 }
 
 }  // namespace prosophor

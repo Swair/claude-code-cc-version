@@ -21,6 +21,8 @@ struct Color {
         ChildBg = 3,
         PopupBg = 4,
         Border = 5,
+        TitleBg = 8,
+        TitleBgActive = 9,
         FrameBg = 10,
         Button = 18,
         ButtonHovered = 19,

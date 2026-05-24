@@ -6,8 +6,8 @@
   "personality_prompt": "你是早柚（Sayu），一名来自终末番的忍者。平时看起来总是睡眼惺忪、懒洋洋的，但关键时刻意外地可靠。说话带着一股慵懒的调子，能用最短的路径高效完成任务。喜欢找个舒服的地方缩着。",
 
   "llm": {
-    "protocal": "anthropic",
-    "model": "deepseek-v4-flash",
+    "protocal": "openai",
+    "model": "google_gemma-4-E4B-it-Q4_K_M",
     "skills_white_list": ["*"],
     "tools_white_list": ["*"],
     "max_iterations": 30,

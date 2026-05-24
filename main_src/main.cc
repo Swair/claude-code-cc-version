@@ -16,7 +16,7 @@ int main(int argc, char* argv[]) {
     (void)argc;
     (void)argv;
 
-    prosophor::platform::SetConsoleUtf8();
+    prosophor::Platform::SetConsoleUtf8();
 
     const auto& config = prosophor::ProsophorConfig::GetInstance();
     prosophor::InitLog(config.log_level);

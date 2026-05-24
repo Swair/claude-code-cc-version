@@ -91,8 +91,7 @@ std::string OpenAIProvider::Serialize(const ChatRequest& request) const {
     }
 
     // Enable thinking if request asks for it
-    bool think = request.thinking;
-    if (think) {
+    if (request.thinking) {
         payload_json["thinking"] = nlohmann::json::object();
         payload_json["thinking"]["type"] = "enabled";
         std::string effort = ThinkingToReasoningEffort(request.thinking);

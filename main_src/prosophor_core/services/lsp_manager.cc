@@ -87,7 +87,7 @@ void LspManager::RegisterServer(const LspServerConfig& config) {
 }
 
 bool LspManager::StartServerForFile(const std::string& filepath) {
-    if (platform::kIsWindows) {
+    if (Platform::kIsWindows) {
         LOG_WARN("LSP server management is not supported on Windows");
         return false;
     }
@@ -109,7 +109,7 @@ bool LspManager::StartServerForFile(const std::string& filepath) {
                 instance.config = config;
                 instance.root_path = config.root_path;
 
-                auto proc = platform::ForkAndExec(config.command, config.args);
+                auto proc = Platform::ForkAndExec(config.command, config.args);
                 if (proc.pid <= 0) {
                     LOG_ERROR("Failed to start LSP server: {}", config.name);
                     return false;
@@ -153,7 +153,7 @@ bool LspManager::InitializeServer(ServerInstance& server) {
     }
 
     nlohmann::json params = nlohmann::json::object();
-    params["processId"] = platform::GetPid();
+    params["processId"] = Platform::GetPid();
     params["rootUri"] = server.config.root_path.empty() ? nullptr : server.config.root_path;
     params["capabilities"] = nlohmann::json::object();
     params["initializationOptions"] = server.config.initialization_options;
@@ -182,7 +182,7 @@ nlohmann::json LspManager::SendRequest(ServerInstance& server,
     header << "Content-Length: " << body.size() << "\r\n\r\n";
 
     std::string message = header.str() + body;
-    platform::WritePipe(server.stdin_fd, message.c_str(), message.size());
+    Platform::WritePipe(server.stdin_fd, message.c_str(), message.size());
 
     return ReadResponse(server);
 }
@@ -200,14 +200,14 @@ void LspManager::SendNotification(ServerInstance& server,
     header << "Content-Length: " << body.size() << "\r\n\r\n";
 
     std::string message = header.str() + body;
-    platform::WritePipe(server.stdin_fd, message.c_str(), message.size());
+    Platform::WritePipe(server.stdin_fd, message.c_str(), message.size());
 }
 
 std::string LspManager::ReadResponse(ServerInstance& server) {
     char buffer[4096];
     int n;
 
-    while ((n = platform::ReadPipe(server.stdout_fd, buffer, sizeof(buffer))) > 0) {
+    while ((n = Platform::ReadPipe(server.stdout_fd, buffer, sizeof(buffer))) > 0) {
         server.read_buffer.append(buffer, n);
 
         // Look for Content-Length header
@@ -445,11 +445,11 @@ void LspManager::ShutdownAll() {
 
         if (server.process) {
             int pid = static_cast<int>(reinterpret_cast<size_t>(server.process));
-            platform::KillProcess(pid, false);
+            Platform::KillProcess(pid, false);
         }
 
-        platform::ClosePipe(server.stdin_fd);
-        platform::ClosePipe(server.stdout_fd);
+        Platform::ClosePipe(server.stdin_fd);
+        Platform::ClosePipe(server.stdout_fd);
     }
 
     servers_.clear();

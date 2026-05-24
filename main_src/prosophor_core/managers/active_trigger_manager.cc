@@ -364,7 +364,7 @@ bool ActiveTriggerManager::ExecuteTrigger(const ActiveTriggerPlugin& plugin,
                                            std::string& trigger_reason) {
     std::string trigger_path = plugin.path + "/" + plugin.script;
 
-    auto result = platform::ExecuteScriptWithTimeout(trigger_path, plugin.timeout);
+    auto result = Platform::ExecuteScriptWithTimeout(trigger_path, plugin.timeout);
 
     if (result.timeout) {
         LOG_WARN("Trigger script timeout: {}", plugin.name);

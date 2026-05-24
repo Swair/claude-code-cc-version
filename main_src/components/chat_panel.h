@@ -60,6 +60,7 @@ private:
     std::string last_session_id_;
     mutable std::vector<ChatMessage> display_messages_;
     size_t last_msg_count_ = 0;
+    size_t last_streaming_len_ = 0;
     media_engine::Color user_bg_color_{media_engine::Colors::BluePale};
     media_engine::Color assistant_bg_color_{media_engine::Colors::GreenPale};
 

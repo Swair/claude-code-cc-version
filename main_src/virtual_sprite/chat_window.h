@@ -33,6 +33,7 @@ public:
     using SubmitCallback = std::function<void(const std::string&)>;
     void SetOnSubmit(SubmitCallback cb);
 
+
     int GetWidth() const { return width_; }
     int GetHeight() const { return height_; }
 

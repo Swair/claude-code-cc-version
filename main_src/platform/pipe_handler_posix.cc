@@ -3,7 +3,7 @@
 //
 // POSIX implementation of pipe and process operations
 
-#include "platform/pipe_handler.h"
+#include "platform/platform.h"
 
 #include <unistd.h>
 #include <sys/wait.h>
@@ -14,9 +14,8 @@
 #include "common/log_wrapper.h"
 
 namespace prosophor {
-namespace platform {
 
-PipePair CreatePipe() {
+PipePair Platform::CreatePipe() {
     int pipefd[2];
     if (::pipe(pipefd) == -1) {
         LOG_ERROR("Failed to create pipe: {}", strerror(errno));
@@ -25,7 +24,7 @@ PipePair CreatePipe() {
     return { pipefd[0], pipefd[1] };
 }
 
-bool ClosePipe(int fd) {
+bool Platform::ClosePipe(int fd) {
     if (fd >= 0 && ::close(fd) == -1) {
         LOG_ERROR("Failed to close pipe: {}", strerror(errno));
         return false;
@@ -33,26 +32,26 @@ bool ClosePipe(int fd) {
     return true;
 }
 
-int ReadPipe(int fd, char* buf, size_t size) {
+int Platform::ReadPipe(int fd, char* buf, size_t size) {
     return ::read(fd, buf, size);
 }
 
-int WritePipe(int fd, const char* buf, size_t size) {
+int Platform::WritePipe(int fd, const char* buf, size_t size) {
     return ::write(fd, buf, size);
 }
 
-bool Dup2Pipe(int old_fd, int new_fd) {
+bool Platform::Dup2Pipe(int old_fd, int new_fd) {
     return ::dup2(old_fd, new_fd) == new_fd;
 }
 
-ForkedProcess ForkAndExec(const std::string& command,
+ForkedProcess Platform::ForkAndExec(const std::string& command,
                           const std::vector<std::string>& args,
                           const std::string& workdir,
                           const std::vector<std::string>& env) {
     ForkedProcess result;
 
-    PipePair stdin_pipe = CreatePipe();
-    PipePair stdout_pipe = CreatePipe();
+    PipePair stdin_pipe = Platform::CreatePipe();
+    PipePair stdout_pipe = Platform::CreatePipe();
 
     if (stdin_pipe.read_fd < 0 || stdout_pipe.write_fd < 0) {
         LOG_ERROR("Failed to create pipes for ForkAndExec");
@@ -62,10 +61,10 @@ ForkedProcess ForkAndExec(const std::string& command,
     pid_t pid = fork();
     if (pid == -1) {
         LOG_ERROR("Failed to fork: {}", strerror(errno));
-        ClosePipe(stdin_pipe.read_fd);
-        ClosePipe(stdin_pipe.write_fd);
-        ClosePipe(stdout_pipe.read_fd);
-        ClosePipe(stdout_pipe.write_fd);
+        Platform::ClosePipe(stdin_pipe.read_fd);
+        Platform::ClosePipe(stdin_pipe.write_fd);
+        Platform::ClosePipe(stdout_pipe.read_fd);
+        Platform::ClosePipe(stdout_pipe.write_fd);
         return result;
     }
 
@@ -115,7 +114,7 @@ ForkedProcess ForkAndExec(const std::string& command,
     return result;
 }
 
-bool WaitProcess(int pid) {
+bool Platform::WaitProcess(int pid) {
     int status;
     if (waitpid(pid, &status, 0) == -1) {
         LOG_ERROR("Failed to wait for process {}: {}", pid, strerror(errno));
@@ -123,10 +122,4 @@ bool WaitProcess(int pid) {
     }
     return true;
 }
-
-int GetCurrentPid() {
-    return static_cast<int>(getpid());
-}
-
-}  // namespace platform
 }  // namespace prosophor

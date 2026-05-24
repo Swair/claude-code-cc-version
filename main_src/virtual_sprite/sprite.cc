@@ -169,22 +169,22 @@ bool Sprite::Create() {
         root_widget_.Render(media_engine::RenderContext{});
 
         // ── Debug borders (window outline + sprite hitbox) ──
-#ifndef NDEBUG
-        {
-            int ww = sprite_window_->GetWidth();
-            int wh = sprite_window_->GetHeight();
-            media_engine::DrawList::OverlayRectOutline(0.0f, 0.0f,
-                static_cast<float>(ww), static_cast<float>(wh),
-                0.0f, media_engine::Colors::White, 1.5f);
-        }
+// #ifndef NDEBUG
+//         {
+//             int ww = sprite_window_->GetWidth();
+//             int wh = sprite_window_->GetHeight();
+//             media_engine::DrawList::OverlayRectOutline(0.0f, 0.0f,
+//                 static_cast<float>(ww), static_cast<float>(wh),
+//                 0.0f, media_engine::Colors::White, 1.5f);
+//         }
 
-        if (pet_sprite_ && pet_sprite_->IsValid()) {
-            auto& b = sprite_bounds_;
-            media_engine::DrawList::OverlayRectOutline(b.x, b.y,
-                b.width, b.height,
-                0.0f, media_engine::Colors::White, 1.0f);
-        }
-#endif  // !NDEBUG
+//         if (pet_sprite_ && pet_sprite_->IsValid()) {
+//             auto& b = sprite_bounds_;
+//             media_engine::DrawList::OverlayRectOutline(b.x, b.y,
+//                 b.width, b.height,
+//                 0.0f, media_engine::Colors::White, 1.0f);
+//         }
+// #endif  // !NDEBUG
 
         // Global context menu (singleton)
         UIRenderer::Instance().RenderContextMenu(sprite_window_);

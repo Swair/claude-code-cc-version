@@ -38,28 +38,34 @@ bool LocalModelManager::Start(const LocalModelConfig& config) {
         LOG_ERROR("llama-server binary not found. Use /setup to configure or set server_path in settings.json.");
         return false;
     }
-    if (!platform::PathExists(server_path)) {
+    if (!Platform::PathExists(server_path)) {
         LOG_ERROR("llama-server not found at: {}", server_path);
         return false;
     }
-    if (!platform::PathExists(config.model_path)) {
-        LOG_ERROR("Model file not found: {}", config.model_path);
+    auto model_path = [&]() -> const std::string& {
+#ifdef _WIN32
+        if (!config.model_path_for_win.empty()) return config.model_path_for_win;
+#endif
+        return config.model_path;
+    }();
+    if (!Platform::PathExists(model_path)) {
+        LOG_ERROR("Model file not found: {}", model_path);
         return false;
     }
 
-    LOG_INFO("Starting llama-server: {} -> {}:{}", server_path, config.model_path, config.port);
+    LOG_INFO("Starting llama-server: {} -> {}:{}", server_path, model_path, config.port);
 
-    std::string script = platform::HomeDir() + "/.prosophor/scripts/start_llamacpp_server.sh";
+    std::string script = Platform::HomeDir() + "/.prosophor/scripts/start_llamacpp_server.sh";
 
     std::ostringstream cmd;
-    cmd << "bash " << platform::ShellEscape(script);
-    cmd << " " << platform::ShellEscape(server_path);
-    cmd << " " << platform::ShellEscape(config.model_path);
+    cmd << "bash " << Platform::ShellEscape(script);
+    cmd << " " << Platform::ShellEscape(server_path);
+    cmd << " " << Platform::ShellEscape(model_path);
     cmd << " " << config.port;
     cmd << " " << config.n_gpu_layers;
     cmd << " " << config.n_threads;
 
-    int pid = platform::LaunchDetachedCommand(cmd.str());
+    int pid = Platform::LaunchDetachedCommand(cmd.str());
     if (pid < 0) {
         LOG_ERROR("Failed to start llama-server");
         return false;
@@ -92,11 +98,12 @@ void LocalModelManager::Stop() {
 
     LOG_INFO("Stopping llama-server (PID: {})", pid_);
 
-    if (pid_ > 0) {
-        if (!platform::KillProcess(pid_, false)) {
-            LOG_WARN("Failed to stop llama-server gracefully, forcing...");
-            platform::KillProcess(pid_, true);
-        }
+    Platform::KillProcessByName("llama-server");
+
+    // Wait for port to close
+    for (int i = 0; i < 5; i++) {
+        if (!Platform::CheckPortOpen(config_.port)) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
     pid_ = -1;
@@ -107,16 +114,11 @@ void LocalModelManager::Stop() {
 bool LocalModelManager::IsRunning() const {
     if (!running_.load()) return false;
 
-    // Check process first (reliable), then port (best-effort)
-    if (pid_ > 0 && !platform::IsProcessAlive(pid_)) {
-        running_.store(false);
-        return false;
-    }
+    // Port check first (PID may be the wrapper process that already exited)
+    if (Platform::CheckPortOpen(config_.port)) return true;
 
-    if (pid_ > 0) return true;
-
-    // No PID tracked — fall back to port check (may false-positive on WSL2)
-    if (platform::CheckPortOpen(config_.port)) return true;
+    // Port closed — check if our tracked PID is still alive
+    if (pid_ > 0 && Platform::IsProcessAlive(pid_)) return true;
 
     running_.store(false);
     return false;
@@ -126,7 +128,7 @@ bool LocalModelManager::WaitForPort(int port, int timeout_ms) const {
     auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
 
     while (std::chrono::steady_clock::now() < deadline) {
-        if (platform::CheckPortOpen(port)) {
+        if (Platform::CheckPortOpen(port)) {
             return true;
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -142,9 +144,9 @@ bool LocalModelManager::WaitForHealth(int port, int timeout_ms) const {
 
     while (std::chrono::steady_clock::now() < deadline) {
         // /health returns 503 while model loads, 200 when ready
-        std::string result = platform::RunShellCommand(
-            ("curl -s -o " + std::string(platform::NullDevice()) + " -w \"%{http_code}\" "
-             + url + " 2>" + platform::NullDevice()).c_str());
+        std::string result = Platform::RunShellCommand(
+            ("curl -s -o " + std::string(Platform::NullDevice()) + " -w \"%{http_code}\" "
+             + url + " 2>" + Platform::NullDevice()).c_str());
         if (result == "200") {
             LOG_INFO("llama-server is ready");
             return true;

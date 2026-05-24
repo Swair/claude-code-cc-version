@@ -433,7 +433,7 @@ SkillMetadata SkillLoader::ParseSkillFile(
 }
 
 bool SkillLoader::IsBinaryAvailable(const std::string& binary_name) const {
-    std::string cmd = platform::kIsWindows
+    std::string cmd = Platform::kIsWindows
         ? "where " + binary_name + " > nul 2>&1"
         : "which " + binary_name + " > /dev/null 2>&1";
     return std::system(cmd.c_str()) == 0;
@@ -456,9 +456,9 @@ bool SkillLoader::CheckOsRestriction(
 }
 
 std::string SkillLoader::GetCurrentOs() const {
-    if (platform::kIsLinux) return "linux";
-    if (platform::kIsMacOS) return "darwin";
-    if (platform::kIsWindows) return "win32";
+    if (Platform::kIsLinux) return "linux";
+    if (Platform::kIsMacOS) return "darwin";
+    if (Platform::kIsWindows) return "win32";
     return "unknown";
 }
 

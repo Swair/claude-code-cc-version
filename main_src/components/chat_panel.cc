@@ -52,10 +52,12 @@ void ChatPanel::Render(const media_engine::RenderContext& ctx) {
     if (!snapshot_.streaming_text.empty()) ++msg_count;
     if (!snapshot_.streaming_thinking.empty()) ++msg_count;
 
-    if (msg_count != last_msg_count_) {
+    size_t streaming_len = snapshot_.streaming_text.size() + snapshot_.streaming_thinking.size();
+    if (msg_count != last_msg_count_ || streaming_len != last_streaming_len_) {
         media_engine::Scroll::SetY(media_engine::Scroll::GetMaxY());
     }
     last_msg_count_ = msg_count;
+    last_streaming_len_ = streaming_len;
 }
 
 void ChatPanel::SetSnapshot(const RenderSnapshot& snap) {
@@ -93,10 +95,12 @@ void ChatPanel::RenderContentInRect(float x, float y, float w, float h,
     if (!snapshot.streaming_text.empty()) ++msg_count;
     if (!snapshot.streaming_thinking.empty()) ++msg_count;
 
-    if (msg_count != last_msg_count_) {
+    size_t streaming_len = snapshot.streaming_text.size() + snapshot.streaming_thinking.size();
+    if (msg_count != last_msg_count_ || streaming_len != last_streaming_len_) {
         media_engine::Scroll::SetY(media_engine::Scroll::GetMaxY());
     }
     last_msg_count_ = msg_count;
+    last_streaming_len_ = streaming_len;
 }
 
 void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {
@@ -108,13 +112,16 @@ void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {
             if (b.type == "thinking") { has_thinking = true; break; }
         }
         if (has_thinking) {
+            // Combine thinking + text into one entry with the original role label
+            std::string combined;
             for (const auto& b : msg.content) {
                 if (b.type == "thinking") {
-                    RenderMessage("thinking", b.text, index++);
+                    combined += "【thinking】\n" + b.text + "\n\n";
                 } else if (b.type == "text") {
-                    RenderMessage("assistant", b.text, index++);
+                    combined += b.text;
                 }
             }
+            RenderMessage(msg.role, combined, index++);
         } else {
             RenderMessage(msg.role, msg.text(), index++);
         }

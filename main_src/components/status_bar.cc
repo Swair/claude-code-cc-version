@@ -53,16 +53,16 @@ void StatusBar::Render(const media_engine::RenderContext& ctx) {
     float icon_x = 20;
     media_engine::MediaUtil::DrawTextRect(icon, icon_x, status_y, 100, 16,
                             media_engine::Color(state_props.color.r, state_props.color.g, state_props.color.b, 255),
-                            platform::kDefaultFontPath);
+                            Platform::kDefaultFontPath);
 
     media_engine::MediaUtil::DrawTextRect(state_props.name, icon_x + 25, status_y, 200, 14,
-                            media_engine::Colors::LightGray, platform::kDefaultFontPath);
+                            media_engine::Colors::LightGray, Platform::kDefaultFontPath);
 
     media_engine::MediaUtil::DrawTextRect(status_text_, icon_x + 120, status_y, 400, 14,
-                            media_engine::Colors::Gray, platform::kDefaultFontPath);
+                            media_engine::Colors::Gray, Platform::kDefaultFontPath);
 
     media_engine::MediaUtil::DrawTextRect("[ESC] Exit", window_width - 100, status_y, 200, 14,
-                            media_engine::Colors::DarkGray, platform::kDefaultFontPath);
+                            media_engine::Colors::DarkGray, Platform::kDefaultFontPath);
 }
 
 void StatusBar::RenderContent(const std::string& status_text, AgentRuntimeState state) {

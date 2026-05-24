@@ -9,7 +9,6 @@
 #include <sstream>
 #include <iomanip>
 
-#include "platform/platform.h"
 
 namespace prosophor {
 
@@ -25,9 +24,15 @@ public:
         return GetLocalTime(time_t_val);
     }
 
-    /// Get local time from time_t
+    /// Get local time from time_t (thread-safe, cross-platform)
     static std::tm GetLocalTime(std::time_t time) {
-        return platform::LocalTime(time);
+        std::tm tm_result{};
+#ifdef _WIN32
+        localtime_s(&tm_result, &time);
+#else
+        localtime_r(&time, &tm_result);
+#endif
+        return tm_result;
     }
 
     /// Format time_point to string
