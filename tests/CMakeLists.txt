@@ -64,7 +64,7 @@ foreach(TEST_FILE ${TEST_SOURCES})
     target_include_directories(${TEST_NAME} PRIVATE ${TEST_INCLUDE_DIRS})
 
     # Standalone tools (have own main, no gtest)
-    if(TEST_NAME STREQUAL "agent_core_sync_test")
+    if(TEST_NAME STREQUAL "agent_core_sync_test" OR TEST_NAME STREQUAL "llamacpp_stream_test")
         target_link_libraries(${TEST_NAME} PRIVATE prosophor_core spdlog::spdlog nlohmann_json::nlohmann_json)
     else()
         # Regular gtest-based test

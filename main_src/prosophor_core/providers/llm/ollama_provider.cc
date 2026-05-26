@@ -1,14 +1,14 @@
 // Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "providers/ollama_provider.h"
+#include "providers/llm/ollama_provider.h"
 
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include "common/log_wrapper.h"
 #include "common/string_utils.h"
 #include "network/curl_client.h"
-#include "providers/detail/ollama_stream_handler.h"
+#include "providers/llm/detail/ollama_stream_handler.h"
 
 using namespace nlohmann;
 

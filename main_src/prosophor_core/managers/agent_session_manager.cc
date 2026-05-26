@@ -135,53 +135,57 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
     // 初始化 base_url/api_key/timeout（从 provider entry 中按 model 查找）
     {
         auto& config = ProsophorConfig::GetInstance();
-        auto prov_it = config.providers.find(role.provider_prot);
-        if (prov_it != config.providers.end()) {
-            LOG_INFO("Looking up provider '{}' for model '{}'", role.provider_prot, role.model);
-            std::string entry_base_url;
-            std::string entry_api_key;
-            int entry_timeout = 0;
-            if (prov_it->second.FindEntryForModel(role.provider_prot, role.model,
-                                                    entry_base_url, entry_api_key, entry_timeout)) {
-                session.SetBaseUrl(entry_base_url);
-                session.SetApiKey(entry_api_key);
-                session.SetTimeout(entry_timeout);
-                LOG_INFO("Found model-specific config: url='{}', api_key='{}...', timeout={}s",
-                         entry_base_url,
-                         entry_api_key.size() > 8 ? entry_api_key.substr(0, 8) : entry_api_key,
-                         entry_timeout);
-            } else {
-                LOG_INFO("Model '{}' not found in provider '{}', using provider-level fallback",
-                         role.model, role.provider_prot);
-            }
-            // Fallback to provider-level config if model-specific lookup fails
-            if (session.GetBaseUrl().empty() && !prov_it->second.base_url.empty()) {
-                session.SetBaseUrl(prov_it->second.base_url);
-                LOG_INFO("Fallback to provider-level base_url='{}'", session.GetBaseUrl());
-            }
-            if (session.GetApiKey().empty() && !prov_it->second.api_key.empty()) {
-                session.SetApiKey(prov_it->second.api_key);
-                LOG_INFO("Fallback to provider-level api_key='{}...'",
-                         session.GetApiKey().size() > 8 ? session.GetApiKey().substr(0, 8) : session.GetApiKey());
-            }
-            if (session.GetTimeout() <= 0 && prov_it->second.timeout > 0) {
-                session.SetTimeout(prov_it->second.timeout);
-            }
+
+        bool is_inprocess = (role.provider_prot == "local" || role.provider_prot == "llamacpp");
+
+        // In-process provider — use fake base_url="local" to bypass cloud config and api_key checks
+        if (is_inprocess) {
+            session.SetBaseUrl("local");
+            session.SetApiKey("");
+            session.SetTimeout(300);
         } else {
-            LOG_ERROR("Provider '{}' not found in config for session '{}'",
-                      role.provider_prot, session_id);
-        }
-        // Final validation
-        if (session.GetBaseUrl().empty()) {
-            LOG_FATAL("Failed to set base_url for session '{}' (role: {}, provider: '{}')",
-                      session_id, role_id, role.provider_prot);
-        }
-        bool is_local = session.GetBaseUrl().find("localhost") != std::string::npos
-                        || session.GetBaseUrl().find("127.0.0.1") != std::string::npos;
-        if (session.GetApiKey().empty() && !is_local) {
-            LOG_FATAL("Failed to set api_key for session '{}' (role: {}, provider: '{}'). "
-                      "Please check your settings.json provider configuration.",
-                      session_id, role_id, role.provider_prot);
+            auto prov_it = config.llm_providers.find(role.provider_prot);
+            if (prov_it != config.llm_providers.end()) {
+                LOG_INFO("Looking up provider '{}' for model '{}'", role.provider_prot, role.model);
+                std::string entry_base_url;
+                std::string entry_api_key;
+                int entry_timeout = 0;
+                if (prov_it->second.FindEntryForModel(role.provider_prot, role.model,
+                                                        entry_base_url, entry_api_key, entry_timeout)) {
+                    session.SetBaseUrl(entry_base_url);
+                    session.SetApiKey(entry_api_key);
+                    session.SetTimeout(entry_timeout);
+                    LOG_INFO("Found model-specific config: url='{}', api_key='{}...', timeout={}s",
+                             entry_base_url,
+                             entry_api_key.size() > 8 ? entry_api_key.substr(0, 8) : entry_api_key,
+                             entry_timeout);
+                }
+                // Fallback to provider-level config if model-specific lookup fails
+                if (session.GetBaseUrl().empty() && !prov_it->second.base_url.empty()) {
+                    session.SetBaseUrl(prov_it->second.base_url);
+                }
+                if (session.GetApiKey().empty() && !prov_it->second.api_key.empty()) {
+                    session.SetApiKey(prov_it->second.api_key);
+                }
+                if (session.GetTimeout() <= 0 && prov_it->second.timeout > 0) {
+                    session.SetTimeout(prov_it->second.timeout);
+                }
+            } else {
+                LOG_ERROR("Provider '{}' not found in config for session '{}'",
+                          role.provider_prot, session_id);
+            }
+            // Validation (cloud providers only)
+            if (session.GetBaseUrl().empty()) {
+                LOG_FATAL("Failed to set base_url for session '{}' (role: {}, provider: '{}')",
+                          session_id, role_id, role.provider_prot);
+            }
+            bool is_local = session.GetBaseUrl().find("localhost") != std::string::npos
+                            || session.GetBaseUrl().find("127.0.0.1") != std::string::npos;
+            if (session.GetApiKey().empty() && !is_local) {
+                LOG_FATAL("Failed to set api_key for session '{}' (role: {}, provider: '{}'). "
+                          "Please check your settings.json provider configuration.",
+                          session_id, role_id, role.provider_prot);
+            }
         }
     }
 
@@ -475,9 +479,11 @@ void AgentSessionManager::SwitchRoleForSession(const std::string& session_id,
         session.SetProvider(ProviderRouter::GetInstance().GetProviderByName(session.GetRole()->provider_prot));
 
         auto& config = ProsophorConfig::GetInstance();
-        auto prov_it = config.providers.find(session.GetRole()->provider_prot);
-        if (prov_it != config.providers.end()) {
+        auto prov_it = config.llm_providers.find(session.GetRole()->provider_prot);
+        if (prov_it != config.llm_providers.end()) {
             session.SetBaseUrl(prov_it->second.base_url);
+            session.SetApiKey(prov_it->second.api_key);
+            session.SetTimeout(prov_it->second.timeout);
         }
 
         session.SetSystemPrompt(BuildSystemPrompt(session));

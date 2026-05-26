@@ -109,6 +109,8 @@ void DialogStrategy::Preprocess(const std::string& message, AgentSession& sessio
     auto* role = session.GetRole();
     bool enable_summary = role && role->enable_summary;
 
+    if (message.empty()) return;
+
     if (preprocessor_) {
         preprocessor_(message, session);
     } else if (enable_summary) {
@@ -116,6 +118,38 @@ void DialogStrategy::Preprocess(const std::string& message, AgentSession& sessio
     } else {
         DefaultPreprocessor(message, session);
     }
+}
+
+void DialogStrategy::CompactIfNeeded(AgentSession& session) const {
+    auto* role = session.GetRole();
+    if (!role) return;
+    int ctx = role->context_window;
+    int reserve = role->max_tokens > 0 ? role->max_tokens : 4096;
+    // Safety margin: reserve 90% of available space for the prompt,
+    // leaving 10% headroom for chat template tokens and estimate error
+    int limit = static_cast<int>((ctx - reserve) * 0.9);
+    if (limit <= 0) return;
+
+    auto messages = session.GetMessages();
+    int estimated = EstimateTokens(messages);
+    if (estimated <= limit) return;
+
+    int keep = config_.keep_recent;
+    LOG_WARN("Context window limit: ~{} tokens > {} (ctx={}, reserve={}), truncating to last {} messages",
+             estimated, limit, ctx, reserve, keep);
+
+    // Binary search for the largest keep count that fits within limit
+    int lo = 1, hi = keep;
+    while (lo < hi) {
+        int mid = (lo + hi + 1) / 2;
+        if (EstimateTokens(KeepRecentMessages(messages, mid)) <= limit)
+            lo = mid;
+        else
+            hi = mid - 1;
+    }
+    auto kept = KeepRecentMessages(messages, lo);
+    session.CompactHistory(kept, "");
+    LOG_WARN("Compacted to {} messages (~{} tokens) to fit ctx={} limit={}", lo, EstimateTokens(kept), ctx, limit);
 }
 
 void DialogStrategy::Compact(AgentSession& session, const MessageSchema& processed_message) const {

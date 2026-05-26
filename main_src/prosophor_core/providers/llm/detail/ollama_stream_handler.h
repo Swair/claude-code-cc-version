@@ -7,7 +7,7 @@
 #include <nlohmann/json.hpp>
 #include "network/curl_client.h"
 #include "common/log_wrapper.h"
-#include "providers/llm_provider.h"
+#include "providers/llm/llm_provider.h"
 
 namespace prosophor {
 

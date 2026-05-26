@@ -73,6 +73,11 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
     role.description = j.value("description", "");
     role.sprite_id = j.value("sprite_id", "");
     role.sprite_assets_dir = j.value("sprite_assets_dir", "");
+    if (auto tts = j.find("tts"); tts != j.end() && tts->is_object()) {
+        role.tts_backend = tts->value("provider", tts->value("backend", ""));
+        role.tts_voice = tts->value("voice", "");
+        role.tts_auto_start = tts->value("auto_start", tts->value("autoStart", false));
+    }
 
     // Read provider/model from "llm" block
     const nlohmann::json* llm = nullptr;
@@ -114,39 +119,40 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
             }
         }
 
-        if (provider_to_use.empty() && !config.providers.empty()) {
-            provider_to_use = config.providers.begin()->first;
+        if (provider_to_use.empty() && !config.llm_providers.empty()) {
+            provider_to_use = config.llm_providers.begin()->first;
             LOG_DEBUG("Role using first available provider: {}", role.id, provider_to_use);
         }
     }
 
     // Resolve model/agent config from provider
     if (!provider_to_use.empty()) {
-        auto provider_it = config.providers.find(provider_to_use);
-        if (provider_it != config.providers.end()) {
-            auto& agent_map = provider_it->second.agents;
+        auto provider_it = config.llm_providers.find(provider_to_use);
+        if (provider_it != config.llm_providers.end()) {
+            auto& model_configs = provider_it->second.model_configs;
 
             // Try "{provider}/{model}" first, then bare model name
-            auto agent_it = agent_map.find(provider_to_use + "/" + role.model);
-            if (agent_it == agent_map.end()) {
-                agent_it = agent_map.find(role.model);
+            auto model_it = model_configs.find(provider_to_use + "/" + role.model);
+            if (model_it == model_configs.end()) {
+                model_it = model_configs.find(role.model);
             }
-            if (agent_it == agent_map.end() && !agent_map.empty()) {
-                // Fallback: use first available agent
-                agent_it = agent_map.begin();
+            if (model_it == model_configs.end() && !model_configs.empty()) {
+                // Fallback: use first available model
+                model_it = model_configs.begin();
             }
 
-            if (agent_it != agent_map.end()) {
-                role.temperature = agent_it->second.temperature;
-                role.max_tokens = agent_it->second.max_tokens;
-                role.model = agent_it->second.model;
-                role.enable_streaming = agent_it->second.enable_streaming;
-                role.thinking = agent_it->second.thinking;
-                LOG_DEBUG("Role '{}' using agent model='{}' from provider '{}': temperature={}, max_tokens={}, enable_streaming={}",
-                         role.id, agent_it->second.model, provider_to_use,
-                         role.temperature, role.max_tokens, role.enable_streaming);
+            if (model_it != model_configs.end()) {
+                role.temperature = model_it->second.temperature;
+                role.max_tokens = model_it->second.max_tokens;
+                role.context_window = model_it->second.context_window;
+                role.model = model_it->second.model;
+                role.enable_streaming = model_it->second.enable_streaming;
+                role.thinking = model_it->second.thinking;
+                LOG_DEBUG("Role '{}' using model='{}' from provider '{}': temperature={}, max_tokens={}, context_window={}, enable_streaming={}",
+                         role.id, model_it->second.model, provider_to_use,
+                         role.temperature, role.max_tokens, role.context_window, role.enable_streaming);
             } else {
-                LOG_WARN("Role {}: no agents configured in provider '{}', using hardcoded defaults", role.id, provider_to_use);
+                LOG_WARN("Role {}: no models configured in provider '{}', using hardcoded defaults", role.id, provider_to_use);
             }
         }
     }

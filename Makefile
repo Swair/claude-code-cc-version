@@ -16,7 +16,7 @@ NUM_JOB ?= 8
 export PATH := /e/devtool/msys64/mingw64/bin:$(PATH)
 
 PACKAGE_NAME ?= Prosophor
-PACKAGE_VERSION ?= 0.6.3
+PACKAGE_VERSION ?= 0.7.1
 # BUILD_TYPE ?= RelWithDebInfo
 BUILD_TYPE ?= Debug
 
@@ -55,21 +55,6 @@ run:
 .PHONY: run
 
 
-tests:
-	@echo "Running all tests in $(BUILD_DIR)/unitests..."
-	@for test in $(INSTALL_DIR)/bin/unitests/*_test; do \
-		if [ -x "$$test" ] && [ ! -d "$$test" ]; then \
-			$$test --gtest_list_tests >/dev/null 2>&1 || continue; \
-			echo "=== $$(basename $$test) ==="; \
-			$$test || exit 1; \
-		fi \
-	done
-.PHONY: tests
-
-clean:
-	rm -rf ${BUILD_DIR}
-.PHONY: clean
-
 # ==============================================================================
 # Windows 构建配置 (MSYS2/MinGW)
 # ==============================================================================
@@ -82,6 +67,9 @@ CMAKE_ARGS_WIN ?= \
 	-DBUILD_SHARED_LIBS=OFF \
 	-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	-DGGML_VULKAN=ON \
+	-DPROSOPHOR_BUILD_LLAMA=ON \
+	-DPROSOPHOR_BUILD_LLAMA_CUDA=ON \
+	-DPROSOPHOR_BUILD_ASR=ON \
 	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 	-DPACKAGE_VERSION=$(PACKAGE_VERSION) \
 	$(CMAKE_EXTRA_ARGS)
@@ -103,6 +91,21 @@ build_win_sdl:
 	ninja -j${NUM_JOB}; \
 	ninja install
 .PHONY: build_win_sdl
+
+tests:
+	@echo "Running all tests in $(BUILD_DIR_WIN)/unitests..."
+	@for test in $(INSTALL_DIR)/bin/unitests/*_test; do \
+		if [ -x "$$test" ] && [ ! -d "$$test" ]; then \
+			$$test --gtest_list_tests >/dev/null 2>&1 || continue; \
+			echo "=== $$(basename $$test) ==="; \
+			$$test || exit 1; \
+		fi \
+	done
+.PHONY: tests
+
+clean:
+	rm -rf ${BUILD_DIR}
+.PHONY: clean
 
 run_win:
 	cd $(INSTALL_DIR_WIN)/bin && SSL_CERT_FILE=ca-bundle.crt ./prosophor.exe
@@ -197,23 +200,3 @@ run_win_tests:
 
 
 
-# ==============================================================================
-# llamacpp server
-# ==============================================================================
-
-MODEL ?= $(PROJECT_DIR)/../llama_cpp_model/google_gemma-4-E4B-it-Q4_K_M.gguf
-run_llamacpp_server:
-	$(INSTALL_DIR)/bin/llama-server -m $(MODEL) --host 0.0.0.0 --port 8080
-.PHONY: run_llamacpp_server
-
-run_llamacpp_server_win:
-	PATH="/e/devtool/msys64/mingw64/bin:$$PATH" $(INSTALL_DIR_WIN)/bin/llama-server.exe -m $(MODEL) --host 0.0.0.0 --port 8080
-.PHONY: run_llamacpp_server_win
-
-stop_llamacpp_server:
-	-killall llama-server 2>/dev/null || pkill -f llama-server 2>/dev/null || true
-.PHONY: stop_llamacpp_server
-
-stop_llamacpp_server_win:
-	-taskkill -IM llama-server.exe -F 2>/dev/null || true
-.PHONY: stop_llamacpp_server_win

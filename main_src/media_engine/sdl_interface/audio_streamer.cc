@@ -5,6 +5,7 @@
 #include "log_wrapper.h"
 
 #include <SDL3/SDL.h>
+#include <string>
 
 namespace media_engine {
 
@@ -69,6 +70,23 @@ void AudioStreamer::Clear() {
 int AudioStreamer::QueuedBytes() const {
     if (!impl_->stream) return 0;
     return SDL_GetAudioStreamQueued(impl_->stream);
+}
+
+std::unique_ptr<AudioStreamer> AudioStreamer::PlayWav(const std::string& wav_path) {
+    SDL_AudioSpec spec;
+    Uint8* wav_data;
+    Uint32 wav_len;
+    if (!SDL_LoadWAV(wav_path.c_str(), &spec, &wav_data, &wav_len)) {
+        LOG_ERROR("[AudioStreamer] SDL_LoadWAV failed: {}", SDL_GetError());
+        return nullptr;
+    }
+
+    auto streamer = std::make_unique<AudioStreamer>(spec.freq, spec.channels);
+    if (streamer->impl_->stream) {
+        streamer->PushChunk(wav_data, wav_len);
+    }
+    SDL_free(wav_data);
+    return streamer;
 }
 
 }  // namespace media_engine

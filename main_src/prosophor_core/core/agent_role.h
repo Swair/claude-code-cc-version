@@ -27,12 +27,16 @@ struct AgentRole {
     std::string description;           // 角色描述
     std::string sprite_id;           // 指向 petdex-sprites 的精灵 id（SDL 模式用，TUI 忽略）
     std::string sprite_assets_dir;   // 精灵资源目录（非空时优先于 sprite_id 的 petdex 查找）
+    std::string tts_backend;
+    std::string tts_voice;
+    bool tts_auto_start = false;
 
     // === Provider 配置（角色可绑定专属 Provider）===
     std::string provider_prot;          // ""=使用全局默认，或指定"anthropic"/"ollama"/"deepseek"
     std::string model;                 // 专属模型
     double temperature = 0.7;
     int max_tokens = 8192;
+    int context_window = 128000;
     bool enable_streaming = true;      // 是否启用流式输出
     bool enable_summary = true;        // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
     bool thinking = false;

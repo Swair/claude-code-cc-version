@@ -378,6 +378,10 @@ void Style::PushVar_WindowPadding(float x, float y) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(x, y));
 }
 
+void Style::PushVar_FrameBorderSize(float size) {
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, size);
+}
+
 void Style::PopVar(int count) {
     ImGui::PopStyleVar(count);
 }
@@ -388,6 +392,14 @@ void Style::PushColor(int color_index, const Color& color) {
 
 void Style::PopColor(int count) {
     ImGui::PopStyleColor(count);
+}
+
+void ID::Push(const char* str_id) {
+    ImGui::PushID(str_id);
+}
+
+void ID::Pop() {
+    ImGui::PopID();
 }
 
 // ============================================================================
@@ -696,6 +708,21 @@ bool ImGuiWidget::Combo(const char* label, int* current_item, const char* const 
 
 bool ImGuiWidget::InputText(const char* label, char* buf, size_t buf_size) {
     return ImGui::InputText(label, buf, buf_size);
+}
+
+bool ImGuiWidget::InputTextMultiline(const char* label, char* buf, size_t buf_size,
+                                      float width, float height, bool read_only) {
+    int flags = read_only ? ImGuiInputTextFlags_ReadOnly : 0;
+    if (read_only) {
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
+    }
+    bool result = ImGui::InputTextMultiline(label, buf, buf_size, ImVec2(width, height), flags);
+    if (read_only) {
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar();
+    }
+    return result;
 }
 
 bool ImGuiWidget::InputInt(const char* label, int* value) {

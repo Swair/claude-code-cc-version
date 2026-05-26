@@ -13,7 +13,6 @@
 #include "managers/memory_manager.h"
 #include "managers/agent_session_manager.h"
 #include "managers/agent_role_loader.h"
-#include "managers/local_model_manager.h"
 #include "managers/active_trigger_manager.h"
 #include "command_registry.h"
 #include "tools/tool_registry.h"
@@ -35,9 +34,6 @@ AgentEngine::AgentEngine()
 AgentEngine::~AgentEngine() {
     if (memory_manager_) {
         memory_manager_->StopFileWatcher();
-    }
-    if (LocalModelManager::GetInstance().IsRunning()) {
-        LocalModelManager::GetInstance().Stop();
     }
 }
 
@@ -90,17 +86,17 @@ void AgentEngine::InitializeComponents() {
             }
 
             std::string default_provider_name = provider_router_->GetProviderName("");
-            auto prov_it = config.providers.find(default_provider_name);
-            if (prov_it == config.providers.end()) {
+            auto prov_it = config.llm_providers.find(default_provider_name);
+            if (prov_it == config.llm_providers.end()) {
                 LOG_ERROR("Default provider '{}' not found in config", default_provider_name);
                 return "";
             }
 
-            const auto& agent_config = prov_it->second.GetDefaultAgent();
+            const auto& model_config = prov_it->second.GetDefaultModel();
             ChatRequest req;
-            req.model = agent_config.model;
-            req.temperature = agent_config.temperature;
-            req.max_tokens = agent_config.max_tokens;
+            req.model = model_config.model;
+            req.temperature = model_config.temperature;
+            req.max_tokens = model_config.max_tokens;
             req.base_url = prov_it->second.base_url;
             req.api_key = prov_it->second.api_key;
             req.timeout = prov_it->second.timeout;
@@ -120,15 +116,6 @@ void AgentEngine::InitializeComponents() {
 
     LOG_DEBUG("ActiveTriggerManager initialized and started");
     LOG_DEBUG("AgentEngine initialized");
-
-    if (!config_.local_models.empty() && config_.local_models[0].auto_start) {
-        auto& lm = config_.local_models[0];
-        if (!LocalModelManager::GetInstance().Start(lm)) {
-            LOG_WARN("Failed to auto-start local model server.");
-        } else {
-            LOG_INFO("Local model server started on port {}", lm.port);
-        }
-    }
 }
 
 void AgentEngine::SetOutputCallback(OutputCallback cb) {

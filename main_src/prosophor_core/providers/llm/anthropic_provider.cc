@@ -1,7 +1,7 @@
 // Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "providers/anthropic_provider.h"
+#include "providers/llm/anthropic_provider.h"
 
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
@@ -9,9 +9,9 @@
 #include "common/string_utils.h"
 
 #include "network/curl_client.h"
-#include "providers/llm_provider.h"
+#include "providers/llm/llm_provider.h"
 #include "core/messages_schema.h"
-#include "providers/detail/anthropic_stream_handler.h"
+#include "providers/llm/detail/anthropic_stream_handler.h"
 
 namespace prosophor {
 

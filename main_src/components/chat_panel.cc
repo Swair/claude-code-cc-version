@@ -4,6 +4,7 @@
 #include "components/chat_panel.h"
 #include "common/log_wrapper.h"
 #include "common/time_wrapper.h"
+#include <vector>
 
 namespace prosophor {
 
@@ -199,7 +200,15 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
         media_engine::Text::Colored(role_color, label.c_str());
         media_engine::Layout::Dummy(0, 2);
     }
-    media_engine::Text::Wrapped(content.c_str(), scroll_window_->GetWidth(), text_color);
+    // Use read-only multiline input for mouse-selectable text
+    std::vector<char> text_buf(content.begin(), content.end());
+    text_buf.push_back('\0');
+    float input_w = scroll_window_->GetWidth() - 2.0f;
+    std::string input_id = "##txt" + std::to_string(index);
+    media_engine::Style::PushColor(media_engine::Color::Slot::Text, text_color);
+    media_engine::ImGuiWidget::InputTextMultiline(
+        input_id.c_str(), text_buf.data(), text_buf.size(), input_w, text_h, true);
+    media_engine::Style::PopColor();
     media_engine::Layout::Dummy(0, 2);
 }
 

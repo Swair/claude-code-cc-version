@@ -22,6 +22,9 @@ class AgentCore {
     static void Loop(const std::string& message, AgentSession& session);
 
  private:
+    /// Validate session state before building request (role, base_url, api_key)
+    static void ValidateSession(const AgentSession& session);
+
     /// Build ChatRequest from AgentSession
     static ChatRequest BuildRequest(const AgentSession& session);
 

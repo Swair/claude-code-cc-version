@@ -7,10 +7,11 @@
 #include <memory>
 #include <shared_mutex>
 
-#include "providers/llm_provider.h"
-#include "providers/anthropic_provider.h"
-#include "providers/openai_provider.h"
-#include "providers/ollama_provider.h"
+#include "providers/llm/llm_provider.h"
+#include "providers/llm/anthropic_provider.h"
+#include "providers/llm/openai_provider.h"
+#include "providers/llm/ollama_provider.h"
+#include "providers/llm/llamacpp_provider.h"
 #include "config/config.h"
 
 namespace prosophor {

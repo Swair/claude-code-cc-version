@@ -88,11 +88,28 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
         state_ = new_state;
         state_message_ = state_msg;
 
+        if (new_state == AgentRuntimeState::STREAM_CONTENT_TYPING && reply) {
+            streaming_text_ += reply->text();
+            // Token/s tracking: count chars, estimate ~4 chars per token
+            streaming_char_count_ += reply->text().size();
+            auto elapsed = std::chrono::duration<float>(
+                SteadyClock::Now() - stream_start_time_).count();
+            if (elapsed > 0.1f) {
+                streaming_token_speed_ = (streaming_char_count_ / 4.0f) / elapsed;
+            }
+        }
+        if (new_state == AgentRuntimeState::STREAM_CONTENT_START) {
+            stream_start_time_ = SteadyClock::Now();
+            streaming_char_count_ = 0;
+            streaming_token_speed_ = 0.0f;
+        }
         if (new_state == AgentRuntimeState::STREAM_THINKING && reply) {
             streaming_thinking_ += reply->text();
         }
-        if (new_state == AgentRuntimeState::STREAM_CONTENT_TYPING && reply) {
-            streaming_text_ += reply->text();
+        if (new_state == AgentRuntimeState::STREAM_THINKING_START) {
+            stream_start_time_ = SteadyClock::Now();
+            streaming_char_count_ = 0;
+            streaming_token_speed_ = 0.0f;
         }
         if (reply && (
             new_state == AgentRuntimeState::STREAM_MODE_COMPLETE ||
@@ -101,6 +118,8 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
             new_state == AgentRuntimeState::STATE_ERROR)) {
             streaming_text_.clear();
             streaming_thinking_.clear();
+            streaming_char_count_ = 0;
+            streaming_token_speed_ = 0.0f;
             messages_.push_back(*reply);
         }
     }
@@ -126,6 +145,7 @@ RenderSnapshot AgentSession::GetSnapshot() const {
     }
     snap.streaming_text = streaming_text_;
     snap.streaming_thinking = streaming_thinking_;
+    snap.streaming_token_speed = streaming_token_speed_;
     return snap;
 }
 
@@ -166,20 +186,20 @@ void AgentSession::ApplyProviderOverride(const std::string& provider_name,
     role_->provider_prot = provider_name;
 
     auto& config = ProsophorConfig::GetInstance();
-    auto prov_it = config.providers.find(provider_name);
-    if (prov_it == config.providers.end()) return;
+    auto prov_it = config.llm_providers.find(provider_name);
+    if (prov_it == config.llm_providers.end()) return;
 
-    auto& agent_map = prov_it->second.agents;
+    auto& model_configs = prov_it->second.model_configs;
     base_url_ = prov_it->second.base_url;
     api_key_ = prov_it->second.api_key;
     timeout_ = prov_it->second.timeout;
 
-    const AgentConfig* matched = nullptr;
-    auto agent_it = agent_map.find(model);
-    if (agent_it != agent_map.end()) {
-        matched = &agent_it->second;
+    const ModelConfig* matched = nullptr;
+    auto model_it = model_configs.find(model);
+    if (model_it != model_configs.end()) {
+        matched = &model_it->second;
     } else if (!model.empty()) {
-        for (auto& [k, v] : agent_map) {
+        for (auto& [k, v] : model_configs) {
             if (v.model == model) {
                 matched = &v;
                 break;

@@ -80,6 +80,7 @@ public:
     // ═══════════════════════════════════════════════════
     void Preprocess(const std::string& message, AgentSession& session) const;
     void Compact(AgentSession& session, const MessageSchema& processed_message) const;
+    void CompactIfNeeded(AgentSession& session) const;
 
     // ═══════════════════════════════════════════════════
     // LLM 压缩

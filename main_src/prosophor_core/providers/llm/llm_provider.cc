@@ -1,7 +1,7 @@
 // Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "providers/llm_provider.h"
+#include "providers/llm/llm_provider.h"
 
 #include "managers/token_tracker.h"
 #include "network/curl_client.h"

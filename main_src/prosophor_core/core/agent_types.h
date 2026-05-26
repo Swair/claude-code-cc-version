@@ -36,6 +36,7 @@ struct RenderSnapshot {
     std::vector<MessageSchema> messages;
     std::string streaming_text;
     std::string streaming_thinking;
+    float streaming_token_speed = 0.0f;  // tokens/s during streaming
 };
 
 }  // namespace prosophor

@@ -12,7 +12,7 @@
 namespace prosophor {
 
 // Forward declarations
-struct AgentConfig;
+struct ModelConfig;
 struct ModelCost;
 struct ModelDefinition;
 struct ProviderConfig;
@@ -46,8 +46,8 @@ struct ModelDefinition {
     static ModelDefinition FromJson(const nlohmann::json& json);
 };
 
-/// Agent behavior configuration
-struct AgentConfig {
+/// Model behavior configuration
+struct ModelConfig {
     std::string name = "default";
     std::string model = "claude-sonnet-4-6";
     double temperature = 0.7;
@@ -63,7 +63,7 @@ struct AgentConfig {
     int compact_keep_recent = 20;
     int compact_max_tokens = 100000;
 
-    static AgentConfig FromJson(const nlohmann::json& json);
+    static ModelConfig FromJson(const nlohmann::json& json);
     int DynamicMaxIterations() const;
 };
 
@@ -72,28 +72,70 @@ struct ProviderEntryConfig {
     std::string api_key;
     std::string base_url;
     int timeout = 30;
-    std::unordered_map<std::string, AgentConfig> agents;
+    bool thinking = false;
+    std::unordered_map<std::string, ModelConfig> models;
+};
+
+/// Configuration for local model (llama.cpp in-process)
+struct LlamacppModelConfig {
+    static LlamacppModelConfig FromJson(const nlohmann::json& json);
+    nlohmann::json ToJson() const;
+    std::string model_path;         // Path to GGUF model file
+    int port = 8080;                // Legacy: kept for config compatibility
+    bool  gpu_enable  = true;   // Offload all layers to GPU (false = CPU only)
+    int threads = 0;                // CPU threads (0 = auto-detect)
+    bool auto_start = true;         // Load model on startup
+    int start_timeout_ms = 300000;  // Legacy: kept for config compatibility
+    std::string server_path;        // Legacy: kept for config compatibility
+
+    // Inference parameters
+    int   context_window = 32768; // Context window size (tokens)
+    int   max_tokens = 2048; // Max generated tokens per response
+    float temperature  = 0.7f;   // Sampling temperature (0.0 = greedy, 1.0 = creative)
+    float top_p        = 0.95f;  // Nucleus sampling probability
+    bool  thinking     = false;  // Enable extended thinking/reasoning
+
+    // KV cache quantization type: "f16", "q8_0", "q4_0" (default)
+    // Maps to ggml_type: F16=2 bytes/value, Q8_0=1 byte, Q4_0=0.5 byte
+    // Lower = less VRAM but slightly lower generation quality
+    std::string type_k = "q4_0";
+    std::string type_v = "q4_0";
+
+    // Performance tuning
+    int  n_batch         = 1024;   // Prompt processing batch size (larger = faster but more VRAM)
+    int  n_ubatch        = 512;    // GPU micro-batch size (keep <= n_batch)
+    int  n_threads_batch = 0;      // Batch/prefix threads (0 = auto: threads * 4, min 32)
+    bool offload_kqv     = true;   // Offload KQV matrices to GPU (false saves VRAM at speed cost)
+    bool flash_attn      = true;   // Flash Attention (always enable on modern GPUs)
+
+    // Sampling
+    float min_p = 0.05f;  // Min-P threshold (0.0 = off, higher = more aggressive filtering)
+    int   seed  = -1;     // Random seed (-1 = LLAMA_DEFAULT_SEED)
 };
 
 /// Configuration for an LLM provider
-/// agents key format: "{provider_name}/{model_name}" → agent params
+/// models key format: "{provider_name}/{model_name}" → model params
 struct ProviderConfig {
     std::string api_key;
     std::string base_url;
     int timeout = 30;
 
-    // agents key: "{provider_name}/{model_name}"
-    std::unordered_map<std::string, AgentConfig> agents;
+    // models key: "{provider_name}/{model_name}"
+    std::unordered_map<std::string, ModelConfig> model_configs;
 
     std::vector<ModelDefinition> models;
+
+    // llamacpp-specific config (model_path, gpu_enable, etc.) — only valid
+    // when this ProviderConfig is for the "llamacpp" provider type.
+    LlamacppModelConfig llamacpp_cfg;
 
     // All entries from the config array (each keeps its own api_key/base_url)
     std::vector<ProviderEntryConfig> entries;
 
     static ProviderConfig FromJson(const nlohmann::json& json);
 
-    // Get default agent
-    const AgentConfig& GetDefaultAgent() const;
+    // Get default model config
+    const ModelConfig& GetDefaultModel() const;
 
     // Find entry by model name and return its base_url and api_key
     bool FindEntryForModel(const std::string& provider_name,
@@ -140,23 +182,6 @@ struct SkillsConfig {
     static SkillsConfig FromJson(const nlohmann::json& json);
 };
 
-/// Configuration for local model server (llama-server)
-struct LocalModelConfig {
-    std::string model_path;    // Path to GGUF model file
-    std::string model_path_for_win; // Windows-specific model path (overrides model_path on Win32)
-    int port = 8080;           // Server port
-    int n_gpu_layers = -1;     // GPU layers (-1 = all, 0 = CPU only)
-    int n_threads = 0;         // Threads (0 = auto)
-    bool auto_start = true;    // Auto-start with prosophor
-    int start_timeout_ms = 300000; // Timeout for server startup (ms)
-    std::string server_path;   // Path to llama-server binary (auto-detected if empty)
-
-    bool IsValid() const { return !model_path.empty(); }
-
-    static LocalModelConfig FromJson(const nlohmann::json& json);
-    nlohmann::json ToJson() const;
-};
-
 /// Security configuration settings
 struct SecurityConfig {
     std::string permission_level = "auto";
@@ -173,19 +198,36 @@ struct SecurityConfig {
 /// Configuration for TTS (Text-to-Speech)
 struct TtsConfig {
     bool enabled = true;
-    std::string backend = "edge-tts";  // "edge-tts" or "gpt-sovits"
+    std::string backend = "edge-tts";  // "edge-tts" | "gpt-sovits" | "sherpa-onnx"
 
     // GPT-SoVITS settings
     std::string gs_url = "http://127.0.0.1:9880";
-    std::string gs_install_path;       // Path to GPT-SoVITS installation dir
-    bool gs_auto_start = true;         // Auto-start api_v2.py as subprocess
+    std::string gs_install_path;
+    bool gs_auto_start = true;
     int gs_port = 9880;
     std::string gs_ref_audio_path;
     std::string gs_ref_audio_text;
     std::string gs_ref_audio_lang = "zh";
     std::string gs_text_lang = "zh";
 
+    // sherpa-onnx VITS settings
+    std::string sherpa_model_dir;   // dir with model.onnx + tokens.txt [+ lexicon.txt]
+    int   sherpa_speaker_id = 0;
+    float sherpa_speed      = 1.0f;
+
     static TtsConfig FromJson(const nlohmann::json& json);
+};
+
+/// Configuration for ASR (Automatic Speech Recognition)
+struct AsrConfig {
+    bool enabled = false;
+    std::string backend = "sherpa-onnx";  // "sherpa-onnx" | "sensevoice" (python subprocess)
+    std::string model_dir;                // Path to sherpa-onnx model files
+    std::string script_path;              // Path to run_asr.py (sensevoice backend only)
+    std::string language  = "zh";         // Recognition language
+    int n_threads = 4;
+
+    static AsrConfig FromJson(const nlohmann::json& json);
 };
 
 /// Top-level Prosophor configuration
@@ -198,17 +240,18 @@ struct ProsophorConfig {
     std::string sprite_assets_dir;   // sprite 资源基目录 ~/.prosophor/assets，按 {sprite_id}/ 组织
 
     SecurityConfig security;
-    std::unordered_map<std::string, ProviderConfig> providers;
+    std::unordered_map<std::string, ProviderConfig> llm_providers;
     ToolConfig tools;
     SkillsConfig skills;
     TtsConfig tts;
-    std::vector<LocalModelConfig> local_models;
+    AsrConfig asr;
+    std::vector<LlamacppModelConfig> llamacpp_models;
 
     /// Get singleton instance
     static ProsophorConfig& GetInstance();
 
     /// Get current agent config from default provider
-    const AgentConfig& GetAgentConfig() const;
+    const ModelConfig& GetModelConfig() const;
 
     /// Get provider config
     const ProviderConfig& GetProvider(const std::string& name = "anthropic") const;

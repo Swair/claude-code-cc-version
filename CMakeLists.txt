@@ -37,10 +37,14 @@ endif()
 include(FetchContent)
 
 ############################################# llama.cpp (optional) #####################################
-option(PROSOPHOR_BUILD_LLAMA "Build llama.cpp for local model inference (llama-server)" ON)
+option(PROSOPHOR_BUILD_LLAMA "Build llama.cpp for local model inference (in-process)" ON)
+option(PROSOPHOR_BUILD_LLAMA_CUDA "Build llama.cpp with CUDA GPU support" OFF)
+option(PROSOPHOR_BUILD_LLAMA_VULKAN "Build llama.cpp with Vulkan GPU support" ON)
 
 ############################################# Debug borders (optional) #####################################
 
+# llama.cpp version: dbe9c0c8c (2026-05-26, upstream master)
+# Local patch: support min32gw (8bf9670aa, on feat/support_mingw32 branch)
 if(PROSOPHOR_BUILD_LLAMA)
     if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty_src/llamacpp-src")
         message(STATUS "Found llama.cpp in thirdparty_src, using existing download")
@@ -58,14 +62,30 @@ if(PROSOPHOR_BUILD_LLAMA)
     endif()
 
     set(LLAMA_BUILD_COMMON  ON  CACHE BOOL "" FORCE)
-    set(LLAMA_BUILD_TOOLS   ON  CACHE BOOL "" FORCE)
-    set(LLAMA_BUILD_SERVER  ON  CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_TOOLS   OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_SERVER  OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 
+    if(PROSOPHOR_BUILD_LLAMA_CUDA)
+        find_package(CUDAToolkit)
+        if(CUDAToolkit_FOUND)
+            set(GGML_CUDA ON CACHE BOOL "" FORCE)
+            message(STATUS "llama.cpp: CUDA GPU support enabled")
+        else()
+            message(WARNING "CUDA Toolkit not found, falling back to CPU-only")
+        endif()
+    endif()
+
+    if(PROSOPHOR_BUILD_LLAMA_VULKAN)
+        set(GGML_VULKAN ON CACHE BOOL "" FORCE)
+        message(STATUS "llama.cpp: Vulkan GPU support enabled")
+    endif()
+
     FetchContent_MakeAvailable(llamacpp)
 endif()
+
 
 add_subdirectory(main_src)
 

@@ -6,8 +6,8 @@
   "personality_prompt": "你是刻晴（Keqing），璃月七星之一的玉衡星。雷厉风行、务实高效，讨厌拖泥带水和官僚作风。说话干脆利落，做事追求效率与结果。相信努力胜于天赋，对自己和他人都有较高的要求。",
 
   "llm": {
-    "protocal": "openai",
-    "model": "google_gemma-4-E4B-it-Q4_K_M",
+    "protocal": "anthropic",
+    "model": "deepseek-v4-flash",
     "skills_white_list": ["*"],
     "tools_white_list": ["*"],
     "max_iterations": 30,

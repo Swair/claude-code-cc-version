@@ -138,14 +138,20 @@ void AgentCore::ExtractDialogSummary(const std::string& response_text, MessageSc
     // Keep full response text including [摘要] — LLM needs to see it for cache continuity
 }
 
-ChatRequest AgentCore::BuildRequest(const AgentSession& session) {
-    ChatRequest req;
-
+void AgentCore::ValidateSession(const AgentSession& session) {
     if (!session.GetRole()) { LOG_FATAL("session.GetRole() is null"); abort(); }
     if (session.GetBaseUrl().empty()) { LOG_FATAL("session.GetBaseUrl() is empty"); abort(); }
     bool _local = session.GetBaseUrl().find("localhost") != std::string::npos
-        || session.GetBaseUrl().find("127.0.0.1") != std::string::npos;
+        || session.GetBaseUrl().find("127.0.0.1") != std::string::npos
+        || session.GetBaseUrl() == "local";
     if (!_local && session.GetApiKey().empty()) { LOG_FATAL("session.GetApiKey() is empty"); abort(); }
+}
+
+ChatRequest AgentCore::BuildRequest(const AgentSession& session) {
+    ChatRequest req;
+
+    ValidateSession(session);
+
     if (session.GetTimeout() <= 0) {
         LOG_WARN("session.GetTimeout() is invalid ({}), using default 60s", session.GetTimeout());
         req.timeout = 60;
@@ -193,11 +199,11 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
     // Process message - resolve @file references
     std::string processed_message = ProcessFileRefs(message, session);
 
-    // 使用 role 的对话策略进行消息预处理
+    // 对话策略预处理：追加用户消息
     if (auto* role = session.GetRole()) {
         role->dialog_strategy->Preprocess(processed_message, session);
     }
-	
+
     int iterations = 0;
     int max_iterations = GetMaxIterations(session);
 
@@ -209,6 +215,12 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
             }
             return;
         }
+
+        // 每轮压缩检查：确保 messages 不超出 context_window
+        if (auto* role = session.GetRole()) {
+            role->dialog_strategy->CompactIfNeeded(session);
+        }
+
         ChatRequest request = BuildRequest(session);
         request.stream = streaming;
 

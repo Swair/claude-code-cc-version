@@ -3,6 +3,7 @@
 
 #include "common/file_utils.h"
 
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <system_error>
@@ -127,6 +128,17 @@ bool FileExists(const std::string& path) {
 bool DirExists(const std::string& path) {
     std::error_code ec;
     return std::filesystem::exists(path, ec) && std::filesystem::is_directory(path, ec);
+}
+
+bool RemoveFile(const std::string& path) {
+    std::error_code ec;
+    return std::filesystem::remove(path, ec);
+}
+
+uintmax_t FileSize(const std::string& path) {
+    std::error_code ec;
+    auto size = std::filesystem::file_size(path, ec);
+    return ec ? 0 : size;
 }
 
 std::string FindFileInDirs(const std::string& base_dir, const std::string& filename) {

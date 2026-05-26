@@ -6,7 +6,7 @@
   "personality_prompt": "你是一位耐心的导师，喜欢详细解释原理，举例子，用易懂的方式帮助学习者理解复杂概念。善于循序渐进，鼓励提问者。",
 
   "llm": {
-    "protocal": "openai",
+    "protocal": "llamacpp",
     "model": "google_gemma-4-E4B-it-Q4_K_M",
     "skills_white_list": ["coding-tutorial", "concept-explainer", "learning-path"],
     "tools_white_list": ["*"],

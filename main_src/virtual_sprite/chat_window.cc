@@ -15,7 +15,7 @@
 #include "common/file_utils.h"
 #include "config/config.h"
 #include "config/role_config_manager.h"
-#include "managers/local_model_manager.h"
+#include "providers/tts/tts_speaker.h"
 
 #include <filesystem>
 #include <fstream>
@@ -161,6 +161,7 @@ void ChatWindow::RenderChatUI() {
     UpdateLayout(win_w, win_h);
     RenderChatContent();
     RenderRightPanel(win_w, win_h);
+    RenderTokenSpeed(win_w, win_h);
 
     RenderSettingsWindow();
     RenderAboutWindow();
@@ -291,69 +292,7 @@ void ChatWindow::RenderRightPanel(int win_w, int win_h) {
             }
         }
 
-        // Local model server start/stop buttons
-        bool lm_starting = impl_->lm_starting.load();
-        bool lm_running = LocalModelManager::GetInstance().IsRunning();
-
-        media_engine::Layout::SameLine();
-        // Start button — disabled while busy or already running
-        {
-            bool disabled = lm_starting || lm_running;
-            auto _btn_c = media_engine::ScopedColors(
-                media_engine::Color::Slot::Button, media_engine::Colors::Transparent)
-                .Then(media_engine::Color::Slot::ButtonHovered, media_engine::Colors::Transparent)
-                .Then(media_engine::Color::Slot::ButtonActive, media_engine::Colors::Transparent)
-                .Then(media_engine::Color::Slot::Text, media_engine::Colors::OrangeWarm);
-            const char* label = lm_starting ? "..." : (is_zh ? "启动LLM" : "StartLLM");
-            if (!disabled && media_engine::ImGuiWidget::Button(label, 52.0f, 20.0f)) {
-                const auto& cfg = ProsophorConfig::GetInstance();
-                if (!cfg.local_models.empty()) {
-                    auto lm_cfg = cfg.local_models[0];
-                    if (Platform::kIsWindows) {
-                        lm_cfg.model_path_for_win = edit_lm_model_path;
-                    } else {
-                        lm_cfg.model_path = edit_lm_model_path;
-                    }
-                    lm_cfg.port = edit_lm_port;
-                    lm_cfg.auto_start = edit_lm_auto_start;
-                    lm_cfg.start_timeout_ms = edit_lm_start_timeout;
-                    impl_->lm_starting.store(true);
-                    std::thread([this, lm = std::move(lm_cfg)]() {
-                        auto& mgr = LocalModelManager::GetInstance();
-                        mgr.Start(lm);
-                        impl_->lm_starting.store(false);
-                    }).detach();
-                }
             }
-            // Draw visual-only dimmed button when disabled
-            if (disabled) {
-                media_engine::ImGuiWidget::Button(label, 52.0f, 20.0f);
-            }
-        }
-
-        // Stop button — disabled while busy or already stopped
-        media_engine::Layout::SameLine();
-        {
-            bool disabled = lm_starting || !lm_running;
-            auto _btn_c = media_engine::ScopedColors(
-                media_engine::Color::Slot::Button, media_engine::Colors::Transparent)
-                .Then(media_engine::Color::Slot::ButtonHovered, media_engine::Colors::Transparent)
-                .Then(media_engine::Color::Slot::ButtonActive, media_engine::Colors::Transparent)
-                .Then(media_engine::Color::Slot::Text, media_engine::Colors::OrangeWarm);
-            const char* label = lm_starting ? "..." : (is_zh ? "关闭LLM" : "StopLLM");
-            if (!disabled && media_engine::ImGuiWidget::Button(label, 52.0f, 20.0f)) {
-                impl_->lm_starting.store(true);
-                std::thread([this]() {
-                    auto& mgr = LocalModelManager::GetInstance();
-                    mgr.Stop();
-                    impl_->lm_starting.store(false);
-                }).detach();
-            }
-            if (disabled) {
-                media_engine::ImGuiWidget::Button(label, 52.0f, 20.0f);
-            }
-        }
-    }
     // Decorative thin separator
     media_engine::DrawList::RoundRect(panel_left + 8.0f, 66.0f, right_w - 16.0f, 1.0f, 0,
                  media_engine::Colors::CreamBorder);
@@ -494,14 +433,8 @@ void ChatWindow::RenderSettingsWindow() {
     // TTS
     static bool edit_tts_enabled;
     static std::string edit_tts_backend;
-    static std::string edit_gs_url;
-    static int edit_gs_port = 9880;
-    static std::string edit_gs_install_path;
-    static bool edit_gs_auto_start;
-    static std::string edit_gs_ref_audio_path;
-    static std::string edit_gs_ref_audio_text;
-    static std::string edit_gs_ref_audio_lang;
-    static std::string edit_gs_text_lang;
+    static std::string edit_edge_voice;
+    static bool edit_edge_auto_start;
 
     if (first_open) {
         edit_log_level = config.log_level;
@@ -514,22 +447,14 @@ void ChatWindow::RenderSettingsWindow() {
 
         edit_tts_enabled = config.tts.enabled;
         edit_tts_backend = config.tts.backend;
-        edit_gs_url = config.tts.gs_url;
-        edit_gs_port = config.tts.gs_port;
-        edit_gs_install_path = config.tts.gs_install_path;
-        edit_gs_auto_start = config.tts.gs_auto_start;
-        edit_gs_ref_audio_path = config.tts.gs_ref_audio_path;
-        edit_gs_ref_audio_text = config.tts.gs_ref_audio_text;
-        edit_gs_ref_audio_lang = config.tts.gs_ref_audio_lang;
-        edit_gs_text_lang = config.tts.gs_text_lang;
+        edit_edge_voice = "zh-CN-XiaoxiaoNeural";
+        edit_edge_auto_start = config.tts.gs_auto_start;
 
-        if (!config.local_models.empty()) {
-            edit_lm_port = config.local_models[0].port;
-            edit_lm_auto_start = config.local_models[0].auto_start;
-            edit_lm_start_timeout = config.local_models[0].start_timeout_ms;
-            edit_lm_model_path = Platform::kIsWindows
-                ? config.local_models[0].model_path_for_win
-                : config.local_models[0].model_path;
+        if (!config.llamacpp_models.empty()) {
+            edit_lm_port = config.llamacpp_models[0].port;
+            edit_lm_auto_start = config.llamacpp_models[0].auto_start;
+            edit_lm_start_timeout = config.llamacpp_models[0].start_timeout_ms;
+            edit_lm_model_path = config.llamacpp_models[0].model_path;
         }
 
         // Scan available roles
@@ -551,9 +476,9 @@ void ChatWindow::RenderSettingsWindow() {
 
         // Collect available models from all providers (display: "[protocal] model (provider)")
         available_models.clear();
-        for (const auto& [pname, prov] : config.providers) {
-            for (const auto& [agent_name, agent] : prov.agents) {
-                std::string display = "[" + pname + "] " + agent.model;
+        for (const auto& [pname, prov] : config.llm_providers) {
+            for (const auto& [model_name, model_config] : prov.model_configs) {
+                std::string display = "[" + pname + "] " + model_config.model;
                 if (std::find(available_models.begin(), available_models.end(), display)
                     == available_models.end()) {
                     available_models.push_back(display);
@@ -654,7 +579,7 @@ void ChatWindow::RenderSettingsWindow() {
 
         // ── Providers tab (editable) ──
         if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_providers").c_str())) {
-            for (auto& [pname, prov] : config.providers) {
+            for (auto& [pname, prov] : config.llm_providers) {
                 if (media_engine::ImGuiWidget::TreeNode(pname.c_str())) {
                     if (prov.entries.empty()) {
                         media_engine::Text::Raw("(legacy format, no editable entries)");
@@ -689,14 +614,14 @@ void ChatWindow::RenderSettingsWindow() {
                                 media_engine::ImGuiWidget::InputInt(tid.c_str(), &entry.timeout);
 
                                 // agents
-                                if (!entry.agents.empty()) {
+                                if (!entry.models.empty()) {
                                     media_engine::ImGuiWidget::Separator();
-                                    media_engine::Text::Raw("Agents");
+                                    media_engine::Text::Raw("Models");
                                     // Build a list from the map for indexed access
-                                    std::vector<std::string> agent_keys;
-                                    for (auto& [ak, av] : entry.agents) agent_keys.push_back(ak);
-                                    for (size_t ai = 0; ai < agent_keys.size(); ++ai) {
-                                        auto& agent = entry.agents[agent_keys[ai]];
+                                    std::vector<std::string> model_keys;
+                                    for (auto& [mk, mv] : entry.models) model_keys.push_back(mk);
+                                    for (size_t ai = 0; ai < model_keys.size(); ++ai) {
+                                        auto& agent = entry.models[model_keys[ai]];
                                         std::string alabel = agent.model;
                                         if (media_engine::ImGuiWidget::TreeNode(alabel.c_str())) {
                                             std::string prefix = "##" + pname + "_" + std::to_string(ei) + "_" + std::to_string(ai);
@@ -789,50 +714,48 @@ void ChatWindow::RenderSettingsWindow() {
             media_engine::Layout::Dummy(0, 8);
             media_engine::Text::Raw(L.Get("tts_backend").c_str());
             media_engine::Layout::SameLine();
-            const char* backends[] = {"edge-tts", "gpt-sovits"};
-            int bk_idx = (edit_tts_backend == "gpt-sovits") ? 1 : 0;
-            media_engine::ImGuiWidget::Combo("##tts_backend", &bk_idx, backends, 2);
-            edit_tts_backend = backends[bk_idx];
+            const char* backends[] = {"edge-tts"};
+            media_engine::ImGuiWidget::Combo("##tts_backend", nullptr, backends, 1);
+            edit_tts_backend = "edge-tts";
 
-            if (edit_tts_backend == "gpt-sovits") {
-                media_engine::ImGuiWidget::Separator();
-                media_engine::Text::Raw("GPT-SoVITS");
-
-                auto input_field = [&](const char* label, const char* id, std::string& var) {
-                    media_engine::Layout::Dummy(0, 4);
-                    media_engine::Text::Raw(label);
-                    char buf[512];
-                    std::strncpy(buf, var.c_str(), sizeof(buf) - 1);
-                    buf[sizeof(buf) - 1] = '\0';
-                    if (media_engine::ImGuiWidget::InputText(id, buf, sizeof(buf))) {
-                        var = buf;
-                    }
-                };
-
-                input_field(L.Get("tts_gs_url").c_str(), "##gs_url", edit_gs_url);
-
+            auto input_field = [&](const char* label, const char* id, std::string& var) {
                 media_engine::Layout::Dummy(0, 4);
-                media_engine::Text::Raw(L.Get("tts_gs_port").c_str());
-                media_engine::Layout::SameLine();
-                media_engine::ImGuiWidget::InputInt("##gs_port", &edit_gs_port);
+                media_engine::Text::Raw(label);
+                char buf[512];
+                std::strncpy(buf, var.c_str(), sizeof(buf) - 1);
+                buf[sizeof(buf) - 1] = '\0';
+                if (media_engine::ImGuiWidget::InputText(id, buf, sizeof(buf))) {
+                    var = buf;
+                }
+            };
 
-                input_field(L.Get("tts_gs_install_path").c_str(), "##gs_install_path", edit_gs_install_path);
-
+            if (edit_tts_backend == "edge-tts") {
+                media_engine::ImGuiWidget::Separator();
+                media_engine::Text::Raw("edge-tts");
+                input_field("Voice", "##edge_voice", edit_edge_voice);
                 media_engine::Layout::Dummy(0, 8);
-                media_engine::Text::Raw(L.Get("tts_gs_auto_start").c_str());
+                media_engine::Text::Raw("Auto Start");
                 media_engine::Layout::SameLine();
-                media_engine::ImGuiWidget::Checkbox("##gs_auto_start", &edit_gs_auto_start);
+                media_engine::ImGuiWidget::Checkbox("##edge_auto_start", &edit_edge_auto_start);
+            }
 
-                input_field(L.Get("tts_ref_audio_path").c_str(), "##gs_ref_audio_path", edit_gs_ref_audio_path);
-                input_field(L.Get("tts_ref_audio_text").c_str(), "##gs_ref_audio_text", edit_gs_ref_audio_text);
-                input_field(L.Get("tts_ref_audio_lang").c_str(), "##gs_ref_audio_lang", edit_gs_ref_audio_lang);
-                input_field(L.Get("tts_text_lang").c_str(), "##gs_text_lang", edit_gs_text_lang);
+            media_engine::Layout::Dummy(0, 8);
+            if (media_engine::ImGuiWidget::Button("Test", 52.0f, 20.0f)) {
+                const bool zh = L.GetLanguage() == "zh-CN";
+                auto& tts_config = ProsophorConfig::GetInstance().tts;
+                tts_config.backend = edit_tts_backend;
+                // voice saved via edit_edge_voice
+                TtsSpeaker::GetInstance().ApplyVoiceProfile(tts_config.backend, edit_edge_voice);
+                LOG_INFO("[ChatWindow] TTS test trigger enabled={} backend='{}' voice='{}'", tts_config.enabled,
+                         tts_config.backend, edit_edge_voice);
+                TtsSpeaker::GetInstance().SpeakStream(
+                    zh ? "你好！我是Prosophor。" : "Hello! I am Prosophor.");
             }
         }
 
         // ── Local Models tab ──
         if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_local_models").c_str())) {
-            if (config.local_models.empty()) {
+            if (config.llamacpp_models.empty()) {
                 media_engine::Text::Raw(L.Get("providers_readonly").c_str());
             } else {
                 char model_buf[512];
@@ -915,25 +838,19 @@ void ChatWindow::RenderSettingsWindow() {
         // Write back TTS
         config.tts.enabled = edit_tts_enabled;
         config.tts.backend = edit_tts_backend;
-        config.tts.gs_url = edit_gs_url;
-        config.tts.gs_port = edit_gs_port;
-        config.tts.gs_install_path = edit_gs_install_path;
-        config.tts.gs_auto_start = edit_gs_auto_start;
-        config.tts.gs_ref_audio_path = edit_gs_ref_audio_path;
-        config.tts.gs_ref_audio_text = edit_gs_ref_audio_text;
-        config.tts.gs_ref_audio_lang = edit_gs_ref_audio_lang;
-        config.tts.gs_text_lang = edit_gs_text_lang;
+        // voice/auto_start applied via hot-switch below
+
+        // Hot-switch TTS backend
+        TtsSpeaker::GetInstance().ApplyVoiceProfile(config.tts.backend, edit_edge_voice);
+        LOG_INFO("[ChatWindow] TTS config saved: enabled={} backend='{}' voice='{}'", config.tts.enabled,
+                 config.tts.backend, edit_edge_voice);
 
         // Write back Local Models
-        if (!config.local_models.empty()) {
-            config.local_models[0].port = edit_lm_port;
-            config.local_models[0].auto_start = edit_lm_auto_start;
-            config.local_models[0].start_timeout_ms = edit_lm_start_timeout;
-            if (Platform::kIsWindows) {
-                config.local_models[0].model_path_for_win = edit_lm_model_path;
-            } else {
-                config.local_models[0].model_path = edit_lm_model_path;
-            }
+        if (!config.llamacpp_models.empty()) {
+            config.llamacpp_models[0].port = edit_lm_port;
+            config.llamacpp_models[0].auto_start = edit_lm_auto_start;
+            config.llamacpp_models[0].start_timeout_ms = edit_lm_start_timeout;
+            config.llamacpp_models[0].model_path = edit_lm_model_path;
         }
 
         config.SaveToFile();
@@ -1034,6 +951,36 @@ void ChatWindow::RenderTray() {
     }
 
     media_engine::ImGuiWindow::End();
+}
+
+void ChatWindow::RenderTokenSpeed(int win_w, int win_h) {
+    auto snap = SpriteManager::GetInstance().GetFocusedSession().empty()
+        ? AgentEngine::GetInstance().GetFocusedSessionSnapshot()
+        : AgentEngine::GetInstance().GetSessionSnapshot(
+            SpriteManager::GetInstance().GetFocusedSession());
+    if (!snap || snap->streaming_token_speed <= 0.0f) return;
+
+    // Screen coordinates: ImGui window position + relative offset
+    float wx, wy;
+    media_engine::ImGuiWindow::GetPos(&wx, &wy);
+    int speed_val = static_cast<int>(snap->streaming_token_speed + 0.5f);
+    std::string text = std::to_string(speed_val) + " tok/s";
+
+    float pad = 6.0f;
+    float text_w = text.size() * 7.5f;
+    float text_h = 16.0f;
+    float badge_w = text_w + pad * 2;
+    float badge_h = text_h + pad * 2;
+
+    float left_area_w = win_w * 0.75f;
+    // Screen-space bottom-right of left chat area
+    float bx = wx + left_area_w - badge_w - 8.0f;
+    float by = wy + static_cast<float>(win_h) - badge_h - 8.0f;
+
+    media_engine::DrawList::RoundRect(bx, by, badge_w, badge_h, 4.0f,
+        media_engine::Colors::WhiteTranslucent);
+    media_engine::DrawList::Text(bx + pad, by + pad,
+        media_engine::Colors::Gray55, text.c_str());
 }
 
 }  // namespace prosophor

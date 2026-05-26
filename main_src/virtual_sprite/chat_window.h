@@ -47,6 +47,7 @@ private:
     void RenderRightPanel(int win_w, int win_h);
     void RenderSettingsWindow();
     void RenderAboutWindow();
+    void RenderTokenSpeed(int win_w, int win_h);
     void CreateTrayWindow();
     void ShowTray(bool show);
     void RenderTray();

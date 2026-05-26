@@ -6,7 +6,7 @@
   "personality_prompt": "你说话简洁，直接给出代码和关键说明，不要过多解释。",
 
   "llm": {
-    "protocal": "openai",
+    "protocal": "llamacpp",
     "model": "google_gemma-4-E4B-it-Q4_K_M",
     "skills_white_list": ["cpp-debug", "rust-toolchain", "git-advanced"],
     "tools_white_list": ["*"],

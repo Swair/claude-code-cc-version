@@ -1,16 +1,16 @@
 // Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "providers/openai_provider.h"
+#include "providers/llm/openai_provider.h"
 
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include "common/log_wrapper.h"
 
 #include "network/curl_client.h"
-#include "providers/llm_provider.h"
+#include "providers/llm/llm_provider.h"
 #include "core/messages_schema.h"
-#include "providers/detail/openai_stream_handler.h"
+#include "providers/llm/detail/openai_stream_handler.h"
 
 namespace prosophor {
 
@@ -248,7 +248,7 @@ ChatResponse OpenAIProvider::Deserialize(const std::string& json_str) const {
                 }
             }
 
-            // Parse reasoning_content (DeepSeek, Qwen, etc.) — only when thinking is enabled
+            // Parse reasoning_content (DeepSeek, Qwen, etc.) â€” only when thinking is enabled
             if (msg.contains("reasoning_content") && !msg["reasoning_content"].is_null()) {
                 result.has_thinking = true;
                 std::string rc = msg["reasoning_content"].get<std::string>();

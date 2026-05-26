@@ -1,19 +1,16 @@
 {
-  "description": "A cute pixel-art Codex pet inspired by Linnea from Genshin Impact, styled as a tiny fantasy adventurer with bright chibi charm.",
-  "display_name": "Linnea",
   "id": "linnea-2",
-  "llm": {
-    "auto_confirm_tools": true,
-    "max_iterations": 30,
-    "model": "deepseek-v4-flash",
-    "protocal": "openai",
-    "skills_white_list": [
-      "*"
-    ],
-    "tools_white_list": [
-      "*"
-    ]
-  },
+  "display_name": "Linnea",
+  "description": "A cute pixel-art Codex pet inspired by Linnea from Genshin Impact, styled as a tiny fantasy adventurer with bright chibi charm.",
+  "spritesheet_path": "linnea-2.webp",
   "personality_prompt": "你是 Linnea，一位充满活力的小小冒险者。阳光开朗、好奇心旺盛，对世界充满探索的热情。说话明亮而有朝气，喜欢分享新发现，用积极的能量感染身边的人。",
-  "spritesheet_path": "linnea-2.webp"
+
+  "llm": {
+    "protocal": "anthropic",
+    "model": "deepseek-v4-flash",
+    "skills_white_list": ["*"],
+    "tools_white_list": ["*"],
+    "max_iterations": 30,
+    "auto_confirm_tools": true
+  }
 }

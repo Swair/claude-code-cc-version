@@ -88,7 +88,7 @@ class AgentEngine : public Noncopyable {
     void InitializeComponents();
 
     ProsophorConfig config_;
-    AgentConfig agent_config_;
+    ModelConfig model_config_;
     std::string workspace_path_;
 
     std::shared_ptr<MemoryManager> memory_manager_;

@@ -2,12 +2,12 @@
   "id": "default",
   "display_name": "默认助手",
   "description": "默认全能型助手，自动加载所有技能和工具",
-  "spritesheet_path": "ayaka.webp",
+  "spritesheet_path": "skirk-2.webp",
   "personality_prompt": "你是一个全能的助手，根据任务需求自动调整风格。需要编码时专业严谨，需要解释时耐心详细。",
 
   "llm": {
-    "protocal": "openai",
-    "model": "MiniMax-M2.5",
+    "protocal": "llamacpp",
+    "model": "google_gemma-4-E4B-it-Q4_K_M",
     "skills_white_list": ["*"],
     "tools_white_list": ["*"],
     "max_iterations": 30,

@@ -104,22 +104,20 @@ void VirtualSprite::GlobalInit() {
                 current_streamer_->PushChunk(data, len);
             }
         });
+        // Non-streaming fallback: load WAV and play
+        tts.SetOnSynthesized([this](const std::string& wav_path) {
+            std::lock_guard<std::mutex> lock(audio_mutex_);
+            current_streamer_ = media_engine::AudioStreamer::PlayWav(wav_path);
+        });
     }
 
     // Route session state changes to the matching sprite
     AgentEngine::GetInstance().SetOutputCallback(
         [this](const std::string& session_id, const std::string& /*role_id*/,
                AgentRuntimeState state, const std::string& state_msg,
-               const std::optional<MessageSchema>& reply) {
+               const std::optional<MessageSchema>& /*reply*/) {
             if (auto* s = SpriteManager::GetInstance().FindBySessionId(session_id)) {
                 s->SetAgentState(state, state_msg);
-            }
-            // Trigger TTS when a reply completes
-            if (AgentEngine::GetInstance().GetConfig().tts.enabled &&
-                (state == AgentRuntimeState::COMPLETE ||
-                 state == AgentRuntimeState::STREAM_MODE_COMPLETE) &&
-                reply && !reply->text().empty()) {
-                TtsSpeaker::GetInstance().SpeakStream(reply->text());
             }
         });
 

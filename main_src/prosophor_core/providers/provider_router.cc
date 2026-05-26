@@ -22,7 +22,7 @@ void ProviderRouter::Initialize(const ProsophorConfig& config) {
     providers_.clear();
 
     // Create providers based on config
-    for (const auto& [name, provider_config] : config.providers) {
+    for (const auto& [name, provider_config] : config.llm_providers) {
         try {
             auto provider = CreateProvider(name, provider_config);
             if (!provider) {
@@ -63,6 +63,18 @@ void ProviderRouter::Initialize(const ProsophorConfig& config) {
         default_provider_name_ = providers_.begin()->first;
         LOG_DEBUG("Using first available provider as default: {}", default_provider_name_);
     }
+
+    // Auto-start llamacpp (in-process) if configured
+    auto llamacpp_it = providers_.find("llamacpp");
+    if (llamacpp_it != providers_.end()) {
+        auto* local = static_cast<LlamacppProvider*>(llamacpp_it->second.get());
+        if (!local->IsLoaded() && !config.llamacpp_models.empty() &&
+            config.llamacpp_models[0].auto_start) {
+            local->Load();
+        }
+        // Also register as "local" alias for GetProviderByName lookups
+        providers_["local"] = llamacpp_it->second;
+    }
 }
 
 std::shared_ptr<LLMProvider> ProviderRouter::GetProvider(const std::string& /*role_id*/) {
@@ -96,7 +108,7 @@ std::string ProviderRouter::GetProviderName(const std::string& /*role_id*/) {
 
 std::shared_ptr<LLMProvider> ProviderRouter::CreateProvider(
     const std::string& type,
-    const ProviderConfig& /*config*/) {
+    const ProviderConfig& config) {
 
     if (type == "anthropic") {
         return std::make_shared<AnthropicProvider>();
@@ -108,6 +120,10 @@ std::shared_ptr<LLMProvider> ProviderRouter::CreateProvider(
 
     if (type == "ollama") {
         return std::make_shared<OllamaProvider>();
+    }
+
+    if (type == "llamacpp") {
+        return std::make_shared<LlamacppProvider>(config.llamacpp_cfg);
     }
 
     // Unknown protocol - return nullptr

@@ -41,7 +41,7 @@ ProsophorConfig& ProsophorConfig::GetInstance() {
     return instance;
 }
 
-const AgentConfig& ProsophorConfig::GetAgentConfig() const {
+const ModelConfig& ProsophorConfig::GetModelConfig() const {
     // Load default role to get its provider and agent config
     std::string primary_role = default_role.empty() ? "default" : default_role[0];
     std::string role_path = "config/.prosophor/roles/" + primary_role + ".json";
@@ -50,9 +50,9 @@ const AgentConfig& ProsophorConfig::GetAgentConfig() const {
         try {
             AgentRole role = loader.LoadRole(role_path);
             // Find the agent config from the role's provider
-            auto prov_it = providers.find(role.provider_prot);
-            if (prov_it != providers.end()) {
-                auto& agent_map = prov_it->second.agents;
+            auto prov_it = llm_providers.find(role.provider_prot);
+            if (prov_it != llm_providers.end()) {
+                auto& agent_map = prov_it->second.model_configs;
                 // Try 1: role.model as key (agent name)
                 auto agent_it = agent_map.find(role.model);
                 if (agent_it == agent_map.end()) {
@@ -63,43 +63,43 @@ const AgentConfig& ProsophorConfig::GetAgentConfig() const {
                 if (agent_it != agent_map.end()) {
                     return agent_it->second;
                 }
-                // Fall back to provider's default agent
-                return prov_it->second.GetDefaultAgent();
+                // Fall back to provider's default model
+                return prov_it->second.GetDefaultModel();
             }
         } catch (const std::exception& e) {
             LOG_WARN("Failed to load default role '{}', using fallback: {}", primary_role, e.what());
         }
     }
 
-    // Fallback: use first provider's default agent
-    if (!providers.empty()) {
-        return providers.begin()->second.GetDefaultAgent();
+    // Fallback: use first provider's default model
+    if (!llm_providers.empty()) {
+        return llm_providers.begin()->second.GetDefaultModel();
     }
 
-    static AgentConfig fallback_agent;
-    return fallback_agent;
+    static ModelConfig fallback_model;
+    return fallback_model;
 }
 
 const ProviderConfig& ProsophorConfig::GetProvider(const std::string& name) const {
-    auto it = providers.find(name);
-    if (it != providers.end()) {
+    auto it = llm_providers.find(name);
+    if (it != llm_providers.end()) {
         return it->second;
     }
     static ProviderConfig default_provider;
     return default_provider;
 }
 
-const AgentConfig& ProviderConfig::GetDefaultAgent() const {
-    if (agents.empty()) {
-        static AgentConfig default_agent;
-        return default_agent;
+const ModelConfig& ProviderConfig::GetDefaultModel() const {
+    if (model_configs.empty()) {
+        static ModelConfig default_model;
+        return default_model;
     }
-    // Array format: use first agent; object format: try "default" key first, then first entry
-    auto it = agents.find("default");
-    if (it != agents.end()) {
+    // Array format: use first model; object format: try "default" key first, then first entry
+    auto it = model_configs.find("default");
+    if (it != model_configs.end()) {
         return it->second;
     }
-    return agents.begin()->second;
+    return model_configs.begin()->second;
 }
 
 bool ProviderConfig::FindEntryForModel(const std::string& provider_name,
@@ -108,17 +108,17 @@ bool ProviderConfig::FindEntryForModel(const std::string& provider_name,
                                         std::string& out_api_key,
                                         int& out_timeout) const {
     for (const auto& entry : entries) {
-        auto it = entry.agents.find(model);
-        if (it == entry.agents.end()) {
+        auto it = entry.models.find(model);
+        if (it == entry.models.end()) {
             // Also try searching by model name in agent.config.model
-            for (const auto& [k, v] : entry.agents) {
+            for (const auto& [k, v] : entry.models) {
                 if (v.model == model) {
-                    it = entry.agents.find(k);
+                    it = entry.models.find(k);
                     break;
                 }
             }
         }
-        if (it != entry.agents.end()) {
+        if (it != entry.models.end()) {
             out_base_url = entry.base_url;
             out_api_key = entry.api_key;
             out_timeout = entry.timeout;
@@ -127,11 +127,11 @@ bool ProviderConfig::FindEntryForModel(const std::string& provider_name,
     }
     // Fallback: search by full key provider_name/model
     std::string full_key = provider_name + "/" + model;
-    auto agent_it = agents.find(full_key);
-    if (agent_it != agents.end()) {
+    auto model_it = model_configs.find(full_key);
+    if (model_it != model_configs.end()) {
         // Find matching entry
         for (const auto& entry : entries) {
-            for (const auto& [k, v] : entry.agents) {
+            for (const auto& [k, v] : entry.models) {
                 if (v.model == model || k == model) {
                     out_base_url = entry.base_url;
                     out_api_key = entry.api_key;
@@ -248,8 +248,8 @@ static void ExpandEnvInJson(nlohmann::json& j) {
     }
 }
 
-AgentConfig AgentConfig::FromJson(const nlohmann::json& json) {
-    AgentConfig config;
+ModelConfig ModelConfig::FromJson(const nlohmann::json& json) {
+    ModelConfig config;
     config.name = json.value("name", "default");
     config.model = json.value("model", "claude-sonnet-4-6");
     config.temperature = json.value("temperature", kDefaultTemperature);
@@ -294,25 +294,25 @@ ProviderConfig ProviderConfig::FromJson(const nlohmann::json& json) {
     config.base_url = json.value("base_url", json.value("baseUrl", ""));
     config.timeout = json.value("timeout", kDefaultProviderTimeoutSec);
 
-    // Parse agents — supports array (preferred) and object (legacy) formats
-    const auto& agents_json_key = json.contains("agents") ? "agents" : "agent";
-    if (json.contains(agents_json_key)) {
-        const auto& aj = json[agents_json_key];
+    // Parse models — supports array (preferred) and object (legacy) formats
+    const auto& models_json_key = json.contains("models") ? "models" : "model";
+    if (json.contains(models_json_key)) {
+        const auto& aj = json[models_json_key];
         if (aj.is_array()) {
             for (const auto& item : aj) {
-                AgentConfig agent = AgentConfig::FromJson(item);
+                ModelConfig agent = ModelConfig::FromJson(item);
                 if (!agent.model.empty()) {
-                    config.agents[agent.model] = agent;
+                    config.model_configs[agent.model] = agent;
                 }
             }
         } else if (aj.is_object()) {
             for (const auto& [key, value] : aj.items()) {
-                AgentConfig agent = AgentConfig::FromJson(value);
+                ModelConfig agent = ModelConfig::FromJson(value);
                 agent.name = key;
                 if (json.contains("tools_use")) {
                     agent.use_tools = json.value("tools_use", true);
                 }
-                config.agents[key] = agent;
+                config.model_configs[key] = agent;
             }
         }
     }
@@ -325,31 +325,55 @@ ProviderConfig ProviderConfig::FromJson(const nlohmann::json& json) {
     return config;
 }
 
-LocalModelConfig LocalModelConfig::FromJson(const nlohmann::json& json) {
-    LocalModelConfig config;
-    config.model_path = json.value("model_path", "");
-    config.model_path_for_win = json.value("model_path_for_win", "");
-    config.model_path = Platform::NormalizePath(
-        Platform::SelectPlatformPath(config.model_path, config.model_path_for_win));
+LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
+    LlamacppModelConfig config;
+    config.model_path = Platform::NormalizePath(json.value("model_path", ""));
     config.port = json.value("port", 8080);
-    config.n_gpu_layers = json.value("n_gpu_layers", json.value("nGpuLayers", -1));
-    config.n_threads = json.value("n_threads", json.value("nThreads", 0));
+    config.gpu_enable = json.value("gpu_enable", json.value("n_gpu_layers", -1) != 0);
+    config.threads      = json.value("threads", json.value("n_threads", json.value("nThreads", 0)));
     config.auto_start = json.value("auto_start", json.value("autoStart", true));
     config.start_timeout_ms = json.value("start_timeout_ms", json.value("startTimeoutMs", 60000));
     config.server_path = json.value("server_path", json.value("serverPath", ""));
+	    // Inference parameters
+    config.context_window  = json.value("context_window", json.value("n_ctx", 32768));
+    config.max_tokens = json.value("max_tokens", json.value("max_new_tokens", 2048));
+    config.temperature   = json.value("temperature",    0.7f);
+    config.top_p         = json.value("top_p",          0.95f);
+    config.thinking      = json.value("thinking",      false);
+    config.type_k = json.value("type_k", "q4_0");
+    config.type_v = json.value("type_v", "q4_0");
+    config.n_batch         = json.value("n_batch", 1024);
+    config.n_ubatch        = json.value("n_ubatch", 512);
+    config.n_threads_batch = json.value("n_threads_batch", 0);
+    config.offload_kqv     = json.value("offload_kqv", true);
+    config.flash_attn      = json.value("flash_attn", true);
+    config.min_p           = json.value("min_p", 0.05f);
+    config.seed            = json.value("seed", -1);
     return config;
 }
 
-nlohmann::json LocalModelConfig::ToJson() const {
+nlohmann::json LlamacppModelConfig::ToJson() const {
     nlohmann::json j;
     j["model_path"] = model_path;
-    if (!model_path_for_win.empty()) j["model_path_for_win"] = model_path_for_win;
     j["port"] = port;
-    j["n_gpu_layers"] = n_gpu_layers;
-    j["n_threads"] = n_threads;
+    j["gpu_enable"] = gpu_enable;
+    j["threads"] = threads;
     j["auto_start"] = auto_start;
     if (start_timeout_ms != 60000) j["start_timeout_ms"] = start_timeout_ms;
     if (!server_path.empty()) j["server_path"] = server_path;
+	    j["context_window"]  = context_window;
+    j["max_tokens"]  = max_tokens;
+    j["temperature"]     = temperature;
+    j["top_p"]           = top_p;
+    if (type_k != "q4_0") j["type_k"] = type_k;
+    if (type_v != "q4_0") j["type_v"] = type_v;
+    if (n_batch != 1024) j["n_batch"] = n_batch;
+    if (n_ubatch != 512) j["n_ubatch"] = n_ubatch;
+    if (n_threads_batch != 0) j["n_threads_batch"] = n_threads_batch;
+    if (!offload_kqv) j["offload_kqv"] = false;
+    if (!flash_attn) j["flash_attn"] = false;
+    if (min_p != 0.05f) j["min_p"] = min_p;
+    if (seed != -1) j["seed"] = seed;
     return j;
 }
 
@@ -365,6 +389,21 @@ TtsConfig TtsConfig::FromJson(const nlohmann::json& json) {
     config.gs_ref_audio_text = json.value("gs_ref_audio_text", json.value("gsRefAudioText", ""));
     config.gs_ref_audio_lang = json.value("gs_ref_audio_lang", json.value("gsRefAudioLang", "zh"));
     config.gs_text_lang = json.value("gs_text_lang", json.value("gsTextLang", "zh"));
+    // sherpa-onnx TTS
+    config.sherpa_model_dir  = json.value("sherpa_model_dir",  "");
+    config.sherpa_speaker_id = json.value("sherpa_speaker_id", 0);
+    config.sherpa_speed      = json.value("sherpa_speed",       1.0f);
+    return config;
+}
+
+AsrConfig AsrConfig::FromJson(const nlohmann::json& json) {
+    AsrConfig config;
+    config.enabled    = json.value("enabled",    false);
+    config.backend    = json.value("backend",    std::string("sherpa-onnx"));
+    config.model_dir  = json.value("model_dir",  std::string(""));
+    config.script_path = json.value("script_path", std::string(""));
+    config.language   = json.value("language",   std::string("zh"));
+    config.n_threads  = json.value("n_threads",  4);
     return config;
 }
 
@@ -428,18 +467,37 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
     config.enable_summary = json.value("enable_summary", true);
     config.sprite_assets_dir = ExpandHome(json.value("sprite_assets_dir", "~/.prosophor/assets"));
 
-    if (json.contains("providers") && json["providers"].is_object()) {
-        for (const auto& [key, value] : json["providers"].items()) {
+    if (json.contains("llm_providers") && json["llm_providers"].is_object()) {
+        for (const auto& [key, value] : json["llm_providers"].items()) {
             if (value.is_array()) {
-                // Array format: keep all entries, key agents by provider_name/model_name
+                // Array format: keep all entries, key models by provider_name/model_name
                 ProviderConfig merged_config;
                 bool first = true;
                 for (const auto& entry : value) {
                     ProviderConfig entry_config = ProviderConfig::FromJson(entry);
 
+                    // Propagate entry-level thinking to all models in this entry
+                    bool entry_thinking = entry.value("thinking", false);
+                    for (auto& [name, mc] : entry_config.model_configs) {
+                        mc.thinking = entry_thinking;
+                    }
+
                     if (first) {
                         merged_config = entry_config;
                         first = false;
+                    }
+
+                    // For llamacpp — extract LlamacppModelConfig from model entries.
+                    // MUST be after `merged_config = entry_config` so it doesn't get overwritten.
+                    if (key == "llamacpp" && entry.contains("models")) {
+                        for (const auto& m : entry["models"]) {
+                            auto lcfg = LlamacppModelConfig::FromJson(m);
+                            lcfg.thinking = entry_thinking;
+                            if (!lcfg.model_path.empty()) {
+                                config.llamacpp_models.push_back(lcfg);
+                                merged_config.llamacpp_cfg = lcfg;
+                            }
+                        }
                     }
 
                     // Store entry for lookup by FindEntryForModel
@@ -447,22 +505,23 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
                     e.api_key = entry_config.api_key;
                     e.base_url = entry_config.base_url;
                     e.timeout = entry_config.timeout;
-                    e.agents = entry_config.agents;
+                    e.thinking = entry_thinking;
+                    e.models = entry_config.model_configs;
                     merged_config.entries.push_back(std::move(e));
-                    // Key agents as provider_name/model_name
-                    for (auto& [agent_name, agent_config] : entry_config.agents) {
-                        std::string agent_key = key + "/" + agent_config.model;
-                        merged_config.agents[agent_key] = agent_config;
+                    // Key models as provider_name/model_name
+                    for (auto& [model_name, model_config] : entry_config.model_configs) {
+                        std::string model_key = key + "/" + model_config.model;
+                        merged_config.model_configs[model_key] = model_config;
                     }
                     // Merge models
                     for (auto& model : entry_config.models) {
                         merged_config.models.push_back(model);
                     }
                 }
-                config.providers[key] = merged_config;
+                config.llm_providers[key] = merged_config;
             } else {
                 // Object format: use directly
-                config.providers[key] = ProviderConfig::FromJson(value);
+                config.llm_providers[key] = ProviderConfig::FromJson(value);
             }
         }
     }
@@ -478,10 +537,8 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
     if (json.contains("tts") && json["tts"].is_object()) {
         config.tts = TtsConfig::FromJson(json["tts"]);
     }
-    if (json.contains("local_models") && json["local_models"].is_array()) {
-        for (const auto& m : json["local_models"]) {
-            config.local_models.push_back(LocalModelConfig::FromJson(m));
-        }
+    if (json.contains("asr") && json["asr"].is_object()) {
+        config.asr = AsrConfig::FromJson(json["asr"]);
     }
     return config;
 }
@@ -602,27 +659,27 @@ void ProsophorConfig::CreateDefaultConfig(const std::string& filepath) {
 // Path: ~/.prosophor/settings.json
 //
 // Structure:
-//   providers.<provider_name>.agents.<agent_name> = { model, temperature, ... }
+//   llm_providers.<provider_name>.models.<model_name> = { model, temperature, ... }
 //   Roles are defined in config/.prosophor/roles/*.json
 //
 // Example:
-//   providers.anthropic.agents.default.model = "qwen3.5-plus"
-//   providers.deepseek.agents.pro.model = "deepseek-v4-pro"
+//   llm_providers.anthropic.models.default.model = "qwen3.5-plus"
+//   llm_providers.deepseek.models.pro.model = "deepseek-v4-pro"
 
 {
   "default_role": ["default"],        // Default roles (SDL: one sprite per role, TUI: first only)
   "log_level": "info",
 
   // Provider configuration (array format supports multiple instances)
-  "providers": {
+  "llm_providers": {
     "anthropic": [
       {
         "api_key": "${ANTHROPIC_API_KEY}",
         "base_url": "https://api.anthropic.com",
         "timeout": 60,
 
-        // Multiple agent configurations
-        "agents": {
+        // Multiple model configurations
+        "models": {
           "default": {
             "model": "claude-sonnet-4-6",
             "temperature": 0.7,
@@ -642,7 +699,7 @@ void ProsophorConfig::CreateDefaultConfig(const std::string& filepath) {
         "api_key": "${DEEPSEEK_API_KEY}",
         "base_url": "https://api.deepseek.com/chat/completions",
         "timeout": 60,
-        "agents": {
+        "models": {
           "default": {
             "model": "deepseek-chat",
             "temperature": 0.7,
@@ -675,7 +732,7 @@ void ProsophorConfig::CreateDefaultConfig(const std::string& filepath) {
     file.close();
 }
 
-int AgentConfig::DynamicMaxIterations() const {
+int ModelConfig::DynamicMaxIterations() const {
     if (context_window <= kContextWindow32K) return kMinMaxIterations;
     if (context_window >= kContextWindow200K) return kMaxMaxIterations;
 
@@ -693,64 +750,66 @@ nlohmann::json ProsophorConfig::ToJson() const {
     json["default_role"] = default_role;  // nlohmann_json: vector → JSON array
     json["enable_summary"] = enable_summary;
 
-    // Serialize local models (before providers, before log_level)
-    if (!local_models.empty()) {
-        nlohmann::json models_json = nlohmann::json::array();
-        for (const auto& m : local_models) {
-            models_json.push_back(m.ToJson());
-        }
-        json["local_models"] = models_json;
-    }
-
     json["log_level"] = log_level;
 
-    // Serialize providers (each provider name → array of entries)
-    nlohmann::json providers_json = nlohmann::json::object();
-    for (const auto& [name, config] : providers) {
+    // Serialize llm_providers (each provider name → array of entries)
+    nlohmann::json llm_providers_json = nlohmann::json::object();
+    for (const auto& [name, config] : llm_providers) {
         nlohmann::json entries_json = nlohmann::json::array();
         if (!config.entries.empty()) {
-            for (const auto& entry : config.entries) {
-                nlohmann::json agents_json = nlohmann::json::array();
-                for (const auto& [agent_name, agent_config] : entry.agents) {
-                    nlohmann::json agent_json;
-                    agent_json["context_window"] = agent_config.context_window;
-                    agent_json["enable_streaming"] = agent_config.enable_streaming;
-                    agent_json["max_tokens"] = agent_config.max_tokens;
-                    agent_json["model"] = agent_config.model;
-                    agent_json["temperature"] = agent_config.temperature;
-                    agent_json["thinking"] = agent_config.thinking;
-                    agents_json.push_back(agent_json);
+            for (size_t ei = 0; ei < config.entries.size(); ++ei) {
+                const auto& entry = config.entries[ei];
+                nlohmann::json models_json = nlohmann::json::array();
+                for (const auto& [model_name, model_config] : entry.models) {
+                    nlohmann::json model_json;
+                    model_json["context_window"] = model_config.context_window;
+                    model_json["enable_streaming"] = model_config.enable_streaming;
+                    model_json["max_tokens"] = model_config.max_tokens;
+                    model_json["model"] = model_config.model;
+                    model_json["temperature"] = model_config.temperature;
+                    // For llamacpp — include in-process model fields on first model
+                    if (name == "llamacpp" && ei == 0 && !llamacpp_models.empty()) {
+                        model_json["model_path"] = llamacpp_models[0].model_path;
+                        model_json["gpu_enable"] = llamacpp_models[0].gpu_enable;
+                        model_json["threads"] = llamacpp_models[0].threads;
+                        model_json["auto_start"] = llamacpp_models[0].auto_start;
+                        model_json["context_window"] = llamacpp_models[0].context_window;
+                        model_json["max_tokens"] = llamacpp_models[0].max_tokens;
+                        model_json["top_p"] = llamacpp_models[0].top_p;
+                    }
+                    models_json.push_back(model_json);
                 }
                 nlohmann::json entry_json;
-                entry_json["agents"] = agents_json;
+                entry_json["models"] = models_json;
                 entry_json["api_key"] = entry.api_key;
                 entry_json["base_url"] = entry.base_url;
                 entry_json["timeout"] = entry.timeout;
+                entry_json["thinking"] = entry.thinking;
                 entries_json.push_back(entry_json);
             }
         } else {
             // Fallback for entries that were never parsed (shouldn't happen)
-            nlohmann::json agents_json = nlohmann::json::array();
-            for (const auto& [agent_name, agent_config] : config.agents) {
-                nlohmann::json agent_json;
-                agent_json["context_window"] = agent_config.context_window;
-                agent_json["enable_streaming"] = agent_config.enable_streaming;
-                agent_json["max_tokens"] = agent_config.max_tokens;
-                agent_json["model"] = agent_config.model;
-                agent_json["temperature"] = agent_config.temperature;
-                agent_json["thinking"] = agent_config.thinking;
-                agents_json.push_back(agent_json);
+            nlohmann::json models_json = nlohmann::json::array();
+            for (const auto& [model_name, model_config] : config.model_configs) {
+                nlohmann::json model_json;
+                model_json["context_window"] = model_config.context_window;
+                model_json["enable_streaming"] = model_config.enable_streaming;
+                model_json["max_tokens"] = model_config.max_tokens;
+                model_json["model"] = model_config.model;
+                model_json["temperature"] = model_config.temperature;
+                model_json["thinking"] = model_config.thinking;
+                models_json.push_back(model_json);
             }
             nlohmann::json entry_json;
-            entry_json["agents"] = agents_json;
+            entry_json["models"] = models_json;
             entry_json["api_key"] = config.api_key;
             entry_json["base_url"] = config.base_url;
             entry_json["timeout"] = config.timeout;
             entries_json.push_back(entry_json);
         }
-        providers_json[name] = entries_json;
+        llm_providers_json[name] = entries_json;
     }
-    json["providers"] = providers_json;
+    json["llm_providers"] = llm_providers_json;
 
     // Serialize security
     nlohmann::json security_json = nlohmann::json::object();
@@ -773,18 +832,20 @@ nlohmann::json ProsophorConfig::ToJson() const {
     // Serialize TTS
     nlohmann::json tts_json = nlohmann::json::object();
     tts_json["enabled"] = tts.enabled;
-    tts_json["backend"] = tts.backend;
-    if (tts.backend == "gpt-sovits") {
-        tts_json["gs_url"] = tts.gs_url;
-        tts_json["gs_install_path"] = tts.gs_install_path;
-        tts_json["gs_auto_start"] = tts.gs_auto_start;
-        tts_json["gs_port"] = tts.gs_port;
-        tts_json["gs_ref_audio_path"] = tts.gs_ref_audio_path;
-        tts_json["gs_ref_audio_text"] = tts.gs_ref_audio_text;
-        tts_json["gs_ref_audio_lang"] = tts.gs_ref_audio_lang;
-        tts_json["gs_text_lang"] = tts.gs_text_lang;
-    }
+    nlohmann::json edge_tts_json = nlohmann::json::object();
+    edge_tts_json["backend"] = "edge-tts";
+    edge_tts_json["gs_url"] = tts.gs_url;
+    edge_tts_json["gs_auto_start"] = tts.gs_auto_start;
+
+    tts_json["provider"] = nlohmann::json::array({edge_tts_json});
     json["tts"] = tts_json;
+
+    nlohmann::json asr_json = nlohmann::json::object();
+    asr_json["enabled"] = asr.enabled;
+    asr_json["backend"] = asr.backend;
+    asr_json["script_path"] = asr.script_path;
+    asr_json["model_dir"] = asr.model_dir;
+    json["asr"] = asr_json;
 
     return json;
 }
