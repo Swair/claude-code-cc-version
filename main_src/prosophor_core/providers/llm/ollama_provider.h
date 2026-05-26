@@ -6,7 +6,7 @@
 #include <vector>
 #include <functional>
 
-#include "providers/llm_provider.h"
+#include "providers/llm/llm_provider.h"
 #include "config/config.h"
 
 namespace prosophor {

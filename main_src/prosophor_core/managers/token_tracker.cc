@@ -9,7 +9,7 @@
 
 #include "common/log_wrapper.h"
 #include "common/file_utils.h"
-#include "providers/llm_provider.h"
+#include "providers/llm/llm_provider.h"
 
 namespace prosophor {
 

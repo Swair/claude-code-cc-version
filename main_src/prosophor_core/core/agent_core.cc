@@ -142,14 +142,26 @@ ChatRequest AgentCore::BuildRequest(const AgentSession& session) {
     ChatRequest req;
 
     if (!session.GetRole()) { LOG_FATAL("session.GetRole() is null"); abort(); }
-    if (session.GetBaseUrl().empty()) { LOG_FATAL("session.GetBaseUrl() is empty"); abort(); }
-    bool _local = session.GetBaseUrl().find("localhost") != std::string::npos
-        || session.GetBaseUrl().find("127.0.0.1") != std::string::npos;
-    if (!_local && session.GetApiKey().empty()) { LOG_FATAL("session.GetApiKey() is empty"); abort(); }
-    if (session.GetTimeout() <= 0) {
-        LOG_WARN("session.GetTimeout() is invalid ({}), using default 60s", session.GetTimeout());
-        req.timeout = 60;
-    } else {
+
+    // In-process provider (llamacpp) — no base_url / api_key needed
+    const bool is_inprocess = (session.GetRole()->provider_prot == "local"
+                               || session.GetRole()->provider_prot == "llamacpp");
+    if (!is_inprocess) {
+        bool is_local_url = !session.GetBaseUrl().empty() && (
+            session.GetBaseUrl().find("localhost") != std::string::npos ||
+            session.GetBaseUrl().find("127.0.0.1") != std::string::npos);
+        if (session.GetBaseUrl().empty()) { LOG_FATAL("session.GetBaseUrl() is empty"); abort(); }
+        if (!is_local_url && session.GetApiKey().empty()) {
+            LOG_FATAL("session.GetApiKey() is empty"); abort();
+        }
+        if (session.GetTimeout() <= 0) {
+            LOG_WARN("session.GetTimeout() is invalid ({}), using default 60s", session.GetTimeout());
+            req.timeout = 60;
+        } else {
+            req.timeout = session.GetTimeout();
+        }
+    }
+    if (is_inprocess && session.GetTimeout() > 0) {
         req.timeout = session.GetTimeout();
     }
     req.model = session.GetRole()->model;

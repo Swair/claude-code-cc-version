@@ -6,11 +6,15 @@
   "personality_prompt": "你善于从宏观角度分析，关注系统设计的可扩展性、可维护性和权衡取舍。喜欢用图表和结构化方式表达。",
 
   "llm": {
-    "protocal": "openai",
+    "protocal": "local",
     "model": "google_gemma-4-E4B-it-Q4_K_M",
     "skills_white_list": ["system-design", "architecture-patterns", "tech-radar"],
     "tools_white_list": ["*"],
     "max_iterations": 15,
     "auto_confirm_tools": true
+  },
+  "tts": {
+    "provider": "edge-tts",
+    "voice": "zh-CN-XiaoyiNeural"
   }
 }

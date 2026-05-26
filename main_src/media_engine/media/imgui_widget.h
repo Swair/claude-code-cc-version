@@ -227,6 +227,13 @@ struct ImVec2Wrapper {
     ImVec2Wrapper(float _x = 0, float _y = 0) : x(_x), y(_y) {}
 };
 
+/// ID 栈操作
+class ID {
+public:
+    static void Push(const char* str_id);
+    static void Pop();
+};
+
 /// 鼠标光标类型常量（值匹配 ImGui 1.92.8）
 constexpr int ImGuiMouseCursor_None = -1;
 constexpr int ImGuiMouseCursor_Arrow = 0;
@@ -252,6 +259,7 @@ public:
     static void PushVar_ItemSpacing(float x, float y);
     static void PushVar_WindowBorderSize(float size);
     static void PushVar_ScrollbarSize(float size);
+    static void PushVar_FrameBorderSize(float size);
     static void PushVar_WindowPadding(float x, float y);
     static void PopVar(int count = 1);
 };
@@ -370,6 +378,8 @@ public:
     static bool Checkbox(const char* label, bool* value);
     static bool Combo(const char* label, int* current_item, const char* const items[], int items_count);
     static bool InputText(const char* label, char* buf, size_t buf_size);
+    static bool InputTextMultiline(const char* label, char* buf, size_t buf_size,
+                                    float width, float height, bool read_only = false);
     static bool InputInt(const char* label, int* value);
     static bool SliderFloat(const char* label, double* value, float min, float max, const char* fmt = "%.3f");
     static bool Button(const char* label, float width = 0.0f, float height = 0.0f);

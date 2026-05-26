@@ -9,7 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include "core/agent_session.h"
-#include "providers/llm_provider.h"
+#include "providers/llm/llm_provider.h"
 
 namespace prosophor {
 

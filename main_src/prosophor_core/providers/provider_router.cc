@@ -63,6 +63,24 @@ void ProviderRouter::Initialize(const ProsophorConfig& config) {
         default_provider_name_ = providers_.begin()->first;
         LOG_DEBUG("Using first available provider as default: {}", default_provider_name_);
     }
+
+    // Load local model (in-process llama.cpp) if configured
+    if (!config.llamacpp_models.empty()) {
+        try {
+            auto local = std::make_shared<LlamacppProvider>(config.llamacpp_models[0]);
+            if (config.llamacpp_models[0].auto_start) {
+                local->Load();
+            }
+            providers_["local"] = local;
+            if (!default_provider_) {
+                default_provider_ = local;
+                default_provider_name_ = "local";
+                LOG_DEBUG("Using local model as default provider");
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("Failed to initialize local model provider: {}", e.what());
+        }
+    }
 }
 
 std::shared_ptr<LLMProvider> ProviderRouter::GetProvider(const std::string& /*role_id*/) {

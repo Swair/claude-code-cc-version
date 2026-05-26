@@ -5,7 +5,7 @@
 #include <memory>
 #include <string>
 
-#include "providers/llm_provider.h"
+#include "providers/llm/llm_provider.h"
 
 namespace prosophor {
 

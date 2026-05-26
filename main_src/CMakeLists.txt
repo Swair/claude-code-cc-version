@@ -36,19 +36,42 @@ else()
 endif()
 FetchContent_MakeAvailable(nlohmann_json)
 
+
 # Required dependencies
 find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 
 # ============================================================================
-# prosophor_core: pure business logic, no UI/SDL dependency
-# Used by both TUI and SDL builds
+# common: shared foundation utilities
 # ============================================================================
-file(GLOB_RECURSE AGENT_ENGINE_SOURCES
-    ${CMAKE_CURRENT_LIST_DIR}/prosophor_core/*.cc
+file(GLOB_RECURSE COMMON_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/common/*.cc
 )
 
+add_library(prosophor_common STATIC
+    ${COMMON_SOURCES}
+)
+
+target_include_directories(prosophor_common
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
+target_compile_definitions(prosophor_common PUBLIC
+    NOMINMAX
+    _CRT_SECURE_NO_WARNINGS
+    PROSOPHOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+)
+
+target_link_libraries(prosophor_common
+    PUBLIC
+        spdlog::spdlog
+        nlohmann_json::nlohmann_json
+)
+
+# ============================================================================
+# platform: cross-platform OS abstraction
+# ============================================================================
 if(WIN32)
     set(PLATFORM_SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/platform/platform.cc
@@ -63,9 +86,39 @@ else()
     )
 endif()
 
-add_library(prosophor_core STATIC
-    ${AGENT_ENGINE_SOURCES}
+add_library(prosophor_platform STATIC
     ${PLATFORM_SOURCES}
+)
+
+target_include_directories(prosophor_platform
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
+
+target_compile_definitions(prosophor_platform PUBLIC
+    NOMINMAX
+    _CRT_SECURE_NO_WARNINGS
+)
+
+target_link_libraries(prosophor_platform
+    PUBLIC
+        prosophor_common
+)
+
+if(WIN32)
+    target_link_libraries(prosophor_platform PUBLIC ws2_32 bcrypt)
+endif()
+
+# ============================================================================
+# prosophor_core: pure business logic, no UI/SDL dependency
+# Used by both TUI and SDL builds
+# ============================================================================
+file(GLOB_RECURSE CORE_SOURCES_ALL
+    ${CMAKE_CURRENT_LIST_DIR}/prosophor_core/*.cc
+)
+
+add_library(prosophor_core STATIC
+    ${CORE_SOURCES_ALL}
 )
 
 target_include_directories(prosophor_core
@@ -83,6 +136,7 @@ target_compile_definitions(prosophor_core PUBLIC
 
 target_link_libraries(prosophor_core
     PUBLIC
+        prosophor_platform
         spdlog::spdlog
         nlohmann_json::nlohmann_json
     PRIVATE
@@ -90,6 +144,18 @@ target_link_libraries(prosophor_core
         OpenSSL::SSL
         OpenSSL::Crypto
 )
+
+if(PROSOPHOR_BUILD_LLAMA)
+    target_include_directories(prosophor_core
+        PUBLIC
+            SYSTEM ${CMAKE_SOURCE_DIR}/thirdparty_src/llamacpp-src/include
+            SYSTEM ${CMAKE_SOURCE_DIR}/thirdparty_src/llamacpp-src/common
+            SYSTEM ${CMAKE_SOURCE_DIR}/thirdparty_src/llamacpp-src/ggml/include
+    )
+    target_compile_definitions(prosophor_core PUBLIC PROSOPHOR_HAS_LOCAL_MODEL)
+    target_link_libraries(prosophor_core PUBLIC llama ggml)
+endif()
+
 
 if(WIN32)
     target_link_libraries(prosophor_core PUBLIC ws2_32 bcrypt)

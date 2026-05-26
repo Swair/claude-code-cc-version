@@ -9,7 +9,7 @@
         "api_key": "sk-sp-198786439e234d0abc2ffexxxxxxxx",
         "base_url": "https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages",
         "timeout": 60,
-        "agents": [
+        "models": [
            {
             "model": "qwen3.5-plus",
             "temperature": 0.7,
@@ -29,7 +29,7 @@
         "api_key": "sk-198786439e234d0abc2ffexxxxxxxx",
         "base_url": "https://api.deepseek.com/anthropic/v1/messages",
         "timeout": 60,
-        "agents": [
+        "models": [
           {
             "model": "deepseek-v4-pro",
             "temperature": 0.7,
@@ -52,7 +52,7 @@
         "api_key": "",
         "base_url": "http://localhost:11434/api/chat",
         "timeout": 180,
-        "agents": [
+        "models": [
           {
             "model": "qwen3:8b",
             "temperature": 0.7,
@@ -75,7 +75,7 @@
         "api_key": "sk-sp-MjA4LTIyMDcwMjA1MjEyLTE3Nzg5ODkzMDE2MDI=",
         "base_url": "https://api.scnet.cn/api/llm/v1/chat/completions",
         "timeout": 60,
-        "agents": [
+        "models": [
           {
             "model": "MiniMax-M2.5",
             "temperature": 0.7,
@@ -89,7 +89,7 @@
         "api_key": "sk-be7c5ed396474c3fa6841214cfxxxx",
         "base_url": "https://api.deepseek.com/chat/completions",
         "timeout": 60,
-        "agents": [
+        "models": [
           {
             "model": "deepseek-v4-pro",
             "temperature": 0.7,
@@ -110,7 +110,7 @@
         "api_key": "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "base_url": "https://api.openai.com/v1/chat/completions",
         "timeout": 60,
-        "agents": [
+        "models": [
           {
             "model": "gpt-4o",
             "temperature": 0.7,
@@ -120,44 +120,28 @@
           }
         ]
       },
-      {
-        "api_key": "",
-        "base_url": "http://localhost:8080/v1/chat/completions",
-        "timeout": 120,
-        "agents": [
-          {
-            "model": "google_gemma-4-E4B-it-Q4_K_M",
-            "temperature": 0.7,
-            "max_tokens": 8192,
-            "context_window": 32768,
-            "thinking": true
-          }
-        ]
-      }
     ]
   },
-  "local_models": [
+  "llamacpp_models": [
     {
-      "model_path": "../llama_cpp_model/google_gemma-4-E4B-it-Q4_K_M.gguf",
-      "model_path_for_win": "/e/ai_ws/llama_cpp_model/google_gemma-4-E4B-it-Q4_K_M.gguf",
-      "port": 8080,
-      "n_gpu_layers": 0,
-      "n_threads": 0,
-      "auto_start": false,
-      "start_timeout_ms": 150000
+      "model_path": "/e/ai_ws/llama_cpp_model/google_gemma-4-E4B-it-Q4_K_M.gguf",
+      "n_gpu_layers": -1,
+      "n_threads": 8,
+      "auto_start": true,
+      "n_ctx": 4096,
+      "max_new_tokens": 2048,
+      "temperature": 0.7,
+      "top_p": 0.95
     }
   ],
   "tts": {
-    "enabled": false,
-    "backend": "gpt-sovits",
-    "gs_url": "http://127.0.0.1:9880",
-    "gs_install_path": "E:/ai_ws/GPT-SoVITS-v3lora-20250228/GPT-SoVITS-v3lora-20250228",
-    "gs_auto_start": false,
-    "gs_port": 9880,
-    "gs_ref_audio_path": "",
-    "gs_ref_audio_text": "",
-    "gs_ref_audio_lang": "zh",
-    "gs_text_lang": "zh"
+    "enabled": true,
+    "provider": [
+      {
+        "backend": "edge-tts",
+        "auto_start": false
+      }
+    ]
   },
   "security": {
     "allow_local_execute": true,

@@ -27,6 +27,9 @@ struct AgentRole {
     std::string description;           // 角色描述
     std::string sprite_id;           // 指向 petdex-sprites 的精灵 id（SDL 模式用，TUI 忽略）
     std::string sprite_assets_dir;   // 精灵资源目录（非空时优先于 sprite_id 的 petdex 查找）
+    std::string tts_backend;
+    std::string tts_voice;
+    bool tts_auto_start = false;
 
     // === Provider 配置（角色可绑定专属 Provider）===
     std::string provider_prot;          // ""=使用全局默认，或指定"anthropic"/"ollama"/"deepseek"

@@ -140,7 +140,6 @@ private:
     CommandResult CmdPermissions(const CommandContext&, const std::vector<std::string>& args);
     CommandResult CmdHistory(const CommandContext&, const std::vector<std::string>& args);
     CommandResult CmdBye(const CommandContext&, const std::vector<std::string>& args);
-    CommandResult CmdServer(const CommandContext&, const std::vector<std::string>& args);
     CommandResult CmdSetup(const CommandContext&, const std::vector<std::string>& args);
     CommandResult CmdWorkspace(const CommandContext&, const std::vector<std::string>& args);
 

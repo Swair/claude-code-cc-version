@@ -15,7 +15,7 @@
 
 #include "core/agent_role.h"
 #include "core/messages_schema.h"
-#include "providers/llm_provider.h"
+#include "providers/llm/llm_provider.h"
 #include "providers/provider_router.h"
 #include "common/time_wrapper.h"
 #include "core/agent_types.h"
@@ -164,6 +164,11 @@ private:
 
     // ── 内部实现 ──────────────────────────────────────────
     std::optional<AgentRole> mutable_role_;
+
+    // ── Token/s 跟踪 ──────────────────────────────────────
+    size_t streaming_char_count_ = 0;
+    SteadyClock::TimePoint stream_start_time_;
+    float streaming_token_speed_ = 0.0f;
 };
 
 }  // namespace prosophor

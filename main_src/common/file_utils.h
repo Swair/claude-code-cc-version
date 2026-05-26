@@ -93,6 +93,16 @@ bool FileExists(const std::string& path);
 /// @return true if directory exists
 bool DirExists(const std::string& path);
 
+/// RemoveFile - Delete a file
+/// @param path File path
+/// @return true if file was deleted
+bool RemoveFile(const std::string& path);
+
+/// FileSize - Get file size in bytes
+/// @param path File path
+/// @return File size, or 0 if file doesn't exist or can't be read
+uintmax_t FileSize(const std::string& path);
+
 /// FindFileInDirs - Search base_dir + immediate subdirectories for a file
 /// @param base_dir Base directory
 /// @param filename File name to search for

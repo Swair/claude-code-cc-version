@@ -37,7 +37,8 @@ endif()
 include(FetchContent)
 
 ############################################# llama.cpp (optional) #####################################
-option(PROSOPHOR_BUILD_LLAMA "Build llama.cpp for local model inference (llama-server)" ON)
+option(PROSOPHOR_BUILD_LLAMA "Build llama.cpp for local model inference (in-process)" ON)
+option(PROSOPHOR_BUILD_LLAMA_CUDA "Build llama.cpp with CUDA GPU support" OFF)
 
 ############################################# Debug borders (optional) #####################################
 
@@ -50,7 +51,7 @@ if(PROSOPHOR_BUILD_LLAMA)
         FetchContent_Declare(
             llamacpp
             GIT_REPOSITORY https://github.com/ggml-org/llama.cpp.git
-            GIT_TAG master
+            GIT_TAG b4961
             GIT_SHALLOW TRUE
             GIT_SUBMODULES ""
             SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty_src/llamacpp-src
@@ -58,14 +59,25 @@ if(PROSOPHOR_BUILD_LLAMA)
     endif()
 
     set(LLAMA_BUILD_COMMON  ON  CACHE BOOL "" FORCE)
-    set(LLAMA_BUILD_TOOLS   ON  CACHE BOOL "" FORCE)
-    set(LLAMA_BUILD_SERVER  ON  CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_TOOLS   OFF CACHE BOOL "" FORCE)
+    set(LLAMA_BUILD_SERVER  OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 
+    if(PROSOPHOR_BUILD_LLAMA_CUDA)
+        find_package(CUDAToolkit)
+        if(CUDAToolkit_FOUND)
+            set(GGML_CUDA ON CACHE BOOL "" FORCE)
+            message(STATUS "llama.cpp: CUDA GPU support enabled")
+        else()
+            message(WARNING "CUDA Toolkit not found, falling back to CPU-only")
+        endif()
+    endif()
+
     FetchContent_MakeAvailable(llamacpp)
 endif()
+
 
 add_subdirectory(main_src)
 

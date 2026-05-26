@@ -109,6 +109,7 @@ class Sprite : public Noncopyable {
     // ── Core state ──
     std::string name_;
     std::string role_id_;
+    std::string effective_role_id_;
     int width_ = 280;
     int height_ = 380;
     std::string session_id_;
@@ -161,6 +162,10 @@ class Sprite : public Noncopyable {
 
     // ── Per-sprite UI ──
     std::unique_ptr<SpeechBubble> speech_bubble_;
+
+    // ── TTS dedup ──
+    std::string last_tts_text_;
+    bool tts_disabled_logged_ = false;
 };
 
 }  // namespace prosophor

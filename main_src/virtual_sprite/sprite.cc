@@ -11,6 +11,8 @@
 #include "agent_engine.h"
 #include "common/log_wrapper.h"
 #include "common/file_utils.h"
+#include "providers/tts/tts_speaker.h"
+#include "managers/agent_role_loader.h"
 #include "common/time_wrapper.h"
 #include <nlohmann/json.hpp>
 #include <cmath>
@@ -81,6 +83,7 @@ bool Sprite::Create() {
     auto& engine = AgentEngine::GetInstance();
     auto& default_roles = engine.GetConfig().default_role;
     std::string effective_role = role_id_.empty() ? (default_roles.empty() ? "default" : default_roles[0]) : role_id_;
+    effective_role_id_ = effective_role;
     session_id_ = engine.CreateSession(effective_role, "");
     LOG_INFO("[Sprite] Session '{}' created for '{}' (role='{}')", session_id_, name_, effective_role);
 
@@ -165,6 +168,51 @@ bool Sprite::Create() {
         auto snap = AgentEngine::GetInstance().GetSessionSnapshot(session_id_);
         speech_bubble_->SetSnapshot(snap ? *snap : RenderSnapshot{});
         speech_bubble_->SetOverrideSize(sprite_window_->GetWidth(), sprite_window_->GetHeight());
+
+        const bool reply_complete = snap && (snap->state == AgentRuntimeState::COMPLETE ||
+                                             snap->state == AgentRuntimeState::STREAM_MODE_COMPLETE);
+        std::string tts_text;
+        if (snap) {
+            tts_text = snap->streaming_text;
+            if (reply_complete && tts_text.empty()) {
+                for (auto it = snap->messages.rbegin(); it != snap->messages.rend(); ++it) {
+                    if (it->role == "assistant") {
+                        for (const auto& block : it->content) {
+                            if (block.type == "text") {
+                                tts_text += block.text;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        if (speech_bubble_->IsVisible() && reply_complete && !tts_text.empty() &&
+            tts_text != last_tts_text_) {
+            last_tts_text_ = tts_text;
+            const auto& config = AgentEngine::GetInstance().GetConfig();
+            if (config.tts.enabled) {
+                tts_disabled_logged_ = false;
+                std::string backend = config.tts.backend;
+                std::string voice = "zh-CN-XiaoxiaoNeural";  // default Edge-TTS voice
+                if (!effective_role_id_.empty()) {
+                    const auto role_path = (ProsophorConfig::BaseDir() / "roles" / (effective_role_id_ + ".json")).string();
+                    if (FileExists(role_path)) {
+                        const auto role = AgentRoleLoader::GetInstance().LoadRole(role_path);
+                        if (!role.tts_backend.empty()) backend = role.tts_backend;
+                        if (!role.tts_voice.empty()) voice = role.tts_voice;
+                    }
+                }
+                auto& tts = TtsSpeaker::GetInstance();
+                tts.ApplyVoiceProfile(backend, voice);
+                LOG_INFO("[Sprite] TTS trigger session='{}' role='{}' chars={} backend='{}' voice='{}'",
+                         session_id_, effective_role_id_, tts_text.size(), backend, voice);
+                tts.SpeakCached(effective_role_id_, tts_text);
+            } else if (!tts_disabled_logged_) {
+                LOG_INFO("[Sprite] TTS skipped session='{}': disabled", session_id_);
+                tts_disabled_logged_ = true;
+            }
+        }
 
         root_widget_.Render(media_engine::RenderContext{});
 
