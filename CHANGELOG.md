@@ -1,5 +1,113 @@
 # Changelog
 
+## [Unreleased] — 2026-05-26 进程内 llama.cpp + ASR 语音识别 + Provider 目录重组
+
+本期重点：引入进程内 llama.cpp C API 直接推理，彻底替代外部 llama-server 子进程架构；新增 ASR 语音识别子系统（SenseVoice 后端）；Provider 目录重组（LLM providers 移入 `providers/llm/`）；删除 GPT-SoVITS 相关代码；Config 全面重构（`AgentConfig` → `ModelConfig`，`providers` → `llm_providers`，`LocalModelConfig` → `LlamacppModelConfig`）；TTS Speaker 增强（语音缓存、分段队列、语音配置）；ChatWindow 移除 StartLLM/StopLLM 按钮；构建系统拆分为 `prosophor_common`/`prosophor_platform`/`prosophor_core` 三层；新增 Token/s 速率显示。净变化 +985 行。
+
+### 进程内 llama.cpp 推理
+- **删除外部 llama-server 架构**：移除 `LocalModelManager`、`LocalModelConfig`、`local_model_utils`、llama.cpp 启停脚本
+- **新增 `LlamacppProvider`**：通过 llama.cpp C API 直接加载 GGUF 模型进进程，零网络开销
+- **丰富推理参数**：`context_window`、`max_tokens`、`temperature`、`top_p`、`min_p`、`seed`、`flash_attn`、`offload_kqv`、`n_batch`/`n_ubatch`、`type_k`/`type_v` KV 缓存量化类型、GPU 开关、CPU 线程数
+- **ProviderRouter 自动加载**：初始化时检测 `llamacpp` provider 配置，`auto_start` 为 true 时自动 `Load()`，同时注册 `"local"` 别名
+- **`AgentCore::ValidateSession()`** 支持 `base_url == "local"` 进程内路由
+- **`/setup` 命令重写**：改为扫描 GGUF 文件并配置进程内模型，移除 `FindServerBinary` 逻辑
+- **`/server` 命令移除**：由进程内生命周期替代
+- 编译开关：`PROSOPHOR_BUILD_LLAMA=ON`, `PROSOPHOR_BUILD_LLAMA_CUDA=ON`
+
+### ASR 语音识别子系统
+- **`providers/asr/` 新目录**：提供统一的语音识别抽象
+- `AsrProvider` 抽象基类 — `Transcribe(audio_path)` 同步接口
+- `SenseVoiceAsrProvider` — Python 子进程调用 SenseVoice 模型
+- `AsrService` 单例门面 — 同步/异步转写，结果/错误回调
+- `AsrConfig` 配置：`enabled`、`backend`、`model_dir`、`script_path`、`language`、`n_threads`
+- 编译开关：`PROSOPHOR_BUILD_ASR=ON`
+
+### Provider 目录重组
+- `providers/anthropic_provider.*` → `providers/llm/anthropic_provider.*`
+- `providers/llm_provider.*` → `providers/llm/llm_provider.*`
+- `providers/openai_provider.*` → `providers/llm/openai_provider.*`
+- `providers/ollama_provider.*` → `providers/llm/ollama_provider.*`
+- `providers/detail/*` → `providers/llm/detail/*`
+- 所有 `#include` 路径同步更新，影响 20+ 文件
+
+### 删除 GPT-SoVITS
+- 删除 `providers/tts/gpt_sovits_provider.*`（206 + 63 行）
+- 删除 `managers/gpt_sovits_manager.*`（120 + 44 行）
+- TtsConfig 移除 `gs_url`、`gs_install_path`、`gs_auto_start`、`gs_port`、`gs_ref_audio_*`、`gs_text_lang`
+- TTS 后端可选值：`"edge-tts"` | `"gpt-sovits"` | `"sherpa-onnx"`
+
+### Config 全面重构
+- **`AgentConfig` → `ModelConfig`**：模型参数与 agent 行为分离
+- **`providers` → `llm_providers`**：明确语义（区别于 tts/asr 配置）
+- **`ProviderConfig::agents` → `model_configs`**，`ProviderEntryConfig::agents` → `models` + `thinking`
+- **`GetAgentConfig()` → `GetModelConfig()`**
+- **`LocalModelConfig` 删除** → 替换为 `LlamacppModelConfig`（集成在 `ProviderConfig` 中）
+- `LlamacppModelConfig`：`model_path`、`gpu_enable`、`threads`、`auto_start`、推理参数、KV 缓存量化、采样参数
+- `TtsConfig` 新增 `sherpa_model_dir`、`sherpa_speaker_id`、`sherpa_speed`
+- `AsrConfig` 新增
+- `settings.json` 同步更新：`providers` → `llm_providers`，`agents` → `models`，`thinking` 移至 entry 级别
+
+### TTS Speaker 增强
+- **`SpeakCached()`**：基于 role+backend+voice+text 的 MD5 缓存，相同文本直接回调缓存 WAV
+- **`ApplyVoiceProfile()`**：运行时切换后端+语音
+- **`SplitSentences()`**：标点分句，支持流式分段队列播放
+- **语音队列**：`speech_queue_` + `queue_running_` + `first_audio_chunk_pending_` 实现分段无间隙播放
+- **EdgeTTS WebM→WAV**：Edge TTS 输出 WebM/Opus，新增 ffmpeg 自动转码为 24kHz mono WAV
+- **EdgeTTS 文本文件传参**：改用 `-f` 文本文件替代 `-t` 命令行文本，解决 Windows cmd 编码问题
+- **Sprite TTS 集成**：回复完成后自动触发 `SpeakCached()`，从 role JSON 读取 `tts_backend`/`tts_voice`，重复文本去重
+
+### 构建系统拆分
+- `prosophor_common` 静态库：spdlog + nlohmann_json，零平台依赖
+- `prosophor_platform` 静态库：平台抽象层，依赖 `prosophor_common`
+- `prosophor_core` 依赖 `prosophor_platform`
+- 分层编译，加速增量构建
+- Makefile 版本升级 `0.6.3` → `0.7.1`
+
+### ChatWindow 重构
+- **移除 StartLLM/StopLLM 按钮**：由进程内 llama.cpp 加载替代
+- **移除 GPT-SoVITS 配置编辑面板**
+- **`config.providers` → `config.llm_providers`**，`agents` → `models` 同步
+- **`local_models` → `llamacpp_models`**
+- **新增 `RenderTokenSpeed()`**：流式响应时在聊天区域右下角显示实时 token/s
+
+### Token/s 速率追踪
+- `RenderSnapshot::streaming_token_speed` 新增字段
+- `AgentSession` 在 `STREAM_CONTENT_TYPING` 阶段追踪字符数并估算 token/s（~4 chars/token）
+- `STREAM_CONTENT_START` / `STREAM_THINKING_START` 重置计时器
+- 完成/错误时清零
+
+### 对话策略增强
+- **`DialogStrategy::CompactIfNeeded()`**：每轮请求前基于 `context_window - max_tokens` 估算 token 用量，超限时二分查找最优保留消息数
+- `AgentCore::Loop` 在 `BuildRequest` 前调用 `CompactIfNeeded`
+- `Preprocess` 增加空消息跳过保护
+
+### FileUtils 扩展
+- 新增 `RemoveFile()` — 删除文件
+- 新增 `FileSize()` — 获取文件字节数
+- 新增 `WriteFile()` — 写入文本文件
+
+### AudioStreamer 增强
+- 新增 `AudioStreamer::PlayWav()` — 静态方法，直接从 WAV 文件创建流式播放器
+
+### 角色配置更新
+- 默认角色改为 `["default", "ayaka", "sayu", "keqing"]`
+- ayaka、linnea-2、skirk-2 角色配置微调
+- settings.json 中 `thinking` 移至 entry 级别
+
+### 杂项
+- 色板新增 `MilkyWhite`、`CyanLight`、`PinkBlush`、`Pink`、`GoldLight`、`BlueLightSoft`
+- `ScopedStyleVar` RAII 辅助类新增 `WindowPadding`
+- `agent_role.h` 新增 `tts_backend`/`tts_voice` 字段
+- Docker 中测试通过
+
+### 文件统计
+- 变更文件：82 个
+- 新增：+2,713 行
+- 删除：-1,728 行
+- 净变化：+985 行
+
+---
+
 ## [Unreleased] — 2026-05-24 Platform API 重构 + 设置面板重写 + 聊天渲染优化
 
 本期重点：Platform API 从 `platform::` 命名空间重构为 `Platform::` 大驼峰类，删除 `pipe_handler.h` 将其功能合并至 Platform 类；设置面板全面重写（多标签页 + StartLLM/StopLLM 按钮 + 浅色主题）；聊天渲染优化（流式滚动长度追踪、thinking 合并显示、气泡过滤 thinking 块）；Config Provider 支持多 entry 数组持久化；角色模型切换至本地 gemma-4；i18n 翻译补充；Debug 构建恢复。净变化 +655 行。

@@ -573,7 +573,7 @@ ChatResponse LlamacppProvider::ChatStream(
                 thinking = false;
                 skip_end_marker_in_content = true;
                 pending.clear();
-                // Do NOT continue — fall through to llama_decode so the
+                // Do NOT continue â€” fall through to llama_decode so the
                 // end-marker token gets processed in the KV cache and
                 // the next sample produces real content, not a duplicate.
             }
