@@ -382,6 +382,10 @@ void Style::PushVar_FrameBorderSize(float size) {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, size);
 }
 
+void Style::PushVar_FramePadding(float x, float y) {
+    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(x, y));
+}
+
 void Style::PopVar(int count) {
     ImGui::PopStyleVar(count);
 }
@@ -424,6 +428,10 @@ void Layout::SetCursorPosX(float x) {
 
 void Layout::Dummy(float width, float height) {
     ImGui::Dummy(ImVec2(width, height));
+}
+
+float Layout::GetContentRegionAvailWidth() {
+    return ImGui::GetContentRegionAvail().x;
 }
 
 void Layout::GetCursorScreenPos(float* x, float* y) {

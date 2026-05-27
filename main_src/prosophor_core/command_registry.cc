@@ -28,6 +28,7 @@
 #include "common/constants.h"
 #include "common/file_utils.h"
 #include "agent_engine.h"
+#include "platform/platform.h"
 
 namespace prosophor {
 

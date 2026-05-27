@@ -11,6 +11,7 @@
 #include "common/file_utils.h"
 #include "common/log_wrapper.h"
 #include "common/constants.h"
+#include "platform/platform.h"
 
 namespace prosophor {
 
@@ -66,13 +67,7 @@ void PluginManager::Initialize(const std::string& plugins_dir) {
 }
 
 std::string PluginManager::ExpandHome(const std::string& path) const {
-    if (path.find("~") == 0) {
-        const char* home = getenv("HOME");
-        if (home) {
-            return std::string(home) + path.substr(1);
-        }
-    }
-    return path;
+    return prosophor::ExpandHome(path);
 }
 
 std::string PluginManager::FindPluginManifest(const std::string& plugin_dir) const {

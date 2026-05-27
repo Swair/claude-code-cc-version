@@ -188,6 +188,9 @@ public:
     static void SetCursorPosX(float x);
     static void SetCursorScreenPos(float x, float y);
     static void GetCursorScreenPos(float* x, float* y);
+    /// Get the available content region width in the current window/child.
+    /// Accounts for window padding and scrollbars. Returns 0 if not inside a window.
+    static float GetContentRegionAvailWidth();
 };
 
 /// 文本渲染
@@ -260,6 +263,7 @@ public:
     static void PushVar_WindowBorderSize(float size);
     static void PushVar_ScrollbarSize(float size);
     static void PushVar_FrameBorderSize(float size);
+    static void PushVar_FramePadding(float x, float y);
     static void PushVar_WindowPadding(float x, float y);
     static void PopVar(int count = 1);
 };
@@ -279,6 +283,9 @@ public:
     }
     static ScopedStyleVar ItemSpacing(float x, float y) {
         Style::PushVar_ItemSpacing(x, y); return ScopedStyleVar();
+    }
+    static ScopedStyleVar FramePadding(float x, float y) {
+        Style::PushVar_FramePadding(x, y); return ScopedStyleVar();
     }
     static ScopedStyleVar WindowPadding(float x, float y) {
         Style::PushVar_WindowPadding(x, y); return ScopedStyleVar();

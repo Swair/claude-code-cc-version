@@ -14,14 +14,14 @@ namespace prosophor {
 // Path Utilities
 // ============================================================================
 
+/// GetHomeDir - Get home directory path
+/// @return Home directory path
+std::string GetHomeDir();
+
 /// ExpandHome - Expand ~ to home directory
 /// @param path Input path (may start with ~/)
 /// @return Expanded path with ~ replaced by home directory
 std::string ExpandHome(const std::string& path);
-
-/// GetHomeDir - Get home directory path
-/// @return Home directory path
-std::string GetHomeDir();
 
 /// EnsureDirectory - Create directory if it doesn't exist
 /// @param path Directory path
@@ -71,6 +71,13 @@ bool WriteFile(const std::string& path, const std::string& content, bool append 
 /// @param indent Indentation (default: 2)
 /// @return true if write succeeded
 bool WriteJson(const std::string& path, const nlohmann::json& json, int indent = 2);
+
+/// WriteOrderedJson - Write ordered_json to file preserving key insertion order
+/// @param path File path
+/// @param json ordered_json object to write
+/// @param indent Indentation (default: 2)
+/// @return true if write succeeded
+bool WriteOrderedJson(const std::string& path, const nlohmann::ordered_json& json, int indent = 2);
 
 /// WriteJsonOrFail - Write JSON to file, throw on error
 /// @param path File path

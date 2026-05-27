@@ -12,5 +12,8 @@
     "tools_white_list": ["*"],
     "max_iterations": 15,
     "auto_confirm_tools": true
+  },
+  "tts": {
+    "voice": "zh-CN-YunjianNeural"
   }
 }

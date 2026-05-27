@@ -103,7 +103,7 @@
         "api_key": "local",
         "base_url": "local",
         "timeout": 60,
-        "thinking": true,
+        "thinking": false,
         "models": [
            {
             "model": "google_gemma-4-E4B-it-Q4_K_M.gguf",

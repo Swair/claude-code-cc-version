@@ -12,5 +12,8 @@
     "tools_white_list": ["*"],
     "max_iterations": 30,
     "auto_confirm_tools": true
+  },
+  "tts": {
+    "voice": "ja-JP-KeitaNeural"
   }
 }

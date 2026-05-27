@@ -122,4 +122,59 @@ bool Platform::WaitProcess(int pid) {
     }
     return true;
 }
+
+PipedProcess Platform::CreatePipedSubprocess(const std::string& command) {
+    PipedProcess result;
+
+    int stdin_pipe[2] = {-1, -1};
+    int stdout_pipe[2] = {-1, -1};
+
+    if (pipe(stdin_pipe) != 0 || pipe(stdout_pipe) != 0) {
+        LOG_ERROR("Failed to create pipes: {}", strerror(errno));
+        return result;
+    }
+
+    pid_t pid = fork();
+    if (pid == -1) {
+        LOG_ERROR("Failed to fork: {}", strerror(errno));
+        close(stdin_pipe[0]); close(stdin_pipe[1]);
+        close(stdout_pipe[0]); close(stdout_pipe[1]);
+        return result;
+    }
+
+    if (pid == 0) {
+        // Child: redirect stdin/stdout, let stderr pass through
+        close(stdin_pipe[1]);
+        close(stdout_pipe[0]);
+
+        dup2(stdin_pipe[0], STDIN_FILENO);
+        dup2(stdout_pipe[1], STDOUT_FILENO);
+        // stderr NOT redirected — visible to parent's stderr
+
+        close(stdin_pipe[0]);
+        close(stdout_pipe[1]);
+
+        execl("/bin/sh", "sh", "-c", command.c_str(), (char*)nullptr);
+        _exit(127);
+    }
+
+    // Parent: close child's ends
+    close(stdin_pipe[0]);
+    close(stdout_pipe[1]);
+
+    result.stdin_fd = stdin_pipe[1];
+    result.stdout_fd = stdout_pipe[0];
+    result.pid = static_cast<int>(pid);
+    return result;
+}
+
+int Platform::WaitProcessWithExitCode(int pid) {
+    int status;
+    if (waitpid(pid, &status, 0) == -1) {
+        LOG_ERROR("Failed to wait for process {}: {}", pid, strerror(errno));
+        return -1;
+    }
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    return -1;
+}
 }  // namespace prosophor

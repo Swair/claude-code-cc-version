@@ -92,6 +92,97 @@ build_win_sdl:
 	ninja install
 .PHONY: build_win_sdl
 
+# ==============================================================================
+# Windows 构建变体（独立目录，支持并行构建）
+# ==============================================================================
+# 变体说明：
+#   tui_fast    - 纯终端+仅远程API，最小体积（无 llama/ASR）
+#   tui         - 纯终端+本地模型
+#   sdl_fast    - 桌面宠物+仅远程API，快速编译
+#   sdl         - 桌面宠物+全功能（当前默认）
+# ==============================================================================
+
+BUILD_DIR_TUI_FAST ?= $(PROJECT_DIR)/build_win_tui_fast
+INSTALL_DIR_TUI_FAST ?= $(BUILD_DIR_TUI_FAST)/install
+
+BUILD_DIR_TUI_FULL ?= $(PROJECT_DIR)/build_win_tui
+INSTALL_DIR_TUI_FULL ?= $(BUILD_DIR_TUI_FULL)/install
+
+BUILD_DIR_SDL_FAST ?= $(PROJECT_DIR)/build_win_sdl_fast
+INSTALL_DIR_SDL_FAST ?= $(BUILD_DIR_SDL_FAST)/install
+
+BUILD_DIR_SDL_FULL ?= $(PROJECT_DIR)/build_win_sdl
+INSTALL_DIR_SDL_FULL ?= $(BUILD_DIR_SDL_FULL)/install
+
+define build_variant
+	mkdir -p $(1) && \
+	cd $(1) && \
+	$(CMAKE) $(CMAKE_ARGS_WIN) \
+		-DGGML_VULKAN=$(2) \
+		-DPROSOPHOR_BUILD_LLAMA=$(3) \
+		-DPROSOPHOR_BUILD_LLAMA_CUDA=$(4) \
+		-DPROSOPHOR_BUILD_ASR=$(5) \
+		-DPROSOPHOR_SDL_UI=$(6) .. && \
+	ninja -j$(NUM_JOB); \
+	ninja install
+endef
+
+# tui_fast: 纯终端 + 仅远程API，无本地模型
+build_win_tui_fast:
+	$(call build_variant,$(BUILD_DIR_TUI_FAST),OFF,OFF,OFF,OFF,OFF)
+.PHONY: build_win_tui_fast
+
+# tui: 纯终端 + 本地模型
+build_win_tui_full:
+	$(call build_variant,$(BUILD_DIR_TUI_FULL),ON,ON,ON,ON,OFF)
+.PHONY: build_win_tui_full
+
+# sdl_fast: 桌面宠物 + 仅远程API，无本地模型
+build_win_sdl_fast:
+	$(call build_variant,$(BUILD_DIR_SDL_FAST),ON,OFF,OFF,OFF,ON)
+.PHONY: build_win_sdl_fast
+
+# sdl: 桌面宠物 + 全功能（已存在，保持兼容）
+build_win_sdl_full:
+	$(call build_variant,$(BUILD_DIR_SDL_FULL),ON,ON,ON,ON,ON)
+.PHONY: build_win_sdl_full
+
+# ---- 运行变体 ----
+
+run_win_tui_fast:
+	cd $(INSTALL_DIR_TUI_FAST)/bin && SSL_CERT_FILE=ca-bundle.crt ./prosophor.exe
+.PHONY: run_win_tui_fast
+
+run_win_tui_full:
+	cd $(INSTALL_DIR_TUI_FULL)/bin && SSL_CERT_FILE=ca-bundle.crt ./prosophor.exe
+.PHONY: run_win_tui_full
+
+run_win_sdl_fast:
+	cd $(INSTALL_DIR_SDL_FAST)/bin && SSL_CERT_FILE=ca-bundle.crt ./prosophor.exe
+.PHONY: run_win_sdl_fast
+
+run_win_sdl_full:
+	cd $(INSTALL_DIR_SDL_FULL)/bin && SSL_CERT_FILE=ca-bundle.crt ./prosophor.exe
+.PHONY: run_win_sdl_full
+
+# ---- 清理变体 ----
+
+clean_win_tui_fast:
+	rm -rf $(BUILD_DIR_TUI_FAST)
+.PHONY: clean_win_tui_fast
+
+clean_win_tui_full:
+	rm -rf $(BUILD_DIR_TUI_FULL)
+.PHONY: clean_win_tui_full
+
+clean_win_sdl_fast:
+	rm -rf $(BUILD_DIR_SDL_FAST)
+.PHONY: clean_win_sdl_fast
+
+clean_win_sdl_full:
+	rm -rf $(BUILD_DIR_SDL_FULL)
+.PHONY: clean_win_sdl_full
+
 tests:
 	@echo "Running all tests in $(BUILD_DIR_WIN)/unitests..."
 	@for test in $(INSTALL_DIR)/bin/unitests/*_test; do \
@@ -121,19 +212,54 @@ PACKAGE_DIR ?= $(PROJECT_DIR)/tools/packaging
 
 package: build_win_sdl
 	cp /e/devtool/msys64/mingw64/etc/ssl/certs/ca-bundle.crt $(INSTALL_DIR_WIN)/bin/
-	cd $(PACKAGE_DIR) && "$(NSIS)" -DPRODUCT_VERSION=$(PACKAGE_VERSION) installer.nsi
+	cd $(PACKAGE_DIR) && "$(NSIS)" -DPRODUCT_VERSION=$(PACKAGE_VERSION) -DPROSOPHOR_HAS_LLAMA installer.nsi
 	mv $(PACKAGE_DIR)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe $(BUILD_DIR_WIN)/
 	@echo "=== Installer created: $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe ==="
 .PHONY: package
 
-# 构建+NSIS 安装包+发布到 GitHub Releases（需要先 git tag）
-deploy: package
-	@echo "Creating GitHub release v$(PACKAGE_VERSION)..."
+# ---- 构建变体打包 ----
+
+define do_package
+	cp /e/devtool/msys64/mingw64/etc/ssl/certs/ca-bundle.crt $(1)/bin/
+	cd $(PACKAGE_DIR) && "$(NSIS)" \
+		-DPRODUCT_VERSION=$(PACKAGE_VERSION) \
+		-DBIN_DIR="$(strip $(1))\bin" \
+		$(2) \
+		installer.nsi
+	mv $(PACKAGE_DIR)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe $(1)/
+	@echo "=== Installer created: $(1)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe ==="
+endef
+
+package_sdl_full: build_win_sdl_full
+	$(call do_package,$(INSTALL_DIR_SDL_FULL),-DPROSOPHOR_HAS_LLAMA)
+	@echo "Variant: sdl_full (full feature)"
+.PHONY: package_sdl_full
+
+package_sdl_fast: build_win_sdl_fast
+	$(call do_package,$(INSTALL_DIR_SDL_FAST),)
+	@echo "Variant: sdl_fast (no local LLM)"
+.PHONY: package_sdl_fast
+
+# ---- 部署（构建+打包+GitHub Release） ----
+
+define do_deploy
 	gh release create v$(PACKAGE_VERSION) \
-	  $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe \
-	  --title "v$(PACKAGE_VERSION)" \
+	  $(1)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe \
+	  --title "v$(PACKAGE_VERSION) ($(2))" \
 	  --generate-notes
+endef
+
+deploy: package
+	$(call do_deploy,$(BUILD_DIR_WIN),full)
 .PHONY: deploy
+
+deploy_sdl_full: package_sdl_full
+	$(call do_deploy,$(INSTALL_DIR_SDL_FULL),sdl_full)
+.PHONY: deploy_sdl_full
+
+deploy_sdl_fast: package_sdl_fast
+	$(call do_deploy,$(INSTALL_DIR_SDL_FAST),sdl_fast)
+.PHONY: deploy_sdl_fast
 
 GITEE_API ?= https://gitee.com/api/v5
 GITEE_OWNER ?= swair
@@ -147,14 +273,31 @@ GITEE_RELEASE_BODY ?= Release v$(PACKAGE_VERSION)
 deploy_gitee: package upload_gitee
 .PHONY: deploy_gitee
 
+deploy_gitee_sdl_full: package_sdl_full upload_gitee_sdl_full
+.PHONY: deploy_gitee_sdl_full
+
+deploy_gitee_sdl_fast: package_sdl_fast upload_gitee_sdl_fast
+.PHONY: deploy_gitee_sdl_fast
+
 # 仅发布已有安装包到 Gitee，避免 deploy_gitee 失败后重新打包
 upload_gitee:
+	$(call do_upload_gitee,$(BUILD_DIR_WIN))
+.PHONY: upload_gitee
+
+upload_gitee_sdl_full:
+	$(call do_upload_gitee,$(INSTALL_DIR_SDL_FULL))
+.PHONY: upload_gitee_sdl_full
+
+upload_gitee_sdl_fast:
+	$(call do_upload_gitee,$(INSTALL_DIR_SDL_FAST))
+
+define do_upload_gitee
 	@if [ -z "$(GITEE_TOKEN)" ]; then \
 	  echo "GITEE_TOKEN is required. Example: make upload_gitee GITEE_TOKEN=xxxxx"; \
 	  exit 1; \
 	fi
-	@if [ ! -f "$(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe" ]; then \
-	  echo "Installer not found: $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe"; \
+	@if [ ! -f "$(1)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe" ]; then \
+	  echo "Installer not found: $(1)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe"; \
 	  exit 1; \
 	fi
 	@echo "Creating Gitee release v$(PACKAGE_VERSION)..."
@@ -169,7 +312,7 @@ upload_gitee:
 	  printf '%s' "$$response" | PYTHONIOENCODING=utf-8 python -c "import json,sys; data=json.load(sys.stdin); print('Failed to create Gitee release: ' + str(data.get('message') or data.get('error') or data))"; \
 	  exit 1; \
 	fi; \
-	installer="$(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe"; \
+	installer="$(1)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe"; \
 	installer_size=$$(wc -c < "$$installer"); \
 	if [ "$$installer_size" -gt "$(GITEE_MAX_ASSET_BYTES)" ]; then \
 	  echo "Gitee release created: v$(PACKAGE_VERSION)"; \
@@ -186,17 +329,20 @@ upload_gitee:
 	  exit 1; \
 	fi; \
 	echo "Gitee release and asset created: v$(PACKAGE_VERSION)"
-.PHONY: upload_gitee
+endef
 
 # 构建+NSIS 安装包+同时发布到 GitHub 和 Gitee
 deploy_all: deploy deploy_gitee
 .PHONY: deploy_all
+
+deploy_all_sdl_full: deploy_sdl_full deploy_gitee_sdl_full
+.PHONY: deploy_all_sdl_full
+
+deploy_all_sdl_fast: deploy_sdl_fast deploy_gitee_sdl_fast
+.PHONY: deploy_all_sdl_fast
 
 # 运行所有单元测试 (执行 bin/tests 目录下所有测试程序)
 .PHONY: run_win_tests
 run_win_tests:
 	@echo "Running all tests in $(INSTALL_DIR_WIN)/bin/tests..."
 	@for test in $(INSTALL_DIR_WIN)/bin/tests/*.exe; do echo "Running $$(basename $$test)..."; $$test || exit 1; done
-
-
-

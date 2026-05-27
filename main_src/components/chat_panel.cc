@@ -113,27 +113,41 @@ void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {
             if (b.type == "thinking") { has_thinking = true; break; }
         }
         if (has_thinking) {
-            // Combine thinking + text into one entry with the original role label
-            std::string combined;
+            std::string combined_thinking, combined_text;
             for (const auto& b : msg.content) {
-                if (b.type == "thinking") {
-                    combined += "【thinking】\n" + b.text + "\n\n";
-                } else if (b.type == "text") {
-                    combined += b.text;
-                }
+                if (b.type == "thinking") combined_thinking = b.text;
+                else if (b.type == "text") combined_text = b.text;
             }
-            RenderMessage(msg.role, combined, index++);
+            std::string combined;
+            if (!combined_thinking.empty())
+                combined = "【thinking】\n" + combined_thinking;
+            if (!combined_text.empty()) {
+                if (!combined.empty()) combined += "\n\n";
+                combined += combined_text;
+            }
+            if (!combined.empty())
+                RenderMessage("assistant", combined, index++);
         } else {
             RenderMessage(msg.role, msg.text(), index++);
         }
     }
-    if (!snapshot.streaming_thinking.empty() &&
-        (role_filter_.empty() || role_filter_ == "thinking")) {
-        RenderMessage("thinking", snapshot.streaming_thinking, index++);
-    }
-    if (!snapshot.streaming_text.empty() &&
+    // Streaming entries: during thinking→content transition, combine into
+    // a single assistant entry matching the final post-completion structure,
+    // so the display doesn't jump from two entries to one.
+    if (!snapshot.streaming_thinking.empty() && !snapshot.streaming_text.empty() &&
         (role_filter_.empty() || role_filter_ == "assistant")) {
-        RenderMessage("assistant", snapshot.streaming_text, index);
+        std::string combined = "【thinking】\n" + snapshot.streaming_thinking
+                             + "\n\n" + snapshot.streaming_text;
+        RenderMessage("assistant", combined, index++);
+    } else {
+        if (!snapshot.streaming_thinking.empty() &&
+            (role_filter_.empty() || role_filter_ == "thinking")) {
+            RenderMessage("thinking", snapshot.streaming_thinking, index++);
+        }
+        if (!snapshot.streaming_text.empty() &&
+            (role_filter_.empty() || role_filter_ == "assistant")) {
+            RenderMessage("assistant", snapshot.streaming_text, index);
+        }
     }
 }
 
@@ -151,10 +165,15 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
         };
     }
 
+    // Use content region width (accounts for child window padding + scrollbar)
+    // with zeroed FramePadding so the text area = content_region_width,
+    // matching CalcWrappedHeight exactly.
+    float content_w = media_engine::Layout::GetContentRegionAvailWidth();
+    if (content_w < 50.0f) content_w = 50.0f;  // guard against degenerate layout
+
     // Measure exact message height for background rect
-    float msg_w = scroll_window_->GetWidth();
     float label_h = hide_role_labels_ ? 0 : 20.0f;
-    float text_h = media_engine::Text::CalcWrappedHeight(content.c_str(), msg_w) + 4.0f;
+    float text_h = media_engine::Text::CalcWrappedHeight(content.c_str(), content_w) + 4.0f;
     float total_h = (index > 0 ? 4.0f : 0) + label_h + text_h + 8.0f;
 
     // Choose background color by role
@@ -167,7 +186,7 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
 
     float start_x, start_y;
     media_engine::Layout::GetCursorScreenPos(&start_x, &start_y);
-    media_engine::DrawList::RoundRect(start_x, start_y - 2.0f, msg_w, total_h, 6.0f, bg_color);
+    media_engine::DrawList::RoundRect(start_x, start_y - 2.0f, scroll_window_->GetWidth(), total_h, 6.0f, bg_color);
 
     // Light theme (cream background):
     //   user     → black (text) / dark gray (label)
@@ -203,9 +222,11 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
     // Use read-only multiline input for mouse-selectable text
     std::vector<char> text_buf(content.begin(), content.end());
     text_buf.push_back('\0');
-    float input_w = scroll_window_->GetWidth() - 2.0f;
+    float input_w = content_w;
     std::string input_id = "##txt" + std::to_string(index);
     media_engine::Style::PushColor(media_engine::Color::Slot::Text, text_color);
+    // Zero FramePadding so text area = widget width, matching CalcWrappedHeight
+    auto _fp = media_engine::ScopedStyleVar::FramePadding(0, 0);
     media_engine::ImGuiWidget::InputTextMultiline(
         input_id.c_str(), text_buf.data(), text_buf.size(), input_w, text_h, true);
     media_engine::Style::PopColor();

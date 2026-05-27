@@ -1,5 +1,83 @@
 # Changelog
 
+## [Unreleased] — 2026-05-27 EdgeTTS 直接 HTTP 协议重写 + Config ordered_json 重构 + 多构建变体
+
+本期重点：EdgeTTS provider 从 Python 子进程调用完全重写为直接 HTTP 协议实现（curl + DRM token + Opus→PCM 流式）；Config 序列化全面迁移至 `ordered_json` 以保证字段顺序确定性；Platform 新增管道子进程支持（`CreatePipedSubprocess`）；构建系统新增 4 种并行构建变体；角色配置绑定 TTS 语音。净变化 +890 行。
+
+### EdgeTTS 直接 HTTP 协议重写
+- **移除 Python edge-tts 子进程依赖**：改为直接通过 curl 实现 Microsoft Edge TTS HTTP 协议
+- **新增 DRM 认证**：SHA256 GEC token 生成、UUID 生成、MUID (Machine Unique ID) 防滥用识别
+- **SSML 构建**：直接构建 XML SSML 请求体发送至 `speech.platform.bing.com`
+- **流式合成支持**：`SupportsStreaming()` 返回 `true`，通过 Opus→PCM 实时转码流式输出
+- **WebM/WAV 转码**：ffmpeg 自动将 Edge 输出的 WebM/Opus 转为 24kHz mono WAV
+- **opus 库集成**：CMake FetchContent 引入 opus v1.5.2，直接链接 libopus 做 Opus 解码
+- **PIMPL 实现**：`EdgeTtsProvider` 使用 `Impl` 结构体隐藏实现细节
+
+### Config 序列化重构
+- **`ordered_json` 全线迁移**：`ProsophorConfig::ToJson()` / `LlamacppModelConfig::ToJson()` 返回类型改为 `nlohmann::ordered_json`，配置文件输出保持字段定义顺序
+- **LlamacppModelConfig 精简**：移除 `port`、`server_path`、`start_timeout_ms` 序列化；始终输出所有推理参数字段（不再条件性省略）
+- **TTS 序列化简化**：移除 `gs_url` 等废弃字段
+- **移除 `tools`/`asr` 配置段输出**：当前版本有意不序列化这两段
+- **`ExpandHome()` 迁移**：从 `ProsophorConfig::ExpandHome()` 静态方法移除，改为 `file_utils` 空间函数
+- **`SaveToFile()` 改用 `WriteOrderedJson()`**：确保保存的 settings.json 字段顺序可控
+- `RoleConfigManager::SaveModel()` 改为 `ordered_json` 解析 + `WriteOrderedJson()` 写入
+
+### FileUtils 增强与解耦
+- `GetHomeDir()` 从 `Platform::HomeDir()` 委托改为独立函数，移除 `platform.h` include 依赖
+- 新增 `WriteOrderedJson()` — 写入 `ordered_json` 到文件
+
+### Platform 管道子进程
+- 新增 `PipedProcess` 结构体（`stdin_fd` / `stdout_fd` / `pid`）
+- `CreatePipedSubprocess()`：创建子进程并返回可读写 stdin/stdout 的 fd，stderr 透传
+- `WaitProcessWithExitCode()`：等待进程退出并返回退出码
+- POSIX 实现：`fork()` + `pipe()` + `dup2()` + `exec()`
+- Win32 实现：`CreateProcess()` + `CreatePipe()` + `SetHandleInformation()` + `_open_osfhandle()`
+
+### 角色配置 TTS 语音绑定
+- 10 个角色 JSON 新增 `tts.voice` 字段：
+  - architect → `zh-CN-YunjianNeural`（云健）
+  - coder → `zh-CN-YunxiNeural`（云希）
+  - default / keqing / teacher → `zh-CN-XiaoxiaoNeural`（晓晓）
+  - ayaka / sayu → `ja-JP-NanamiNeural`（七海）
+  - kazuha → `ja-JP-KeitaNeural`（圭太）
+  - linnea-2 → `zh-CN-XiaoyiNeural`（晓伊）
+  - skirk-2 → `zh-CN-XiaomoNeural`（晓墨）
+  - reviewer → `zh-CN-YunxiNeural`（云希）
+
+### ChatPanel 渲染优化
+- **thinking+text 合并逻辑重构**：先分别收集 thinking/text 再合并，仅在有内容时输出消息条目
+- **流式合并渲染**：thinking→content 过渡阶段合并为单条 assistant 条目，避免显示跳变
+- **精确换行宽度计算**：改用 `GetContentRegionAvailWidth()` 代替 `scroll_window_->GetWidth()`，准确匹配子窗口内边距与滚动条占位
+
+### ImGui Widget 扩展
+- 新增 `Layout::GetContentRegionAvailWidth()` — 获取当前窗口可用内容区宽度
+- 新增 `Style::PushVar_FramePadding()` / `ScopedStyleVar::FramePadding()` — FramePadding 样式变量
+
+### TTS Speaker
+- 新增 `SanitizeText()`：过滤 Markdown 格式字符（`*` `` ` ` ` ~ ` ` \ ` ` | ` ` # ``），优化朗读体验
+
+### 构建系统多变体支持
+- Makefile 新增 4 种并行构建变体模板：
+  - `build_win_tui_fast` — 纯终端 + 仅远程 API，无本地模型
+  - `build_win_tui_full` — 纯终端 + 全功能（llama/ASR）
+  - `build_win_sdl_fast` — 桌面宠物 + 仅远程 API，快速编译
+  - `build_win_sdl_full` — 桌面宠物 + 全功能（原 `build_win_sdl`）
+- 新增 `build_variant` 模板函数，各变体独立控制 Vulkan/llama/ASR/SDL 开关
+
+### 杂项
+- `active_trigger_manager.cc` / `plugin_manager.cc`：内联 `ExpandHome` 改为统一调用 `prosophor::ExpandHome()`
+- `llm_provider.h`：`AddThinking()`/`AddText()` 移除多余换行拼接
+- `settings.json`：本地模型 provider entry 的 `thinking` 从 `true` → `false`
+- CMakeLists.txt：引入 opus 库依赖
+
+### 文件统计
+- 变更文件：36 个
+- 新增：+1,137 行
+- 删除：-247 行
+- 净变化：+890 行
+
+---
+
 ## [Unreleased] — 2026-05-26 进程内 llama.cpp + ASR 语音识别 + Provider 目录重组
 
 本期重点：引入进程内 llama.cpp C API 直接推理，彻底替代外部 llama-server 子进程架构；新增 ASR 语音识别子系统（SenseVoice 后端）；Provider 目录重组（LLM providers 移入 `providers/llm/`）；删除 GPT-SoVITS 相关代码；Config 全面重构（`AgentConfig` → `ModelConfig`，`providers` → `llm_providers`，`LocalModelConfig` → `LlamacppModelConfig`）；TTS Speaker 增强（语音缓存、分段队列、语音配置）；ChatWindow 移除 StartLLM/StopLLM 按钮；构建系统拆分为 `prosophor_common`/`prosophor_platform`/`prosophor_core` 三层；新增 Token/s 速率显示。净变化 +985 行。

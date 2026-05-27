@@ -115,11 +115,9 @@ struct ChatResponse {
 
     // Convenience methods
     void AddThinking(std::string text) {
-        if (!content_thinking.empty()) content_thinking += "\n";
         content_thinking += std::move(text);
     }
     void AddText(std::string text) {
-        if (!content_text.empty()) content_text += "\n";
         content_text += std::move(text);
     }
 

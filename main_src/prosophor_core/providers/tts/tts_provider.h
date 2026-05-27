@@ -14,7 +14,7 @@ namespace prosophor {
 /// Abstract base class for TTS backends
 class TtsProvider : public Noncopyable {
  public:
-    ~TtsProvider() = default;
+    virtual ~TtsProvider() = default;
 
     virtual std::string GetProviderName() const = 0;
 

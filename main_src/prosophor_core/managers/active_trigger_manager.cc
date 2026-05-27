@@ -68,14 +68,7 @@ void ActiveTriggerManager::SetSessionManager(AgentSessionManager* session_manage
 }
 
 std::string ActiveTriggerManager::ExpandHome(const std::string& path) {
-    if (path.find("~") == 0) {
-        const char* home = getenv("USERPROFILE");
-        if (!home) home = getenv("HOME");
-        if (home) {
-            return std::string(home) + path.substr(1);
-        }
-    }
-    return path;
+    return prosophor::ExpandHome(path);
 }
 
 void ActiveTriggerManager::ScanAndLoadPlugins() {

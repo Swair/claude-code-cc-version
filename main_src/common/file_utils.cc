@@ -9,13 +9,18 @@
 #include <system_error>
 
 #include "common/log_wrapper.h"
-#include "platform/platform.h"
 
 namespace prosophor {
 
 // ============================================================================
 // Path Utilities
 // ============================================================================
+
+std::string GetHomeDir() {
+    const char* home = std::getenv("HOME");
+    if (!home) home = std::getenv("USERPROFILE");
+    return home ? std::string(home) : "";
+}
 
 std::string ExpandHome(const std::string& path) {
     std::string expanded = path;
@@ -26,10 +31,6 @@ std::string ExpandHome(const std::string& path) {
         }
     }
     return expanded;
-}
-
-std::string GetHomeDir() {
-    return Platform::HomeDir();
 }
 
 bool EnsureDirectory(const std::string& path) {
@@ -108,6 +109,11 @@ bool WriteJson(const std::string& path, const nlohmann::json& json, int indent) 
     }
     file << json.dump(indent);
     return file.good();
+}
+
+bool WriteOrderedJson(const std::string& path, const nlohmann::ordered_json& json, int indent) {
+    std::string content = json.dump(indent);
+    return WriteFile(path, content);
 }
 
 void WriteJsonOrFail(const std::string& path, const nlohmann::json& json, int indent) {

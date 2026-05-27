@@ -152,4 +152,72 @@ bool Platform::WaitProcess(int pid) {
 
     return ret == WAIT_OBJECT_0;
 }
+
+PipedProcess Platform::CreatePipedSubprocess(const std::string& command) {
+    PipedProcess result;
+
+    SECURITY_ATTRIBUTES sa = { sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE };
+    HANDLE stdin_read = nullptr, stdin_write = nullptr;
+    HANDLE stdout_read = nullptr, stdout_write = nullptr;
+
+    if (!::CreatePipe(&stdin_read, &stdin_write, &sa, 0)) {
+        LOG_ERROR("Failed to create stdin pipe: {}", GetLastError());
+        return result;
+    }
+    if (!::CreatePipe(&stdout_read, &stdout_write, &sa, 0)) {
+        LOG_ERROR("Failed to create stdout pipe: {}", GetLastError());
+        CloseHandle(stdin_read); CloseHandle(stdin_write);
+        return result;
+    }
+
+    // Parent ends must NOT be inherited by the child
+    SetHandleInformation(stdin_write, HANDLE_FLAG_INHERIT, 0);
+    SetHandleInformation(stdout_read, HANDLE_FLAG_INHERIT, 0);
+
+    STARTUPINFOA si = {};
+    si.cb = sizeof(si);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = stdin_read;
+    si.hStdOutput = stdout_write;
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);  // stderr → parent's stderr
+
+    PROCESS_INFORMATION pi = {};
+    if (!CreateProcessA(nullptr, const_cast<char*>(command.c_str()),
+                        nullptr, nullptr, TRUE, CREATE_NO_WINDOW,
+                        nullptr, nullptr, &si, &pi)) {
+        LOG_ERROR("Failed to create process: {}", GetLastError());
+        CloseHandle(stdin_read); CloseHandle(stdin_write);
+        CloseHandle(stdout_read); CloseHandle(stdout_write);
+        return result;
+    }
+
+    // Close child's ends in parent
+    CloseHandle(stdin_read);
+    CloseHandle(stdout_write);
+    CloseHandle(pi.hThread);
+
+    result.stdin_fd = _open_osfhandle(reinterpret_cast<intptr_t>(stdin_write), _O_WRONLY);
+    result.stdout_fd = _open_osfhandle(reinterpret_cast<intptr_t>(stdout_read), _O_RDONLY);
+    result.pid = static_cast<int>(pi.dwProcessId);
+    CloseHandle(pi.hProcess);
+
+    LOG_DEBUG("Created piped process {} (stdin_fd={}, stdout_fd={})",
+              result.pid, result.stdin_fd, result.stdout_fd);
+    return result;
+}
+
+int Platform::WaitProcessWithExitCode(int pid) {
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | SYNCHRONIZE,
+                                  FALSE, static_cast<DWORD>(pid));
+    if (!hProcess) {
+        LOG_ERROR("Failed to open process {}: {}", pid, GetLastError());
+        return -1;
+    }
+
+    WaitForSingleObject(hProcess, INFINITE);
+    DWORD exit_code = 0;
+    GetExitCodeProcess(hProcess, &exit_code);
+    CloseHandle(hProcess);
+    return static_cast<int>(exit_code);
+}
 }  // namespace prosophor

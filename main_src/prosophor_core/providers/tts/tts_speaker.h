@@ -73,6 +73,9 @@ class TtsSpeaker : public Noncopyable {
     /// Split text into short segments (by punctuation, min chars per segment)
     static std::vector<std::string> SplitSentences(const std::string& text, size_t min_chars);
 
+    /// Strip markdown formatting characters that would be read aloud as punctuation
+    static std::string SanitizeText(const std::string& text);
+
     /// Internal streaming callbacks (forwarded from provider → external)
     void OnStreamStarted(int sample_rate, int channels);
     void OnAudioChunk(const uint8_t* data, size_t len);

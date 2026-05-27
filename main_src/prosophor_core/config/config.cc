@@ -4,6 +4,7 @@
 #include "config/config.h"
 
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <regex>
@@ -352,28 +353,24 @@ LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
     return config;
 }
 
-nlohmann::json LlamacppModelConfig::ToJson() const {
-    nlohmann::json j;
+nlohmann::ordered_json LlamacppModelConfig::ToJson() const {
+    nlohmann::ordered_json j;
     j["model_path"] = model_path;
-    j["port"] = port;
     j["gpu_enable"] = gpu_enable;
     j["threads"] = threads;
     j["auto_start"] = auto_start;
-    if (start_timeout_ms != 60000) j["start_timeout_ms"] = start_timeout_ms;
-    if (!server_path.empty()) j["server_path"] = server_path;
-	    j["context_window"]  = context_window;
-    j["max_tokens"]  = max_tokens;
-    j["temperature"]     = temperature;
-    j["top_p"]           = top_p;
-    if (type_k != "q4_0") j["type_k"] = type_k;
-    if (type_v != "q4_0") j["type_v"] = type_v;
-    if (n_batch != 1024) j["n_batch"] = n_batch;
-    if (n_ubatch != 512) j["n_ubatch"] = n_ubatch;
-    if (n_threads_batch != 0) j["n_threads_batch"] = n_threads_batch;
-    if (!offload_kqv) j["offload_kqv"] = false;
-    if (!flash_attn) j["flash_attn"] = false;
-    if (min_p != 0.05f) j["min_p"] = min_p;
-    if (seed != -1) j["seed"] = seed;
+    j["context_window"] = context_window;
+    j["max_tokens"] = max_tokens;
+    j["temperature"] = temperature;
+    j["top_p"] = top_p;
+    j["type_k"] = type_k;
+    j["type_v"] = type_v;
+    j["n_batch"] = n_batch;
+    j["n_ubatch"] = n_ubatch;
+    j["offload_kqv"] = offload_kqv;
+    j["flash_attn"] = flash_attn;
+    j["min_p"] = min_p;
+    j["seed"] = seed;
     return j;
 }
 
@@ -565,17 +562,6 @@ ProsophorConfig ProsophorConfig::LoadFromFile(const std::string& filepath) {
     return FromJson(json);
 }
 
-std::string ProsophorConfig::ExpandHome(const std::string& path) {
-    std::string expanded = path;
-    if (expanded.size() >= 2 && expanded.substr(0, 2) == "~/") {
-        std::string home = GetHomeDir();
-        if (!home.empty()) {
-            expanded = home + expanded.substr(1);
-        }
-    }
-    return expanded;
-}
-
 std::string ProsophorConfig::DefaultConfigPath() {
     if (!config_path_override_.empty()) {
         return config_path_override_;
@@ -744,115 +730,112 @@ int ModelConfig::DynamicMaxIterations() const {
 
 // ==================== ProsophorConfig JSON Serialization ====================
 
-nlohmann::json ProsophorConfig::ToJson() const {
-    nlohmann::json json = nlohmann::json::object();
+nlohmann::ordered_json ProsophorConfig::ToJson() const {
+    nlohmann::ordered_json json;
 
-    json["default_role"] = default_role;  // nlohmann_json: vector → JSON array
-    json["enable_summary"] = enable_summary;
-
+    json["default_role"] = default_role;
     json["log_level"] = log_level;
+    json["enable_summary"] = enable_summary;
+    json["sprite_assets_dir"] = sprite_assets_dir;
 
-    // Serialize llm_providers (each provider name → array of entries)
-    nlohmann::json llm_providers_json = nlohmann::json::object();
-    for (const auto& [name, config] : llm_providers) {
-        nlohmann::json entries_json = nlohmann::json::array();
+    // Serialize llm_providers in fixed order: anthropic, ollama, openai, llamacpp
+    static const char* kProviderOrder[] = {"anthropic", "ollama", "openai", "llamacpp"};
+    nlohmann::ordered_json llm_providers_json;
+    for (const char* name : kProviderOrder) {
+        auto it = llm_providers.find(name);
+        if (it == llm_providers.end()) continue;
+        const auto& config = it->second;
+        nlohmann::ordered_json entries_json = nlohmann::ordered_json::array();
+
         if (!config.entries.empty()) {
             for (size_t ei = 0; ei < config.entries.size(); ++ei) {
                 const auto& entry = config.entries[ei];
-                nlohmann::json models_json = nlohmann::json::array();
+                nlohmann::ordered_json models_json = nlohmann::ordered_json::array();
                 for (const auto& [model_name, model_config] : entry.models) {
-                    nlohmann::json model_json;
-                    model_json["context_window"] = model_config.context_window;
-                    model_json["enable_streaming"] = model_config.enable_streaming;
-                    model_json["max_tokens"] = model_config.max_tokens;
-                    model_json["model"] = model_config.model;
-                    model_json["temperature"] = model_config.temperature;
-                    // For llamacpp — include in-process model fields on first model
-                    if (name == "llamacpp" && ei == 0 && !llamacpp_models.empty()) {
-                        model_json["model_path"] = llamacpp_models[0].model_path;
-                        model_json["gpu_enable"] = llamacpp_models[0].gpu_enable;
-                        model_json["threads"] = llamacpp_models[0].threads;
-                        model_json["auto_start"] = llamacpp_models[0].auto_start;
-                        model_json["context_window"] = llamacpp_models[0].context_window;
-                        model_json["max_tokens"] = llamacpp_models[0].max_tokens;
-                        model_json["top_p"] = llamacpp_models[0].top_p;
+                    nlohmann::ordered_json model_json;
+                    bool is_llamacpp = (strcmp(name, "llamacpp") == 0 && ei == 0 && !llamacpp_models.empty());
+                    if (is_llamacpp) {
+                        // Build from llamacpp_models in correct field order
+                        const auto& lc = llamacpp_models[0];
+                        model_json["model"] = model_config.model;
+                        model_json["model_path"] = lc.model_path;
+                        model_json["gpu_enable"] = lc.gpu_enable;
+                        model_json["threads"] = lc.threads;
+                        model_json["auto_start"] = lc.auto_start;
+                        model_json["context_window"] = lc.context_window;
+                        model_json["max_tokens"] = lc.max_tokens;
+                        model_json["temperature"] = lc.temperature;
+                        model_json["top_p"] = lc.top_p;
+                        model_json["type_k"] = lc.type_k;
+                        model_json["type_v"] = lc.type_v;
+                        model_json["n_batch"] = lc.n_batch;
+                        model_json["n_ubatch"] = lc.n_ubatch;
+                        model_json["offload_kqv"] = lc.offload_kqv;
+                        model_json["flash_attn"] = lc.flash_attn;
+                        model_json["min_p"] = lc.min_p;
+                        model_json["seed"] = lc.seed;
+                    } else {
+                        model_json["model"] = model_config.model;
+                        model_json["temperature"] = model_config.temperature;
+                        model_json["max_tokens"] = model_config.max_tokens;
+                        model_json["context_window"] = model_config.context_window;
                     }
                     models_json.push_back(model_json);
                 }
-                nlohmann::json entry_json;
-                entry_json["models"] = models_json;
+
+                nlohmann::ordered_json entry_json;
                 entry_json["api_key"] = entry.api_key;
                 entry_json["base_url"] = entry.base_url;
                 entry_json["timeout"] = entry.timeout;
                 entry_json["thinking"] = entry.thinking;
+                entry_json["models"] = models_json;
                 entries_json.push_back(entry_json);
             }
         } else {
             // Fallback for entries that were never parsed (shouldn't happen)
-            nlohmann::json models_json = nlohmann::json::array();
+            nlohmann::ordered_json models_json = nlohmann::ordered_json::array();
             for (const auto& [model_name, model_config] : config.model_configs) {
-                nlohmann::json model_json;
-                model_json["context_window"] = model_config.context_window;
-                model_json["enable_streaming"] = model_config.enable_streaming;
-                model_json["max_tokens"] = model_config.max_tokens;
+                nlohmann::ordered_json model_json;
                 model_json["model"] = model_config.model;
                 model_json["temperature"] = model_config.temperature;
-                model_json["thinking"] = model_config.thinking;
+                model_json["max_tokens"] = model_config.max_tokens;
+                model_json["context_window"] = model_config.context_window;
                 models_json.push_back(model_json);
             }
-            nlohmann::json entry_json;
-            entry_json["models"] = models_json;
+            nlohmann::ordered_json entry_json;
             entry_json["api_key"] = config.api_key;
             entry_json["base_url"] = config.base_url;
             entry_json["timeout"] = config.timeout;
+            entry_json["thinking"] = false;
+            entry_json["models"] = models_json;
             entries_json.push_back(entry_json);
         }
         llm_providers_json[name] = entries_json;
     }
     json["llm_providers"] = llm_providers_json;
 
-    // Serialize security
-    nlohmann::json security_json = nlohmann::json::object();
-    security_json["permission_level"] = security.permission_level;
-    security_json["allow_local_execute"] = security.allow_local_execute;
-    json["security"] = security_json;
-
-    json["sprite_assets_dir"] = sprite_assets_dir;
-
-    // Serialize tools
-    nlohmann::json tools_json = nlohmann::json::object();
-    tools_json["enabled"] = tools.enabled;
-    tools_json["timeout"] = tools.timeout;
-    if (!tools.allowed_paths.empty()) tools_json["allowed_paths"] = tools.allowed_paths;
-    if (!tools.denied_paths.empty()) tools_json["denied_paths"] = tools.denied_paths;
-    if (!tools.allowed_cmds.empty()) tools_json["allowed_cmds"] = tools.allowed_cmds;
-    if (!tools.denied_cmds.empty()) tools_json["denied_cmds"] = tools.denied_cmds;
-    json["tools"] = tools_json;
-
-    // Serialize TTS
-    nlohmann::json tts_json = nlohmann::json::object();
+    // Serialize TTS (simplified)
+    nlohmann::ordered_json tts_json;
     tts_json["enabled"] = tts.enabled;
-    nlohmann::json edge_tts_json = nlohmann::json::object();
-    edge_tts_json["backend"] = "edge-tts";
-    edge_tts_json["gs_url"] = tts.gs_url;
-    edge_tts_json["gs_auto_start"] = tts.gs_auto_start;
-
-    tts_json["provider"] = nlohmann::json::array({edge_tts_json});
+    nlohmann::ordered_json tts_provider_json;
+    tts_provider_json["backend"] = tts.backend;
+    tts_provider_json["auto_start"] = tts.gs_auto_start;
+    tts_json["provider"] = nlohmann::ordered_json::array({tts_provider_json});
     json["tts"] = tts_json;
 
-    nlohmann::json asr_json = nlohmann::json::object();
-    asr_json["enabled"] = asr.enabled;
-    asr_json["backend"] = asr.backend;
-    asr_json["script_path"] = asr.script_path;
-    asr_json["model_dir"] = asr.model_dir;
-    json["asr"] = asr_json;
+    // Serialize security
+    nlohmann::ordered_json security_json;
+    security_json["allow_local_execute"] = security.allow_local_execute;
+    security_json["permission_level"] = security.permission_level;
+    json["security"] = security_json;
+
+    // Note: tools and asr sections intentionally omitted from settings output
 
     return json;
 }
 
 void ProsophorConfig::SaveToFile(const std::string& filepath) const {
-    auto json = ToJson();
-    prosophor::WriteJson(filepath, json, 2);
+    prosophor::WriteOrderedJson(filepath, ToJson(), 2);
     LOG_DEBUG("Configuration saved to {}", filepath);
 }
 

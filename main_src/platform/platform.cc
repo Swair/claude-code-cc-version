@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "platform/platform.h"
+#include "common/file_utils.h"
 #include "common/string_utils.h"
 
 #include <chrono>
@@ -98,13 +99,7 @@ std::string Platform::ReadLine() {
 }
 
 std::string Platform::HomeDir() {
-    const char* home = std::getenv("HOME");
-#ifdef _WIN32
-    if (!home) {
-        home = std::getenv("USERPROFILE");
-    }
-#endif
-    return home ? std::string(home) : "";
+    return GetHomeDir();
 }
 
 std::wstring Platform::Utf8ToWide(const std::string& utf8_str) {
@@ -516,14 +511,14 @@ CommandOutput Platform::RunCommandWithOutput(const std::string& command,
         }
 
         DWORD bytes_read = 0;
-        if (ReadFile(read_pipe, buffer, sizeof(buffer) - 1, &bytes_read, nullptr) && bytes_read > 0) {
+        if (::ReadFile(read_pipe, buffer, sizeof(buffer) - 1, &bytes_read, nullptr) && bytes_read > 0) {
             buffer[bytes_read] = '\0';
             result += NativeToUtf8(std::string(buffer, bytes_read));
         }
     }
 
     DWORD bytes_read = 0;
-    while (ReadFile(read_pipe, buffer, sizeof(buffer) - 1, &bytes_read, nullptr) && bytes_read > 0) {
+    while (::ReadFile(read_pipe, buffer, sizeof(buffer) - 1, &bytes_read, nullptr) && bytes_read > 0) {
         buffer[bytes_read] = '\0';
         result += NativeToUtf8(std::string(buffer, bytes_read));
     }

@@ -41,6 +41,26 @@ FetchContent_MakeAvailable(nlohmann_json)
 find_package(CURL REQUIRED)
 find_package(OpenSSL REQUIRED)
 
+############################################# opus #####################################
+if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty_src/opus-src")
+    message(STATUS "Found opus in thirdparty_src, using existing download")
+    FetchContent_Declare(opus_tts SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty_src/opus-src")
+else()
+    message(STATUS "opus not found, fetching from GitHub...")
+    FetchContent_Declare(
+        opus_tts
+        GIT_REPOSITORY https://github.com/xiph/opus.git
+        GIT_TAG v1.5.2
+        GIT_SHALLOW TRUE
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty_src/opus-src
+    )
+endif()
+# Override options to build only what we need (static lib, no tests/programs)
+set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
+set(OPUS_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
+set(OPUS_BUILD_SHARED_LIBRARY OFF CACHE BOOL "" FORCE)
+FetchContent_MakeAvailable(opus_tts)
+
 # ============================================================================
 # common: shared foundation utilities
 # ============================================================================
@@ -143,6 +163,7 @@ target_link_libraries(prosophor_core
         CURL::libcurl
         OpenSSL::SSL
         OpenSSL::Crypto
+        Opus::opus
 )
 
 if(PROSOPHOR_BUILD_LLAMA)

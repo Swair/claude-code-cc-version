@@ -18,13 +18,21 @@ bool RoleConfigManager::SaveModel(const std::string& role_id,
         return false;
     }
 
-    auto rj_opt = ReadJson(rp.string());
-    if (!rj_opt) {
+    // Read as raw string and parse as ordered_json to preserve key order
+    auto content = ReadFile(rp.string());
+    if (!content) {
         LOG_ERROR("RoleConfigManager: cannot open {} for save", rp.string());
         return false;
     }
 
-    auto rj = *rj_opt;
+    nlohmann::ordered_json rj;
+    try {
+        rj = nlohmann::ordered_json::parse(*content);
+    } catch (const std::exception& e) {
+        LOG_ERROR("RoleConfigManager: failed to parse {}: {}", rp.string(), e.what());
+        return false;
+    }
+
     bool changed = false;
 
     if (rj["llm"]["protocal"] != provider) {
@@ -37,7 +45,7 @@ bool RoleConfigManager::SaveModel(const std::string& role_id,
     }
 
     if (changed) {
-        WriteJson(rp.string(), rj, 2);
+        WriteOrderedJson(rp.string(), rj, 2);
     }
     return changed;
 }

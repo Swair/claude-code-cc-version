@@ -105,10 +105,34 @@ TtsProvider* TtsSpeaker::GetOrCreateProvider() {
     return provider_.get();
 }
 
+// ---- Text sanitization ----
+
+std::string TtsSpeaker::SanitizeText(const std::string& text) {
+    std::string result;
+    result.reserve(text.size());
+    for (size_t i = 0; i < text.size(); ++i) {
+        char c = text[i];
+        // Strip markdown formatting chars that sound weird when spoken
+        if (c == '*' || c == '`' || c == '~' || c == '\\' || c == '|')
+            continue;
+        // Strip heading markers (but preserve non-leading # like "C#")
+        if (c == '#') {
+            // Only strip if preceded by whitespace or at start of text
+            if (i == 0 || (i > 0 && (text[i-1] == ' ' || text[i-1] == '\n')))
+                continue;
+        }
+        // Strip markdown emphasis underscores that look like formatting
+        if (c == '_' && result.size() > 0 && result.back() == ' ') continue;
+        result += c;
+    }
+    return result;
+}
+
 // ---- Speak ----
 
 void TtsSpeaker::Speak(const std::string& text) {
-    if (text.empty()) {
+    std::string clean = SanitizeText(text);
+    if (clean.empty()) {
         LOG_INFO("TtsSpeaker: Speak skipped because text is empty");
         return;
     }
@@ -117,18 +141,19 @@ void TtsSpeaker::Speak(const std::string& text) {
         return;
     }
 
-    LOG_INFO("TtsSpeaker: Speak requested chars={} backend='{}'", text.size(), backend_);
-    std::thread([this, text]() {
-        SpeakAsync(text);
+    LOG_INFO("TtsSpeaker: Speak requested chars={} backend='{}'", clean.size(), backend_);
+    std::thread([this, clean]() {
+        SpeakAsync(clean);
     }).detach();
 }
 
 void TtsSpeaker::SpeakCached(const std::string& role_id, const std::string& text) {
-    if (text.empty()) {
+    std::string clean = SanitizeText(text);
+    if (clean.empty()) {
         LOG_INFO("TtsSpeaker: cached synthesis skipped because text is empty");
         return;
     }
-    const std::string output_path = MakeCachedOutputPath(role_id, backend_, voice_, text);
+    const std::string output_path = MakeCachedOutputPath(role_id, backend_, voice_, clean);
     if (FileExists(output_path) && FileSize(output_path) > 0) {
         LOG_INFO("TtsSpeaker: cache hit role='{}' backend='{}' voice='{}' output='{}'", role_id,
                  backend_, voice_, output_path);
@@ -144,9 +169,9 @@ void TtsSpeaker::SpeakCached(const std::string& role_id, const std::string& text
     }
 
     LOG_INFO("TtsSpeaker: cache miss role='{}' backend='{}' voice='{}' chars={} output='{}'", role_id,
-             backend_, voice_, text.size(), output_path);
-    std::thread([this, text, output_path]() {
-        SpeakAsync(text, output_path);
+             backend_, voice_, clean.size(), output_path);
+    std::thread([this, clean, output_path]() {
+        SpeakAsync(clean, output_path);
     }).detach();
 }
 
@@ -178,12 +203,13 @@ void TtsSpeaker::SpeakAsync(const std::string& text, const std::string& output_p
 // ---- SpeakStream ----
 
 void TtsSpeaker::SpeakStream(const std::string& text) {
-    if (text.empty()) {
+    std::string clean = SanitizeText(text);
+    if (clean.empty()) {
         LOG_INFO("TtsSpeaker: SpeakStream skipped because text is empty");
         return;
     }
 
-    auto segments = SplitSentences(text, min_segment_chars_);
+    auto segments = SplitSentences(clean, min_segment_chars_);
     if (segments.empty()) {
         LOG_INFO("TtsSpeaker: SpeakStream skipped because no segments were produced");
         return;
@@ -198,7 +224,7 @@ void TtsSpeaker::SpeakStream(const std::string& text) {
             for (auto& seg : segments) {
                 speech_queue_.push(std::move(seg));
             }
-            LOG_INFO("TtsSpeaker: stream queue replaced chars={} segments={} backend='{}'", text.size(),
+            LOG_INFO("TtsSpeaker: stream queue replaced chars={} segments={} backend='{}'", clean.size(),
                      segment_count, backend_);
             return;
         }
@@ -208,7 +234,7 @@ void TtsSpeaker::SpeakStream(const std::string& text) {
         queue_running_ = true;
     }
 
-    LOG_INFO("TtsSpeaker: stream queue started chars={} segments={} backend='{}'", text.size(),
+    LOG_INFO("TtsSpeaker: stream queue started chars={} segments={} backend='{}'", clean.size(),
              segment_count, backend_);
     std::thread([this]() {
         ProcessSpeechQueue();

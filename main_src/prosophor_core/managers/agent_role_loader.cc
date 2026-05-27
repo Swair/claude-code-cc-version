@@ -267,7 +267,7 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
 
     role.memory_dir = llm_config->value("memory_dir", std::string(""));
     if (role.memory_dir.empty()) {
-        role.memory_dir = ProsophorConfig::ExpandHome(
+        role.memory_dir = ExpandHome(
             "~/.prosophor/memories/" + role.id);
     }
 

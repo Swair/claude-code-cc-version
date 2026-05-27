@@ -79,7 +79,7 @@ struct ProviderEntryConfig {
 /// Configuration for local model (llama.cpp in-process)
 struct LlamacppModelConfig {
     static LlamacppModelConfig FromJson(const nlohmann::json& json);
-    nlohmann::json ToJson() const;
+    nlohmann::ordered_json ToJson() const;
     std::string model_path;         // Path to GGUF model file
     int port = 8080;                // Legacy: kept for config compatibility
     bool  gpu_enable  = true;   // Offload all layers to GPU (false = CPU only)
@@ -259,7 +259,6 @@ struct ProsophorConfig {
     /// Load config from file
     static ProsophorConfig FromJson(const nlohmann::json& json);
     static ProsophorConfig LoadFromFile(const std::string& filepath);
-    static std::string ExpandHome(const std::string& path);
     static std::string DefaultConfigPath();
     static std::filesystem::path BaseDir();
     /// Directory containing shipped read-only config (exe-adjacent .prosophor/)
@@ -269,8 +268,8 @@ struct ProsophorConfig {
     /// Save config to file
     void SaveToFile(const std::string& filepath = DefaultConfigPath()) const;
 
-    /// Convert to JSON
-    nlohmann::json ToJson() const;
+    /// Convert to JSON (ordered_json for readable key order)
+    nlohmann::ordered_json ToJson() const;
 
  private:
     static std::string config_path_override_;

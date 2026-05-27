@@ -39,6 +39,13 @@ struct Subprocess {
     int pid = -1;
 };
 
+/// Result of creating a piped subprocess for streaming data through.
+struct PipedProcess {
+    int stdin_fd = -1;   // Write end → child's stdin
+    int stdout_fd = -1;  // Read end ← child's stdout
+    int pid = -1;        // Process ID
+};
+
 /// Result of running a command with output capture.
 struct CommandOutput {
     std::string output;
@@ -158,6 +165,14 @@ public:
                                      const std::vector<std::string>& env = {});
 
     static bool WaitProcess(int pid);
+
+    /// Launch a subprocess with piped stdin/stdout for streaming.
+    /// stderr is passed through to the parent process's stderr.
+    static PipedProcess CreatePipedSubprocess(const std::string& command);
+
+    /// Wait for a process to exit and return its exit code.
+    /// @return Exit code, or -1 on error
+    static int WaitProcessWithExitCode(int pid);
 
     /// Launch a subprocess with args, detach stdin/stdout/stderr
     static Subprocess LaunchProcess(const std::vector<std::string>& args);
