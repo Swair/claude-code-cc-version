@@ -226,4 +226,11 @@ inline void ThreadPool::Shutdown() {
     workers_.clear();
 }
 
+/// 获取全局线程池单例
+/// 默认 4 个工作线程，无 pending 限制
+inline ThreadPool& GetGlobalThreadPool() {
+    static ThreadPool pool(4);
+    return pool;
+}
+
 }  // namespace prosophor

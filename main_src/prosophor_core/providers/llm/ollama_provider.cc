@@ -248,10 +248,7 @@ HeaderList OllamaProvider::CreateHeaders(const ChatRequest& /*request*/) const {
 
 ChatResponse OllamaProvider::ChatStream(const ChatRequest& request,
                                  std::function<void(StreamEvent, std::string)> callback) {
-    OllamaStreamHandler stream_handler(std::move(callback));
-    PrintRequestLog(request);
-    ExecuteStream(request, &stream_handler, 180);
-    return stream_handler.accumulated_response;
+    return RunChatStream<OllamaStreamHandler>(request, std::move(callback), "OllamaProvider");
 }
 
 }  // namespace prosophor

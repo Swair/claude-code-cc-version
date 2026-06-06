@@ -2,19 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
+#include "network/websocket_client.h"
 #include "providers/tts/tts_provider.h"
 
-#include <string>
-#include <memory>
 #include <cstdint>
+#include <string>
 #include <vector>
-#include <functional>
 
 namespace prosophor {
 
 /// WebSocket-based Microsoft Edge TTS provider
-/// Directly connects to speech.platform.bing.com, no Python/CLI needed.
-/// Supports both streaming (Opus → PCM) and file-based synthesis.
+/// Directly connects to speech.platform.bing.com, no Python/CLI/ffmpeg needed.
+/// MP3 decoding is done in-process via dr_mp3 single-header library.
 class EdgeTtsProvider : public TtsProvider {
  public:
     EdgeTtsProvider();
@@ -22,25 +21,15 @@ class EdgeTtsProvider : public TtsProvider {
 
     std::string GetProviderName() const override { return "edge-tts"; }
 
-    /// Synthesize full text to a WAV file (non-streaming)
-    std::string Synthesize(const std::string& text,
-                           const std::string& output_path) override;
-
-    /// Supports true streaming via WebSocket + Opus → PCM
-    bool SupportsStreaming() const override { return true; }
-
-    /// Streaming synthesis: real-time PCM via WebSocket
-    void SynthesizeStream(const std::string& text,
-                          OnStreamStarted on_started,
-                          OnAudioChunk on_chunk) override;
-
-    void SetVoice(const std::string& voice) { voice_ = voice; }
-    const std::string& GetVoice() const { return voice_; }
+    TtsResponse Synthesize(const TtsRequest& request) override;
 
  private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-    std::string voice_ = "zh-CN-XiaoxiaoNeural";
+    bool ConnectAndExchange(const std::string& text, const std::string& voice);
+
+    /// Receive all binary frames until turn.end, accumulate MP3 bytes.
+    std::vector<uint8_t> ReceiveAllMp3();
+
+    WebSocketClient ws_;
 };
 
 }  // namespace prosophor

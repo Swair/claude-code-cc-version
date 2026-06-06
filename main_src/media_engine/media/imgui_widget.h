@@ -28,9 +28,12 @@ public:
     ~Button();
 
     bool Render();                 // 渲染按钮，返回 true 表示被点击
+    bool RenderHold();             // 渲染并返回是否被按住（hold-to-talk）
 
     void SetLabel(const std::string& label);   // 设置按钮文字
     void SetOnClick(VoidCallback cb);          // 设置点击回调
+    void SetOnHoldStart(VoidCallback cb);      // 按下时回调
+    void SetOnHoldEnd(VoidCallback cb);        // 松开时回调
 
     // 按钮颜色
     void SetBgColor(const Color& color);           // 默认背景色
@@ -286,6 +289,9 @@ public:
     }
     static ScopedStyleVar FramePadding(float x, float y) {
         Style::PushVar_FramePadding(x, y); return ScopedStyleVar();
+    }
+    static ScopedStyleVar FrameBorderSize(float size) {
+        Style::PushVar_FrameBorderSize(size); return ScopedStyleVar();
     }
     static ScopedStyleVar WindowPadding(float x, float y) {
         Style::PushVar_WindowPadding(x, y); return ScopedStyleVar();

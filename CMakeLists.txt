@@ -6,9 +6,8 @@ if(WIN32)
     add_compile_definitions(_WIN32_WINNT=0x0A00 WINVER=0x0A00 _USE_MATH_DEFINES M_PI=3.14159265358979323846)
 endif()
 
-# Set default version if PACKAGE_VERSION not provided
 if(NOT DEFINED PACKAGE_VERSION)
-    set(PACKAGE_VERSION "1.0.0")
+    message(FATAL_ERROR "PACKAGE_VERSION is not defined. Pass -DPACKAGE_VERSION=... to cmake")
 endif()
 
 # Remove 'v' prefix if present (e.g., v0.2.0 -> 0.2.0)
@@ -19,6 +18,15 @@ project(prosophor VERSION ${PACKAGE_VERSION_CLEAN} LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# ── Static analysis: clang-tidy ───────────────────────────────────────────
+find_program(CLANG_TIDY_BIN clang-tidy)
+if(CLANG_TIDY_BIN)
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_BIN};--checks=bugprone-use-after-move")
+    message(STATUS "clang-tidy found: ${CLANG_TIDY_BIN} (checks: bugprone-use-after-move)")
+else()
+    message(STATUS "clang-tidy not found — static analysis disabled")
+endif()
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -37,9 +45,30 @@ endif()
 include(FetchContent)
 
 ############################################# llama.cpp (optional) #####################################
+# GPU backend defaults: Linux → CUDA, Windows → Vulkan (MinGW-friendly), macOS → CPU
+if(WIN32)
+    set(_PROSOPHOR_DEFAULT_LLAMA_CUDA OFF)
+    set(_PROSOPHOR_DEFAULT_LLAMA_VULKAN ON)
+elseif(APPLE)
+    set(_PROSOPHOR_DEFAULT_LLAMA_CUDA OFF)
+    set(_PROSOPHOR_DEFAULT_LLAMA_VULKAN OFF)
+else()
+    set(_PROSOPHOR_DEFAULT_LLAMA_CUDA ON)
+    set(_PROSOPHOR_DEFAULT_LLAMA_VULKAN OFF)
+endif()
 option(PROSOPHOR_BUILD_LLAMA "Build llama.cpp for local model inference (in-process)" ON)
-option(PROSOPHOR_BUILD_LLAMA_CUDA "Build llama.cpp with CUDA GPU support" OFF)
-option(PROSOPHOR_BUILD_LLAMA_VULKAN "Build llama.cpp with Vulkan GPU support" ON)
+option(PROSOPHOR_BUILD_LLAMA_CUDA "Build llama.cpp with CUDA GPU support" ${_PROSOPHOR_DEFAULT_LLAMA_CUDA})
+option(PROSOPHOR_BUILD_LLAMA_VULKAN "Build llama.cpp with Vulkan GPU support" ${_PROSOPHOR_DEFAULT_LLAMA_VULKAN})
+
+if(PROSOPHOR_BUILD_LLAMA_CUDA AND PROSOPHOR_BUILD_LLAMA_VULKAN)
+    if(WIN32)
+        message(STATUS "Both CUDA and Vulkan requested; using Vulkan on Windows")
+        set(PROSOPHOR_BUILD_LLAMA_CUDA OFF CACHE BOOL "" FORCE)
+    else()
+        message(STATUS "Both CUDA and Vulkan requested; using CUDA on Linux")
+        set(PROSOPHOR_BUILD_LLAMA_VULKAN OFF CACHE BOOL "" FORCE)
+    endif()
+endif()
 
 ############################################# Debug borders (optional) #####################################
 
@@ -69,23 +98,68 @@ if(PROSOPHOR_BUILD_LLAMA)
     set(LLAMA_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 
     if(PROSOPHOR_BUILD_LLAMA_CUDA)
-        find_package(CUDAToolkit)
-        if(CUDAToolkit_FOUND)
-            set(GGML_CUDA ON CACHE BOOL "" FORCE)
-            message(STATUS "llama.cpp: CUDA GPU support enabled")
+        if(MINGW OR WIN32)
+            message(WARNING "CUDA is not supported on Windows (use Vulkan instead); falling back to CPU-only")
+            set(PROSOPHOR_BUILD_LLAMA_CUDA OFF CACHE BOOL "" FORCE)
         else()
-            message(WARNING "CUDA Toolkit not found, falling back to CPU-only")
+            find_package(CUDAToolkit)
+            if(CUDAToolkit_FOUND)
+                set(GGML_CUDA ON CACHE BOOL "" FORCE)
+                set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
+                if(NOT CMAKE_CUDA_ARCHITECTURES)
+                    set(CMAKE_CUDA_ARCHITECTURES "75;89" CACHE STRING "CUDA architectures (75=Turing, 89=Ada)")
+                endif()
+                message(STATUS "llama.cpp: CUDA GPU support enabled (archs=${CMAKE_CUDA_ARCHITECTURES})")
+            else()
+                message(WARNING "CUDA Toolkit not found, falling back to CPU-only")
+            endif()
         endif()
     endif()
 
-    if(PROSOPHOR_BUILD_LLAMA_VULKAN)
+    if(PROSOPHOR_BUILD_LLAMA_VULKAN AND NOT GGML_CUDA)
         set(GGML_VULKAN ON CACHE BOOL "" FORCE)
         message(STATUS "llama.cpp: Vulkan GPU support enabled")
+        find_package(Vulkan REQUIRED)
     endif()
 
     FetchContent_MakeAvailable(llamacpp)
 endif()
 
+############################################# spdlog #####################################
+if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty_src/spdlog-src")
+    message(STATUS "Found spdlog in thirdparty_src, using existing download")
+    FetchContent_Declare(spdlog SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty_src/spdlog-src")
+else()
+    message(STATUS "spdlog not found, fetching from GitHub...")
+    FetchContent_Declare(
+        spdlog
+        GIT_REPOSITORY https://github.com/gabime/spdlog.git
+        GIT_TAG v1.15.0
+        GIT_SHALLOW TRUE
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty_src/spdlog-src
+    )
+endif()
+FetchContent_MakeAvailable(spdlog)
+
+############################################# nlohmann_json #####################################
+if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty_src/nlohmann_json-src")
+    message(STATUS "Found nlohmann_json in thirdparty_src, using existing download")
+    FetchContent_Declare(nlohmann_json SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty_src/nlohmann_json-src")
+else()
+    message(STATUS "nlohmann_json not found, fetching from GitHub...")
+    FetchContent_Declare(
+        nlohmann_json
+        GIT_REPOSITORY https://github.com/nlohmann/json.git
+        GIT_TAG v3.11.3
+        GIT_SHALLOW TRUE
+        SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty_src/nlohmann_json-src
+    )
+endif()
+FetchContent_MakeAvailable(nlohmann_json)
+# Required dependencies
+find_package(CURL REQUIRED)
+find_package(OpenSSL REQUIRED)
+find_package(OpenMP)
 
 add_subdirectory(main_src)
 

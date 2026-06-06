@@ -363,20 +363,7 @@ HeaderList AnthropicProvider::CreateHeaders(const ChatRequest& request) const {
 // --- SSE Streaming support ---
 
 ChatResponse AnthropicProvider::ChatStream(const ChatRequest& request, std::function<void(StreamEvent, std::string)> callback) {
-    AnthropicStreamHandler stream_handler(std::move(callback));
-    PrintRequestLog(request);
-    auto http_resp = ExecuteStream(request, &stream_handler, 180);
-    if (!stream_handler.error_msg.empty()) {
-        stream_handler.accumulated_response.error_msg = stream_handler.error_msg;
-        stream_handler.stream_callback(StreamEvent::kError, stream_handler.error_msg);
-    } else if (http_resp.failed()) {
-        std::string err = "AnthropicProvider::ChatStream (HTTP " +
-                          std::to_string(http_resp.status_code) + "): " + http_resp.error_msg;
-        LOG_ERROR("{}", err);
-        stream_handler.accumulated_response.error_msg = err;
-        stream_handler.stream_callback(StreamEvent::kError, std::move(err));
-    }
-    return stream_handler.accumulated_response;
+    return RunChatStream<AnthropicStreamHandler>(request, std::move(callback), "AnthropicProvider");
 }
 
 }  // namespace prosophor

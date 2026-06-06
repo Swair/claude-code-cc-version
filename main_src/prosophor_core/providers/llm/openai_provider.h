@@ -25,9 +25,6 @@ class OpenAIProvider : public LLMProvider {
         return {"deepseek-v4-flash"};
     }
 
-    /// Set provider name for display (e.g. "qwen", "deepseek")
-    void SetDisplayName(const std::string& name) { display_name_ = name; }
-
  protected:
     HeaderList CreateHeaders(const ChatRequest& request) const override;
     void PrintRequestLog(const ChatRequest& request) const override;
@@ -38,8 +35,6 @@ class OpenAIProvider : public LLMProvider {
  private:
     nlohmann::json SerializeMessageContent(const std::vector<ContentSchema>& content) const;
     nlohmann::json SerializeTools(const std::vector<ToolsSchema>& tools) const;
-
-    std::string display_name_ = "openai";
 };
 
 }  // namespace prosophor

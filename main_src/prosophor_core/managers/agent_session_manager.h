@@ -146,8 +146,6 @@ private:
     /// 取一条消息提交线程池，在单任务内内联循环处理后续积压
     void StartChain(const std::string& session_id,
                     std::shared_ptr<AgentSession> session);
-
-    ThreadPool thread_pool_;
 };
 
 }  // namespace prosophor

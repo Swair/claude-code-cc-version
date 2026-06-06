@@ -1,7 +1,7 @@
 // Copyright 2026 Prosophor Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-#include "providers/provider_router.h"
+#include "providers/provider_router/llm_provider_router.h"
 
 #include <shared_mutex>
 #include <filesystem>
@@ -11,12 +11,12 @@
 
 namespace prosophor {
 
-ProviderRouter& ProviderRouter::GetInstance() {
-    static ProviderRouter instance;
+LlmProviderRouter& LlmProviderRouter::GetInstance() {
+    static LlmProviderRouter instance;
     return instance;
 }
 
-void ProviderRouter::Initialize(const ProsophorConfig& config) {
+void LlmProviderRouter::Initialize(const ProsophorConfig& config) {
     std::unique_lock<std::shared_mutex> lock(mutex_);  // 写锁
 
     providers_.clear();
@@ -77,13 +77,13 @@ void ProviderRouter::Initialize(const ProsophorConfig& config) {
     }
 }
 
-std::shared_ptr<LLMProvider> ProviderRouter::GetProvider(const std::string& /*role_id*/) {
+std::shared_ptr<LLMProvider> LlmProviderRouter::GetProvider(const std::string& /*role_id*/) {
     // For now, use default provider
     // TODO: Support role-specific provider mapping
     return GetDefaultProvider();
 }
 
-std::shared_ptr<LLMProvider> ProviderRouter::GetProviderByName(const std::string& provider_name) {
+std::shared_ptr<LLMProvider> LlmProviderRouter::GetProviderByName(const std::string& provider_name) {
     std::shared_lock<std::shared_mutex> lock(mutex_);  // 读锁
 
     auto it = providers_.find(provider_name);
@@ -95,18 +95,18 @@ std::shared_ptr<LLMProvider> ProviderRouter::GetProviderByName(const std::string
     return default_provider_;
 }
 
-std::shared_ptr<LLMProvider> ProviderRouter::GetDefaultProvider() {
+std::shared_ptr<LLMProvider> LlmProviderRouter::GetDefaultProvider() {
     std::shared_lock<std::shared_mutex> lock(mutex_);  // 读锁
     return default_provider_;
 }
 
-std::string ProviderRouter::GetProviderName(const std::string& /*role_id*/) {
+std::string LlmProviderRouter::GetProviderName(const std::string& /*role_id*/) {
     // TODO: Support role-specific provider mapping
     std::shared_lock<std::shared_mutex> lock(mutex_);
     return default_provider_name_;
 }
 
-std::shared_ptr<LLMProvider> ProviderRouter::CreateProvider(
+std::shared_ptr<LLMProvider> LlmProviderRouter::CreateProvider(
     const std::string& type,
     const ProviderConfig& config) {
 

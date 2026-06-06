@@ -1,97 +1,18 @@
 cmake_minimum_required(VERSION 3.20)
-project(prosophor_core VERSION ${PACKAGE_VERSION_CLEAN} LANGUAGES CXX)
-
-
-include(FetchContent)
-
-############################################# spdlog #####################################
-if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty_src/spdlog-src")
-    message(STATUS "Found spdlog in thirdparty_src, using existing download")
-    FetchContent_Declare(spdlog SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty_src/spdlog-src")
-else()
-    message(STATUS "spdlog not found, fetching from GitHub...")
-    FetchContent_Declare(
-        spdlog
-        GIT_REPOSITORY https://github.com/gabime/spdlog.git
-        GIT_TAG v1.15.0
-        GIT_SHALLOW TRUE
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty_src/spdlog-src
-    )
-endif()
-FetchContent_MakeAvailable(spdlog)
-
-############################################# nlohmann_json #####################################
-if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty_src/nlohmann_json-src")
-    message(STATUS "Found nlohmann_json in thirdparty_src, using existing download")
-    FetchContent_Declare(nlohmann_json SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty_src/nlohmann_json-src")
-else()
-    message(STATUS "nlohmann_json not found, fetching from GitHub...")
-    FetchContent_Declare(
-        nlohmann_json
-        GIT_REPOSITORY https://github.com/nlohmann/json.git
-        GIT_TAG v3.11.3
-        GIT_SHALLOW TRUE
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty_src/nlohmann_json-src
-    )
-endif()
-FetchContent_MakeAvailable(nlohmann_json)
-
-
-# Required dependencies
-find_package(CURL REQUIRED)
-find_package(OpenSSL REQUIRED)
-
-############################################# opus #####################################
-if(EXISTS "${CMAKE_SOURCE_DIR}/thirdparty_src/opus-src")
-    message(STATUS "Found opus in thirdparty_src, using existing download")
-    FetchContent_Declare(opus_tts SOURCE_DIR "${CMAKE_SOURCE_DIR}/thirdparty_src/opus-src")
-else()
-    message(STATUS "opus not found, fetching from GitHub...")
-    FetchContent_Declare(
-        opus_tts
-        GIT_REPOSITORY https://github.com/xiph/opus.git
-        GIT_TAG v1.5.2
-        GIT_SHALLOW TRUE
-        SOURCE_DIR ${CMAKE_SOURCE_DIR}/thirdparty_src/opus-src
-    )
-endif()
-# Override options to build only what we need (static lib, no tests/programs)
-set(OPUS_BUILD_TESTING OFF CACHE BOOL "" FORCE)
-set(OPUS_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
-set(OPUS_BUILD_SHARED_LIBRARY OFF CACHE BOOL "" FORCE)
-FetchContent_MakeAvailable(opus_tts)
+project(prosophor_core VERSION ${PACKAGE_VERSION_CLEAN} LANGUAGES CXX C)
 
 # ============================================================================
-# common: shared foundation utilities
+# prosophor_core: common + platform + core logic (single static library)
+# Used by both TUI and SDL builds
 # ============================================================================
-file(GLOB_RECURSE COMMON_SOURCES
+file(GLOB_RECURSE CORE_SOURCES_ALL
     ${CMAKE_CURRENT_LIST_DIR}/common/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/prosophor_core/*.cc
+    ${CMAKE_CURRENT_LIST_DIR}/voice/rtc/*.c
+    ${CMAKE_CURRENT_LIST_DIR}/voice/rtc/*.cc
 )
 
-add_library(prosophor_common STATIC
-    ${COMMON_SOURCES}
-)
-
-target_include_directories(prosophor_common
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-)
-
-target_compile_definitions(prosophor_common PUBLIC
-    NOMINMAX
-    _CRT_SECURE_NO_WARNINGS
-    PROSOPHOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-)
-
-target_link_libraries(prosophor_common
-    PUBLIC
-        spdlog::spdlog
-        nlohmann_json::nlohmann_json
-)
-
-# ============================================================================
-# platform: cross-platform OS abstraction
-# ============================================================================
+# Platform-specific sources
 if(WIN32)
     set(PLATFORM_SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/platform/platform.cc
@@ -105,41 +26,9 @@ else()
         ${CMAKE_CURRENT_LIST_DIR}/platform/pipe_handler_posix.cc
     )
 endif()
+list(APPEND CORE_SOURCES_ALL ${PLATFORM_SOURCES})
 
-add_library(prosophor_platform STATIC
-    ${PLATFORM_SOURCES}
-)
-
-target_include_directories(prosophor_platform
-    PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-)
-
-target_compile_definitions(prosophor_platform PUBLIC
-    NOMINMAX
-    _CRT_SECURE_NO_WARNINGS
-)
-
-target_link_libraries(prosophor_platform
-    PUBLIC
-        prosophor_common
-)
-
-if(WIN32)
-    target_link_libraries(prosophor_platform PUBLIC ws2_32 bcrypt)
-endif()
-
-# ============================================================================
-# prosophor_core: pure business logic, no UI/SDL dependency
-# Used by both TUI and SDL builds
-# ============================================================================
-file(GLOB_RECURSE CORE_SOURCES_ALL
-    ${CMAKE_CURRENT_LIST_DIR}/prosophor_core/*.cc
-)
-
-add_library(prosophor_core STATIC
-    ${CORE_SOURCES_ALL}
-)
+add_library(prosophor_core STATIC ${CORE_SOURCES_ALL})
 
 target_include_directories(prosophor_core
     PUBLIC
@@ -156,15 +45,17 @@ target_compile_definitions(prosophor_core PUBLIC
 
 target_link_libraries(prosophor_core
     PUBLIC
-        prosophor_platform
         spdlog::spdlog
         nlohmann_json::nlohmann_json
     PRIVATE
         CURL::libcurl
         OpenSSL::SSL
         OpenSSL::Crypto
-        Opus::opus
 )
+
+if(WIN32)
+    target_link_libraries(prosophor_core PUBLIC ws2_32 bcrypt)
+endif()
 
 if(PROSOPHOR_BUILD_LLAMA)
     target_include_directories(prosophor_core
@@ -175,11 +66,6 @@ if(PROSOPHOR_BUILD_LLAMA)
     )
     target_compile_definitions(prosophor_core PUBLIC PROSOPHOR_HAS_LOCAL_MODEL)
     target_link_libraries(prosophor_core PUBLIC llama ggml llama-common)
-endif()
-
-
-if(WIN32)
-    target_link_libraries(prosophor_core PUBLIC ws2_32 bcrypt)
 endif()
 
 # ============================================================================
@@ -221,10 +107,14 @@ if(PROSOPHOR_SDL_UI)
     file(GLOB_RECURSE COMPONENTS_SOURCES
         ${CMAKE_CURRENT_LIST_DIR}/components/*.cc
     )
+    file(GLOB_RECURSE VOICE_SOURCES
+        ${CMAKE_CURRENT_LIST_DIR}/voice/*.cc
+    )
     add_executable(prosophor
         main.cc
         ${GUI_SOURCES}
         ${COMPONENTS_SOURCES}
+        ${VOICE_SOURCES}
         ${CMAKE_CURRENT_LIST_DIR}/resources/app.rc
     )
 
@@ -240,6 +130,7 @@ if(PROSOPHOR_SDL_UI)
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/virtual_sprite
         ${CMAKE_CURRENT_SOURCE_DIR}/components
+        ${CMAKE_CURRENT_SOURCE_DIR}/voice
     )
 
     target_compile_definitions(prosophor PRIVATE

@@ -3,10 +3,12 @@
 
 #pragma once
 
-#include <string>
-#include <optional>
+#include <cstdint>
 #include <filesystem>
 #include <nlohmann/json.hpp>
+#include <optional>
+#include <string>
+#include <vector>
 
 namespace prosophor {
 
@@ -53,6 +55,18 @@ std::optional<nlohmann::json> ReadJson(const std::string& path);
 /// @return Parsed JSON object
 /// @throws std::runtime_error if file can't be read or parsed
 nlohmann::json ReadJsonOrFail(const std::string& path);
+
+/// LoadWav - Load 16-bit PCM mono WAV file into int16 vector
+/// @param path WAV file path
+/// @return PCM samples (mono, mixed down if stereo), empty on error
+std::vector<int16_t> LoadWav(const std::string& path);
+
+/// WriteWav - Write 16-bit PCM mono data to WAV file
+/// @param path Output WAV file path
+/// @param samples PCM samples (int16)
+/// @param sample_rate Sample rate (e.g. 24000)
+/// @return true if write succeeded
+bool WriteWav(const std::string& path, const std::vector<int16_t>& samples, int sample_rate);
 
 // ============================================================================
 // File Writing
@@ -115,5 +129,10 @@ uintmax_t FileSize(const std::string& path);
 /// @param filename File name to search for
 /// @return Full path if found, empty string otherwise
 std::string FindFileInDirs(const std::string& base_dir, const std::string& filename);
+
+/// ParentDir - Get the parent directory of a path
+/// @param path File or directory path
+/// @return Parent directory, or "." if no separator found
+std::string ParentDir(const std::string& path);
 
 }  // namespace prosophor

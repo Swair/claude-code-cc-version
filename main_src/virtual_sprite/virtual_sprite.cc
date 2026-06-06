@@ -10,8 +10,8 @@
 #include "common/i18n.h"
 #include "agent_engine.h"
 
-#include "providers/tts/tts_speaker.h"
-#include "media_engine/media/audio_streamer.h"
+#include "providers/provider_router/asr_provider_router.h"
+#include "platform/platform.h"
 #include <memory>
 
 namespace prosophor {
@@ -91,24 +91,17 @@ void VirtualSprite::GlobalInit() {
         LOG_INFO("Central window created (primary)");
     }
 
-    // ── Wire up TTS streaming audio playback ─────────────────
+    // ── Initialize ASR if enabled ──────────────────────
     {
-        auto& tts = TtsSpeaker::GetInstance();
-        tts.SetOnStreamStarted([this](int sample_rate, int channels) {
-            std::lock_guard<std::mutex> lock(audio_mutex_);
-            current_streamer_ = std::make_unique<media_engine::AudioStreamer>(sample_rate, channels);
-        });
-        tts.SetOnAudioChunk([this](const uint8_t* data, size_t len) {
-            std::lock_guard<std::mutex> lock(audio_mutex_);
-            if (current_streamer_) {
-                current_streamer_->PushChunk(data, len);
-            }
-        });
-        // Non-streaming fallback: load WAV and play
-        tts.SetOnSynthesized([this](const std::string& wav_path) {
-            std::lock_guard<std::mutex> lock(audio_mutex_);
-            current_streamer_ = media_engine::AudioStreamer::PlayWav(wav_path);
-        });
+        auto& asr_config = ProsophorConfig::GetInstance().asr;
+        if (asr_config.enabled) {
+            auto& asr = AsrProviderRouter::GetInstance();
+            asr.SetServerUrl(asr_config.server_url);
+            asr.Initialize();
+            LOG_INFO("ASR initialized (server={})", asr_config.server_url);
+        } else {
+            LOG_INFO("ASR disabled in config");
+        }
     }
 
     // Route session state changes to the matching sprite

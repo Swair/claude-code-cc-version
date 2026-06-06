@@ -175,16 +175,15 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_include_directories(${PROJECT_NAME}
 PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}/media
-PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
+PUBLIC
+    ${CMAKE_CURRENT_LIST_DIR}/../common
+PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/imgui_interface
     ${CMAKE_CURRENT_LIST_DIR}/sdl_interface
-    ${CMAKE_CURRENT_LIST_DIR}/../common
 )
 
-target_link_libraries(${PROJECT_NAME} PUBLIC
-    spdlog::spdlog
-    imgui_lib
+target_link_libraries(${PROJECT_NAME} PRIVATE
     imgui_widget_lib
     SDL3_image::SDL3_image
     SDL3_mixer::SDL3_mixer

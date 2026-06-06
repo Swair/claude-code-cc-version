@@ -1,5 +1,5 @@
 {
-  "default_role": ["default","ayaka", "sayu", "keqing"],
+  "default_role": ["default","ayaka"],
   "log_level": "info",
   "enable_summary": false,
   "sprite_assets_dir": "~/.prosophor/assets",
@@ -133,9 +133,44 @@
     "provider": [
       {
         "backend": "edge-tts",
-        "auto_start": false
+        "auto_start": false,
+        "voice_list": [
+          "zh-CN-XiaoxiaoNeural",
+          "zh-CN-XiaoyiNeural",
+          "zh-CN-YunjianNeural",
+          "zh-CN-YunxiNeural",
+          "zh-CN-YunxiaNeural",
+          "zh-CN-YunyangNeural",
+          "zh-CN-liaoning-XiaobeiNeural",
+          "zh-CN-shaanxi-XiaoniNeural",
+          "zh-HK-HiuGaaiNeural",
+          "zh-HK-HiuMaanNeural",
+          "zh-HK-WanLungNeural",
+          "zh-TW-HsiaoChenNeural",
+          "zh-TW-HsiaoYuNeural",
+          "zh-TW-YunJheNeural",
+          "en-US-AriaNeural",
+          "en-US-JennyNeural",
+          "en-US-GuyNeural",
+          "ja-JP-NanamiNeural",
+          "ja-JP-KeitaNeural",
+          "ko-KR-SunHiNeural",
+          "ko-KR-InJoonNeural",
+          "fr-FR-DeniseNeural",
+          "fr-FR-HenriNeural",
+          "de-DE-KatjaNeural",
+          "de-DE-ConradNeural"
+        ]
       }
     ]
+  },
+  "asr": {
+    "enabled": true,
+    "backend": "whisper",
+    "model_path": "/e/ai_ws/prosophor_dev/models/ggml-small.bin",
+    "vad_model_path": "/e/ai_ws/prosophor_dev/models/ggml-silero-vad.bin",
+    "language": "zh",
+    "threads": 4
   },
   "security": {
     "allow_local_execute": true,

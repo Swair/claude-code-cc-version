@@ -16,10 +16,10 @@
 
 namespace prosophor {
 
-/// ProviderRouter: 根据角色配置路由到不同的 LLM Provider
-class ProviderRouter {
+/// LlmProviderRouter: 根据角色配置路由到不同的 LLM Provider
+class LlmProviderRouter {
 public:
-    static ProviderRouter& GetInstance();
+    static LlmProviderRouter& GetInstance();
 
     /// 初始化（从 config 加载 providers）
     void Initialize(const ProsophorConfig& config);
@@ -37,7 +37,7 @@ public:
     std::string GetProviderName(const std::string& role_id);
 
 private:
-    ProviderRouter() = default;
+    LlmProviderRouter() = default;
 
     mutable std::shared_mutex mutex_;  // C++17 读写锁
     std::unordered_map<std::string, std::shared_ptr<LLMProvider>> providers_;

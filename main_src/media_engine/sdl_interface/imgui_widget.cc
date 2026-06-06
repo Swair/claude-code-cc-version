@@ -20,10 +20,13 @@ namespace media_engine {
 struct Button::Impl {
     std::string label_;         // 按钮文本
     VoidCallback on_click_;     // 点击回调
+    VoidCallback on_hold_start_;
+    VoidCallback on_hold_end_;
     Color bg_color_;            // 背景色 (默认透明=不覆盖)
     Color hovered_color_;       // 悬停色
     Color active_color_;        // 按下色
     Color text_color_;          // 文字色
+    bool was_held_ = false;     // 上一帧的按下状态（用于边缘检测）
 };
 
 /**
@@ -64,12 +67,41 @@ bool Button::Render() {
     return clicked;
 }
 
+bool Button::RenderHold() {
+    int pushed = 0;
+    if (impl_->bg_color_.a > 0)       { Style::PushColor(ImGuiCol_Button, impl_->bg_color_); pushed++; }
+    if (impl_->hovered_color_.a > 0)  { Style::PushColor(ImGuiCol_ButtonHovered, impl_->hovered_color_); pushed++; }
+    if (impl_->active_color_.a > 0)   { Style::PushColor(ImGuiCol_ButtonActive, impl_->active_color_); pushed++; }
+
+    ImGui::Button(impl_->label_.c_str());
+
+    if (pushed > 0) Style::PopColor(pushed);
+
+    bool held = ImGui::IsItemActive() && ImGui::IsMouseDown(0);
+    if (held && !impl_->was_held_) {
+        if (impl_->on_hold_start_) impl_->on_hold_start_();
+    }
+    if (!held && impl_->was_held_) {
+        if (impl_->on_hold_end_) impl_->on_hold_end_();
+    }
+    impl_->was_held_ = held;
+    return held;
+}
+
 void Button::SetLabel(const std::string& label) {
     impl_->label_ = label;
 }
 
 void Button::SetOnClick(VoidCallback cb) {
     impl_->on_click_ = cb;
+}
+
+void Button::SetOnHoldStart(VoidCallback cb) {
+    impl_->on_hold_start_ = std::move(cb);
+}
+
+void Button::SetOnHoldEnd(VoidCallback cb) {
+    impl_->on_hold_end_ = std::move(cb);
 }
 
 void Button::SetBgColor(const Color& color) {

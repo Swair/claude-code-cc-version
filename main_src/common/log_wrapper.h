@@ -3,6 +3,7 @@
 #pragma once
 
 #include "file_utils.h"
+#include "time_wrapper.h"
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/basic_file_sink.h>
@@ -52,13 +53,44 @@ inline void InitLog(const std::string& level = "info") {
 
     auto logger = std::make_shared<spdlog::logger>("prosophor", sinks.begin(), sinks.end());
     logger->set_level(log_level);
+    logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%t] [%l] %v [%s(%#)]");
     spdlog::set_default_logger(logger);
 }
 
+/// Rate-limited logger: ensures a log site fires at most once per interval_ms.
+/// Usage: static ThrottleLog tlog;
+///        if (tlog.Check(5000)) { LOG_DEBUG("..."); }
+class ThrottleLog {
+public:
+    ThrottleLog() : last_(SteadyClock::Now()) {}
+
+    /// Returns true if interval_ms has elapsed since last true return,
+    /// and resets the internal timer. Thread-safe if called from one thread.
+    bool Check(int64_t interval_ms) {
+        if (SteadyClock::IsExpired(last_, interval_ms)) {
+            last_ = SteadyClock::Now();
+            return true;
+        }
+        return false;
+    }
+
+private:
+    SteadyClock::TimePoint last_;
+};
+
 }  // namespace prosophor
 
-#define LOG_INFO(...) spdlog::info(__VA_ARGS__)
-#define LOG_DEBUG(...) spdlog::debug(__VA_ARGS__)
-#define LOG_WARN(...) spdlog::warn(__VA_ARGS__)
-#define LOG_ERROR(...) spdlog::error(__VA_ARGS__)
-#define LOG_FATAL(...) spdlog::error(__VA_ARGS__)
+#define LOG_INFO(...) spdlog::log(spdlog::source_loc{__FILE__, __LINE__, __func__}, spdlog::level::info, __VA_ARGS__)
+#define LOG_DEBUG(...) spdlog::log(spdlog::source_loc{__FILE__, __LINE__, __func__}, spdlog::level::debug, __VA_ARGS__)
+#define LOG_WARN(...) spdlog::log(spdlog::source_loc{__FILE__, __LINE__, __func__}, spdlog::level::warn, __VA_ARGS__)
+#define LOG_ERROR(...) spdlog::log(spdlog::source_loc{__FILE__, __LINE__, __func__}, spdlog::level::err, __VA_ARGS__)
+#define LOG_FATAL(...) spdlog::log(spdlog::source_loc{__FILE__, __LINE__, __func__}, spdlog::level::err, __VA_ARGS__)
+
+/// Throttled log: fires at most once per interval_ms per call site.
+/// Usage: THROTTLE_LOG(5000, "Generating... {} tokens", n);
+#define THROTTLE_LOG(interval_ms, ...) do { \
+    static ::prosophor::ThrottleLog _prosophor_tlog; \
+    if (_prosophor_tlog.Check(interval_ms)) { \
+        LOG_INFO(__VA_ARGS__); \
+    } \
+} while(0)

@@ -7,13 +7,16 @@
 #include "common/time_wrapper.h"
 #include "core/agent_types.h"
 #include "components/spritesheet.h"
+#include "voice/voice_engine.h"
 #include "media_engine/media/imgui_widget.h"
 #include "media_engine/ui_component/widget.h"
 #include "media_engine/ui_component/label.h"
+#include "media_engine/ui_component/nav_bar.h"
 
 #include <string>
 #include <memory>
 #include <optional>
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <vector>
@@ -30,7 +33,6 @@ class SpeechBubble;
 /// Layout hierarchy (Widget tree for coordinate management only):
 ///   root_widget_ (0,0,100,100) [full window, transparent]
 ///   ├── name_label_            [top-center percentage]
-///   ├── nav_anchor_             [bottom strip percentage, renders via NavBar::Render]
 ///   └── [pet sprite drawn by PetCanvas at computed position]
 ///
 /// All sizing now comes from LayoutConfig; window dimensions are set at creation
@@ -45,6 +47,8 @@ class Sprite : public Noncopyable {
     media_engine::Window* GetWindow() const { return sprite_window_; }
     const std::string& GetSessionId() const { return session_id_; }
     const std::string& GetName() const { return name_; }
+    const std::string& GetTtsBackend() const { return role_tts_backend_; }
+    const std::string& GetTtsVoice() const { return role_tts_voice_; }
 
     /// Agent state → pet animation
     void SetAgentState(AgentRuntimeState state, const std::string& details = "");
@@ -61,9 +65,6 @@ class Sprite : public Noncopyable {
     };
     const SpriteBounds& GetSpriteBounds() const { return sprite_bounds_; }
 
-    /// Pet navigation
-    void NextPet();
-    void PrevPet();
     int GetPetCount() const { return static_cast<int>(pet_list_.size()); }
     const std::string& GetCurrentPetSlug() const;
     const std::string& GetCurrentPetName() const;
@@ -75,6 +76,7 @@ class Sprite : public Noncopyable {
 
     /// Toggle the per-sprite speech bubble (used by context menu)
     void ToggleSpeechBubble();
+    bool IsSpeechBubbleVisible() const;
 
     // Widget tree root — exposed so render handler calls root_widget_.Render(ctx)
     media_engine::Widget& GetRootWidget() { return root_widget_; }
@@ -118,7 +120,7 @@ class Sprite : public Noncopyable {
     // ── Widget tree ──
     PetCanvas root_widget_{*this};
     media_engine::Label name_label_;     // display sprite name at top center
-    media_engine::Widget nav_anchor_;      // position ref for nav bar
+    media_engine::NavBar nav_anchor_;    // bottom nav bar (prev/next/+new)
 
     // ── Pet / animation ──
     std::vector<PetEntry> pet_list_;
@@ -128,9 +130,6 @@ class Sprite : public Noncopyable {
     AgentRuntimeState agent_state_ = AgentRuntimeState::IDLE;
     std::string state_details_;
     SpriteBounds sprite_bounds_;
-
-    // ── Nav bar ──
-    std::unique_ptr<media_engine::NavBar> nav_bar_;
 
     // ── Rendering ──
     SpritesheetAction GetEffectiveAction() const;
@@ -163,9 +162,13 @@ class Sprite : public Noncopyable {
     // ── Per-sprite UI ──
     std::unique_ptr<SpeechBubble> speech_bubble_;
 
-    // ── TTS dedup ──
-    std::string last_tts_text_;
-    bool tts_disabled_logged_ = false;
+    // ── TTS ──
+    std::string role_tts_backend_ = "edge-tts";
+    std::string role_tts_voice_ = "zh-CN-XiaoxiaoNeural";
+
+    // ── Voice I/O (ASR) ──
+    SteadyClock::TimePoint last_intermediate_time_;
+    bool is_recording_ = false;
 };
 
 }  // namespace prosophor

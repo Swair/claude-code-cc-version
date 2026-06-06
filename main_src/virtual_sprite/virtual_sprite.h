@@ -8,12 +8,8 @@
 #include "virtual_sprite/sprite_manager.h"
 #include "virtual_sprite/chat_window.h"
 #include <functional>
-#include <mutex>
 #include <string>
 #include <memory>
-#include <cstdint>
-
-namespace media_engine { class AudioStreamer; }
 
 namespace prosophor {
 
@@ -49,10 +45,6 @@ class VirtualSprite : public Noncopyable {
     InputCallback input_callback_;
 
     ChatWindow central_window_;          // shared central chat window
-
-    // ── TTS audio playback ─────────────────────────────────
-    std::unique_ptr<media_engine::AudioStreamer> current_streamer_;
-    std::mutex audio_mutex_;
 };
 
 }  // namespace prosophor

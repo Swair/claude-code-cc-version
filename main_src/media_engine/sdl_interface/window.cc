@@ -24,7 +24,7 @@ namespace {
 void SetupImGui(ImGuiContext* ctx, SDL_Window* window, SDL_Renderer* renderer,
                 const WindowConfig& cfg, int width, int height) {
     ImGui::SetCurrentContext(ctx);
-    ImGui::StyleColorsDark();
+    ImGui::StyleColorsLight();
 
     ImGuiStyle& style = ImGui::GetStyle();
     style.WindowRounding = 0.0f;

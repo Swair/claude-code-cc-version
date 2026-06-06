@@ -5,6 +5,40 @@
 
 #include "common/log_wrapper.h"
 
+namespace {
+
+std::vector<std::string> TtsSplitSentences(const std::string& text, size_t min_chars) {
+    std::vector<std::string> segments;
+    std::string buf;
+    for (size_t i = 0; i < text.size(); i++) {
+        unsigned char c = static_cast<unsigned char>(text[i]);
+        bool is_split = false;
+        if (c < 0x80) {
+            buf += text[i];
+            is_split = (c == '.' || c == '!' || c == '?' || c == ',' || c == '\n');
+        } else if ((c & 0xF0) == 0xE0 && i + 2 < text.size()) {
+            unsigned char c2 = static_cast<unsigned char>(text[i + 1]);
+            unsigned char c3 = static_cast<unsigned char>(text[i + 2]);
+            buf.append(text, i, 3);
+            i += 2;
+            is_split = ((c == 0xE3 && c2 == 0x80 && c3 == 0x82) ||
+                        (c == 0xEF && c2 == 0xBC && (c3 == 0x81 || c3 == 0x8C || c3 == 0x9F)));
+        } else {
+            buf += text[i];
+        }
+        if (is_split && buf.size() >= min_chars) {
+            segments.push_back(buf);
+            buf.clear();
+        }
+    }
+    if (!buf.empty()) {
+        segments.push_back(buf);
+    }
+    return segments;
+}
+
+}  // anonymous namespace
+
 namespace prosophor {
 
 AgentSession::AgentSession(const std::string& sid,
@@ -14,7 +48,7 @@ AgentSession::AgentSession(const std::string& sid,
     last_active_ = SteadyClock::Now();
 
     if (r) {
-        provider_ = ProviderRouter::GetInstance().GetProviderByName(r->provider_prot);
+        provider_ = LlmProviderRouter::GetInstance().GetProviderByName(r->provider_prot);
         use_tools_ = true;
         working_directory_.clear();
         messages_.clear();
@@ -47,6 +81,10 @@ AgentSession::AgentSession(AgentSession&& other) noexcept
       system_prompt_(std::move(other.system_prompt_)),
       state_(other.state_),
       state_message_(std::move(other.state_message_)),
+      streaming_text_(std::move(other.streaming_text_)),
+      streaming_thinking_(std::move(other.streaming_thinking_)),
+      tts_chunks_(std::move(other.tts_chunks_)),
+      tts_speak_callback_(std::move(other.tts_speak_callback_)),
       mutable_role_(std::move(other.mutable_role_)) {
 }
 
@@ -76,6 +114,10 @@ AgentSession& AgentSession::operator=(AgentSession&& other) noexcept {
     system_prompt_ = std::move(other.system_prompt_);
     state_ = other.state_;
     state_message_ = std::move(other.state_message_);
+    streaming_text_ = std::move(other.streaming_text_);
+    streaming_thinking_ = std::move(other.streaming_thinking_);
+    tts_chunks_ = std::move(other.tts_chunks_);
+    tts_speak_callback_ = std::move(other.tts_speak_callback_);
     mutable_role_ = std::move(other.mutable_role_);
     return *this;
 }
@@ -83,6 +125,8 @@ AgentSession& AgentSession::operator=(AgentSession&& other) noexcept {
 void AgentSession::SetOutput(AgentRuntimeState new_state,
                               const std::string& state_msg,
                               const std::optional<MessageSchema>& reply) {
+
+    // 更新输出信号
     {
         std::lock_guard<std::mutex> lock(render_mutex_);
         state_ = new_state;
@@ -90,6 +134,7 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
 
         if (new_state == AgentRuntimeState::STREAM_CONTENT_TYPING && reply) {
             streaming_text_ += reply->text();
+            tts_chunks_.Push(reply->text());
             // Token/s tracking: count chars, estimate ~4 chars per token
             streaming_char_count_ += reply->text().size();
             auto elapsed = std::chrono::duration<float>(
@@ -102,6 +147,8 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
             stream_start_time_ = SteadyClock::Now();
             streaming_char_count_ = 0;
             streaming_token_speed_ = 0.0f;
+            streaming_text_.clear();
+            tts_chunks_.Clear();
         }
         if (new_state == AgentRuntimeState::STREAM_THINKING && reply) {
             streaming_thinking_ += reply->text();
@@ -110,22 +157,62 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
             stream_start_time_ = SteadyClock::Now();
             streaming_char_count_ = 0;
             streaming_token_speed_ = 0.0f;
+            streaming_thinking_.clear();
         }
         if (reply && (
             new_state == AgentRuntimeState::STREAM_MODE_COMPLETE ||
             new_state == AgentRuntimeState::COMPLETE ||
             new_state == AgentRuntimeState::TOOL_USE ||
             new_state == AgentRuntimeState::STATE_ERROR)) {
+            messages_.push_back(*reply);
             streaming_text_.clear();
             streaming_thinking_.clear();
-            streaming_char_count_ = 0;
-            streaming_token_speed_ = 0.0f;
-            messages_.push_back(*reply);
         }
     }
+
+    // 输出信号驱动动作或渲染
     if (output_callback_) {
         output_callback_(session_id_, role_ ? role_->id : "",
                         new_state, state_msg, reply);
+    }
+
+    // ── TTS: pop chunks, join, split, send complete sentences ──
+    if (tts_speak_callback_) {
+        auto items = tts_chunks_.PopAll();
+        if (items.empty()) return;
+
+        std::string pending;
+        for (auto& c : items) pending += std::move(c);
+
+        bool done = (new_state == AgentRuntimeState::COMPLETE ||
+                     new_state == AgentRuntimeState::STREAM_MODE_COMPLETE);
+        std::string to_send;
+
+        if (done) {
+            // 流式结束：整段 flush，无需分句
+            to_send = std::move(pending);
+        } else {
+            // 流式进行中：分句，完整句子发送，末尾不完整句保留到下次
+            auto segments = TtsSplitSentences(pending, 5);
+            // LOG_INFO("Split TTS text into {} segments: pending='{}'", segments.size(), pending);
+            if (segments.size() >= 2) {
+                // 至少有两段 → 前面的都是完整句子，最后一段可能不完整，因为还没有done结束
+                for (size_t i = 0; i + 1 < segments.size(); ++i)
+                    to_send += segments[i];
+                tts_chunks_.Push(segments.back());
+            } else {
+                // 只有一段且不完整 → 全部保留等后续 chunk
+                tts_chunks_.Push(std::move(pending));
+            }
+        }
+
+        if (to_send.empty()) return;
+
+        std::string backend = role_ && !role_->tts_backend.empty()
+            ? role_->tts_backend : "edge-tts";
+        std::string voice = role_ && !role_->tts_voice.empty()
+            ? role_->tts_voice : "zh-CN-XiaoxiaoNeural";
+        tts_speak_callback_(to_send, backend, voice);
     }
 }
 
@@ -178,7 +265,7 @@ void AgentSession::SetSystemPrompt(const std::vector<SystemSchema>& prompt) {
 void AgentSession::ApplyProviderOverride(const std::string& provider_name,
                                           const std::string& model) {
     std::lock_guard<std::mutex> lock(session_mutex_);
-    auto& router = ProviderRouter::GetInstance();
+    auto& router = LlmProviderRouter::GetInstance();
     provider_ = router.GetProviderByName(provider_name);
 
     mutable_role_ = *role_;

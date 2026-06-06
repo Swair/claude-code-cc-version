@@ -62,7 +62,6 @@ struct OllamaStreamHandler : public StreamHandler {
             std::string err = j["error"].is_string() ? j["error"].get<std::string>()
                                                      : j["error"].dump();
             accumulated_response.error_msg = err;
-            stream_callback(StreamEvent::kError, std::move(err));
             return;
         }
 

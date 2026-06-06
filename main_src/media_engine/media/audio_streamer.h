@@ -4,6 +4,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <vector>
 
 namespace media_engine {
 
@@ -22,11 +23,7 @@ class AudioStreamer {
     AudioStreamer& operator=(AudioStreamer&&) noexcept = default;
 
     /// Push raw PCM audio data for playback
-    bool PushChunk(const uint8_t* data, size_t len);
-
-    /// Load a WAV file and play it through a new AudioStreamer
-    /// Returns a unique_ptr to the streamer (caller must keep it alive while playing)
-    static std::unique_ptr<AudioStreamer> PlayWav(const std::string& wav_path);
+    bool PlayAudio(const std::vector<int16_t>& pcm);
 
     /// Stop playback and clear all queued data
     void Stop();

@@ -20,6 +20,16 @@ public:
     static void HotSwitch(const std::string& role_id,
                           const std::string& provider,
                           const std::string& model);
+
+    /// Update TTS voice/backend in the role's JSON file on disk.
+    static bool SaveTtsVoice(const std::string& role_id,
+                             const std::string& voice,
+                             const std::string& backend);
+
+    /// Hot-switch all running sessions for the given role to the new TTS voice.
+    static void HotSwitchTtsVoice(const std::string& role_id,
+                                  const std::string& voice,
+                                  const std::string& backend);
 };
 
 } // namespace prosophor

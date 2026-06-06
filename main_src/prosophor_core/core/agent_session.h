@@ -16,7 +16,8 @@
 #include "core/agent_role.h"
 #include "core/messages_schema.h"
 #include "providers/llm/llm_provider.h"
-#include "providers/provider_router.h"
+#include "providers/provider_router/llm_provider_router.h"
+#include "common/list_buffer.h"
 #include "common/time_wrapper.h"
 #include "core/agent_types.h"
 
@@ -36,6 +37,12 @@ using SessionOutputCallback = std::function<void(const std::string& session_id,
                                                   const std::string& state_msg,
                                                   const std::optional<MessageSchema>& reply)>;
 
+/// TTS speak callback - fires when the session has accumulated enough text to speak.
+/// Parameters: text, backend, voice
+using TtsSpeakCallback = std::function<void(const std::string& text,
+                                             const std::string& backend,
+                                             const std::string& voice)>;
+
 /// Agent 会话实例（运行时）
 class AgentSession {
 public:
@@ -52,6 +59,11 @@ public:
     // ── 回调（直接读写）─────────────────────────────────────
     ToolExecutorCallback tool_executor_;
     SessionOutputCallback output_callback_;
+
+    /// Set the callback invoked when the session has text ready for TTS synthesis.
+    inline void SetTtsSpeakCallback(TtsSpeakCallback cb) {
+        tts_speak_callback_ = std::move(cb);
+    }
 
     inline MemoryConsolidationService* GetConsolidationService() const { return consolidation_service_; }
     inline void SetConsolidationService(MemoryConsolidationService* v) { consolidation_service_ = v; }
@@ -160,6 +172,9 @@ private:
     std::string state_message_;
     std::string streaming_text_;
     std::string streaming_thinking_;
+    // ── TTS pending chunks ──────────────────────────────
+    ListBuffer<std::string> tts_chunks_;
+    TtsSpeakCallback tts_speak_callback_;
     mutable std::mutex render_mutex_;
 
     // ── 内部实现 ──────────────────────────────────────────

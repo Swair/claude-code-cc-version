@@ -3,9 +3,11 @@
 
 #include "common/file_utils.h"
 
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
+#include <string_view>
 #include <system_error>
 
 #include "common/log_wrapper.h"
@@ -157,6 +159,142 @@ std::string FindFileInDirs(const std::string& base_dir, const std::string& filen
         }
     }
     return {};
+}
+
+// ============================================================================
+// WAV Loading
+// ============================================================================
+
+std::vector<int16_t> LoadWav(const std::string& path) {
+    std::ifstream f(path, std::ios::binary);
+    if (!f) {
+        LOG_ERROR("LoadWav: cannot open: {}", path);
+        return {};
+    }
+
+    struct WavPcmHeader {
+        char     riff[4];
+        uint32_t file_size;
+        char     wave[4];
+        char     fmt_id[4];
+        uint32_t fmt_size;
+        uint16_t audio_format;
+        uint16_t num_channels;
+        uint32_t sample_rate;
+        uint32_t byte_rate;
+        uint16_t block_align;
+        uint16_t bits_per_sample;
+    };
+    WavPcmHeader hdr{};
+    static_assert(sizeof(WavPcmHeader) == 36, "WAV header size mismatch");
+    f.read(reinterpret_cast<char*>(&hdr), sizeof(hdr));
+    if (!f) {
+        return {};
+    }
+
+    if (std::string_view(hdr.riff, 4) != "RIFF" ||
+        std::string_view(hdr.wave, 4) != "WAVE") {
+        LOG_ERROR("LoadWav: not a valid WAV file: {}", path);
+        return {};
+    }
+
+    if (hdr.audio_format != 1) {
+        LOG_ERROR("LoadWav: only PCM WAV supported, format={}", hdr.audio_format);
+        return {};
+    }
+
+    if (hdr.fmt_size > 16) {
+        f.seekg(hdr.fmt_size - 16, std::ios::cur);
+    }
+
+    uint32_t data_size = 0;
+    char chunk_id[4];
+    uint32_t chunk_size;
+    while (f.read(chunk_id, 4) && f.read(reinterpret_cast<char*>(&chunk_size), 4)) {
+        if (std::string_view(chunk_id, 4) == "data") {
+            data_size = chunk_size;
+            break;
+        }
+        f.seekg(chunk_size, std::ios::cur);
+    }
+
+    if (data_size == 0) {
+        LOG_ERROR("LoadWav: no data chunk in: {}", path);
+        return {};
+    }
+
+    if (hdr.bits_per_sample != 16) {
+        LOG_ERROR("LoadWav: only 16-bit PCM supported, got {} in {}", hdr.bits_per_sample, path);
+        return {};
+    }
+
+    size_t num_samples = data_size / 2;
+    std::vector<int16_t> buf(num_samples);
+    if (!f.read(reinterpret_cast<char*>(buf.data()), data_size)) {
+        return {};
+    }
+
+    if (hdr.num_channels == 1) {
+        return buf;
+    }
+
+    std::vector<int16_t> mono(num_samples / 2);
+    for (size_t i = 0; i < mono.size(); ++i) {
+        mono[i] = static_cast<int16_t>(
+            (static_cast<int32_t>(buf[i * 2]) + static_cast<int32_t>(buf[i * 2 + 1])) / 2);
+    }
+    return mono;
+}
+
+bool WriteWav(const std::string& path, const std::vector<int16_t>& samples, int sample_rate) {
+    if (samples.empty()) return false;
+
+    std::ofstream f(path, std::ios::binary);
+    if (!f) return false;
+
+    int bits_per_sample = 16;
+    int num_channels = 1;
+    int byte_rate = sample_rate * num_channels * bits_per_sample / 8;
+    int block_align = num_channels * bits_per_sample / 8;
+    uint32_t data_size = static_cast<uint32_t>(samples.size()) * sizeof(int16_t);
+    uint32_t file_size = 36 + data_size;
+
+    struct {
+        char     chunk_id[4] = {'R','I','F','F'};
+        uint32_t chunk_size;
+        char     format[4]   = {'W','A','V','E'};
+        char     subchunk1_id[4] = {'f','m','t',' '};
+        uint32_t subchunk1_size = 16;
+        uint16_t audio_format = 1;  // PCM
+        uint16_t num_channels;
+        uint32_t sample_rate;
+        uint32_t byte_rate;
+        uint16_t block_align;
+        uint16_t bits_per_sample;
+        char     subchunk2_id[4] = {'d','a','t','a'};
+        uint32_t subchunk2_size;
+    } header{};
+
+    header.chunk_size = file_size;
+    header.num_channels = num_channels;
+    header.sample_rate = static_cast<uint32_t>(sample_rate);
+    header.byte_rate = byte_rate;
+    header.block_align = block_align;
+    header.bits_per_sample = bits_per_sample;
+    header.subchunk2_size = data_size;
+
+    f.write(reinterpret_cast<const char*>(&header), sizeof(header));
+    f.write(reinterpret_cast<const char*>(samples.data()), data_size);
+    return true;
+}
+
+// ============================================================================
+// Path Utilities
+// ============================================================================
+
+std::string ParentDir(const std::string& path) {
+    auto pos = path.find_last_of("/\\");
+    return (pos == std::string::npos) ? "." : path.substr(0, pos);
 }
 
 }  // namespace prosophor

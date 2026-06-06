@@ -9,6 +9,7 @@
 
 #include "common/log_wrapper.h"
 #include "common/time_wrapper.h"
+#include "common/thread_pool.h"
 
 namespace prosophor {
 
@@ -39,7 +40,9 @@ std::string BackgroundTaskManager::RunInDir(const std::string& command, const st
     tasks_[task_id] = task;
 
     // Start background thread
-    std::thread(&BackgroundTaskManager::ExecuteTask, this, task_id, command, cwd).detach();
+    GetGlobalThreadPool().Submit([this, task_id, command, cwd]() {
+        ExecuteTask(task_id, command, cwd);
+    });
 
     LOG_INFO("Started background task {}: {}", task_id, command);
     return task_id;

@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 #pragma once
 
+#include <atomic>
 #include <functional>
+#include <future>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -22,6 +25,8 @@ public:
     bool Load();
     void Unload();
     bool IsLoaded() const;
+    bool IsLoading() const;
+    std::string GetLoadError() const;
 
     // LLMProvider interface
     std::string GetProviderName() const override { return "llamacpp"; }
@@ -37,6 +42,12 @@ private:
     struct Impl;
     std::unique_ptr<Impl> impl_;
     LlamacppModelConfig cfg_;
+
+    std::atomic<bool> loaded_{false};
+    std::atomic<bool> loading_{false};
+    std::string load_error_msg_;
+    mutable std::mutex model_mutex_;
+    std::future<void> load_future_;
 
     HeaderList CreateHeaders(const ChatRequest& request) const override;
     void PrintRequestLog(const ChatRequest& request) const override;

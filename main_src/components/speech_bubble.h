@@ -26,6 +26,14 @@ public:
     using MessageSubmitCallback = std::function<void(const std::string&)>;
     void SetOnSubmit(MessageSubmitCallback cb) { on_submit_ = std::move(cb); }
 
+    /// Mic toggle passthrough to InputPanel
+    void SetOnMicToggle(media_engine::InputPanel::MicToggleCallback cb) {
+        if (input_panel_) input_panel_->SetOnMicToggle(std::move(cb));
+    }
+
+    /// Set input text (e.g. from ASR result)
+    void SetInputText(const std::string& text) { if (input_panel_) input_panel_->SetText(text); }
+
     /// Callback fired when maximize/restore is toggled — lets host resize the window
     using WindowResizeCallback = std::function<void(bool maximized)>;
     void SetOnWindowResize(WindowResizeCallback cb) { on_window_resize_ = std::move(cb); }

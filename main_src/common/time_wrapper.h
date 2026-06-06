@@ -86,6 +86,23 @@ public:
         return prefix + std::to_string(GetCurrentTimeMillis());
     }
 
+    /// Format GMT date string in HTTP/Python style:
+    /// "Wed May 27 2026 10:30:00 GMT+0000 (Coordinated Universal Time)"
+    static std::string FormatGmtString() {
+        auto now = std::chrono::system_clock::now();
+        std::time_t t = std::chrono::system_clock::to_time_t(now);
+        std::tm gmt{};
+#ifdef _WIN32
+        gmtime_s(&gmt, &t);
+#else
+        gmtime_r(&t, &gmt);
+#endif
+        char buf[128];
+        std::strftime(buf, sizeof(buf),
+            "%a %b %d %Y %H:%M:%S GMT+0000 (Coordinated Universal Time)", &gmt);
+        return buf;
+    }
+
 private:
     /// Internal helper to get current system_clock time point
     static std::chrono::system_clock::time_point NowSystem() {

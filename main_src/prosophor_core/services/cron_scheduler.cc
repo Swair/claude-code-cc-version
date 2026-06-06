@@ -10,6 +10,7 @@
 #include "common/log_wrapper.h"
 #include "common/time_wrapper.h"
 #include "common/file_utils.h"
+#include "common/thread_pool.h"
 
 namespace prosophor {
 
@@ -247,9 +248,9 @@ void CronScheduler::SchedulerLoop() {
         for (auto& [id, task] : tasks_) {
             if (ShouldRunNow(task)) {
                 // Execute in a separate thread to not block the scheduler
-                std::thread([this, id]() {
+                GetGlobalThreadPool().Submit([this, id]() {
                     ExecuteTask(tasks_[id]);
-                }).detach();
+                });
             }
         }
     }

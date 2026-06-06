@@ -23,6 +23,25 @@ InputPanel::InputPanel(float x, float y, float width, float height)
     send_button_->SetBgColor(Colors::Gray70a);
     send_button_->SetHoveredColor(Colors::Gray78a);
     send_button_->SetActiveColor(Colors::Gray63);
+
+    mic_button_ = std::make_unique<Button>("M", [this]() {
+        mic_on_ = !mic_on_;
+        if (mic_on_) {
+            mic_button_->SetLabel("\xe2\x97\x8f");
+            mic_button_->SetBgColor(Colors::RedMid);
+            mic_button_->SetHoveredColor(Colors::RedDark);
+            mic_button_->SetActiveColor(Colors::DarkRed);
+        } else {
+            mic_button_->SetLabel("M");
+            mic_button_->SetBgColor(Colors::Gray70a);
+            mic_button_->SetHoveredColor(Colors::Gray78a);
+            mic_button_->SetActiveColor(Colors::Gray63);
+        }
+        if (on_mic_toggle_) on_mic_toggle_(mic_on_);
+    });
+    mic_button_->SetBgColor(Colors::Gray70a);
+    mic_button_->SetHoveredColor(Colors::Gray78a);
+    mic_button_->SetActiveColor(Colors::Gray63);
 }
 
 InputPanel::~InputPanel() = default;
@@ -30,20 +49,15 @@ InputPanel::~InputPanel() = default;
 void InputPanel::RenderContent() {
     if (!visible_) return;
 
-    // Background
     DrawList::Panel(x_, y_, width_, height_, corner_radius_, bg_color_, border_color_, border_width_);
 
-    // Content area (with padding)
     float cx = x_ + padding_;
-
-    // Vertically center InputText within panel height
     float input_text_h = 20.0f;
     float cy = y_ + (height_ - input_text_h) / 2.0f;
 
-    // Input fills from left padding to right padding minus button + spacing
     constexpr float kBtnW = 30.0f;
     constexpr float kBtnSpacing = 4.0f;
-    float input_w = width_ - padding_ * 2.0f - kBtnW - kBtnSpacing;
+    float input_w = width_ - padding_ * 2.0f - kBtnW * 2.0f - kBtnSpacing * 2.0f;
 
     ScopedItemWidth _(input_w);
     input_text_->Render(cx, cy);
@@ -56,8 +70,17 @@ void InputPanel::RenderContent() {
         }
     }
 
+    // V/M mode toggle label
+    Layout::SameLine();
+    mic_button_->Render();
     Layout::SameLine();
     send_button_->Render();
+}
+
+
+
+void InputPanel::SetInputRatio(float ratio) {
+    input_ratio_ = (ratio < 0.0f) ? 0.0f : (ratio > 1.0f) ? 1.0f : ratio;
 }
 
 std::string InputPanel::GetText() const {
@@ -69,7 +92,7 @@ void InputPanel::SetText(const std::string& text) {
 }
 
 void InputPanel::SetOnSubmit(SubmitCallback cb) {
-    on_submit_ = cb;
+    on_submit_ = std::move(cb);
 }
 
 void InputPanel::SetSendButtonColor(const Color& color) {
@@ -87,10 +110,6 @@ void InputPanel::SetSendButtonColor(const Color& color) {
 
 void InputPanel::Render(const RenderContext& /*ctx*/) {
     RenderContent();
-}
-
-void InputPanel::SetInputRatio(float ratio) {
-    input_ratio_ = (ratio < 0.0f) ? 0.0f : (ratio > 1.0f) ? 1.0f : ratio;
 }
 
 }  // namespace media_engine

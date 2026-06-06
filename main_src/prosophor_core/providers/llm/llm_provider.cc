@@ -14,12 +14,11 @@ void RecordTokenUsage(const std::string& model, const TokenUsageSchema& usage) {
 }
 
 HttpResponse LLMProvider::ExecuteStream(const ChatRequest& request,
-    StreamHandler* stream_handler,
-    int default_timeout) const {
+    StreamHandler* stream_handler) const {
     HttpRequest stream_req;
     stream_req.url = request.base_url;
     stream_req.body = Serialize(request);
-    stream_req.timeout_seconds = request.timeout > 0 ? request.timeout : default_timeout;
+    stream_req.timeout_seconds = request.timeout > 0 ? request.timeout : 60;
     stream_req.low_speed_limit = 1;
     stream_req.low_speed_time = 120;
 

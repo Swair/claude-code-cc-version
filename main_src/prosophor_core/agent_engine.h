@@ -22,7 +22,7 @@ namespace prosophor {
 class MemoryManager;
 class ToolRegistry;
 class AgentSessionManager;
-class ProviderRouter;
+class LlmProviderRouter;
 class CommandRegistry;
 
 /// AgentEngine: core business logic shared by all frontends (Terminal, SDL, etc.)
@@ -94,7 +94,7 @@ class AgentEngine : public Noncopyable {
     std::shared_ptr<MemoryManager> memory_manager_;
     ToolRegistry*        tool_registry_   = nullptr;
     AgentSessionManager* session_manager_ = nullptr;
-    ProviderRouter*      provider_router_ = nullptr;
+    LlmProviderRouter*  provider_router_ = nullptr;
     CommandRegistry*     command_registry_ = nullptr;
 
 };

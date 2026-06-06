@@ -377,7 +377,24 @@ nlohmann::ordered_json LlamacppModelConfig::ToJson() const {
 TtsConfig TtsConfig::FromJson(const nlohmann::json& json) {
     TtsConfig config;
     config.enabled = json.value("enabled", true);
-    config.backend = json.value("backend", "edge-tts");
+
+    // Read from provider array (preferred) or flat fields (legacy)
+    if (json.contains("provider") && json["provider"].is_array() && !json["provider"].empty()) {
+        const auto& p = json["provider"][0];
+        config.backend = p.value("backend", "edge-tts");
+        config.gs_auto_start = p.value("auto_start", config.gs_auto_start);
+        if (p.contains("voice_list") && p["voice_list"].is_array()) {
+            for (const auto& v : p["voice_list"])
+                config.voice_list.push_back(v.get<std::string>());
+        }
+    } else {
+        config.backend = json.value("backend", "edge-tts");
+        config.voice = json.value("voice", "zh-CN-XiaoxiaoNeural");
+        if (json.contains("voice_list") && json["voice_list"].is_array()) {
+            for (const auto& v : json["voice_list"])
+                config.voice_list.push_back(v.get<std::string>());
+        }
+    }
     config.gs_url = json.value("gs_url", json.value("gsUrl", "http://127.0.0.1:9880"));
     config.gs_install_path = json.value("gs_install_path", json.value("gsInstallPath", ""));
     config.gs_auto_start = json.value("gs_auto_start", json.value("gsAutoStart", true));
@@ -395,12 +412,9 @@ TtsConfig TtsConfig::FromJson(const nlohmann::json& json) {
 
 AsrConfig AsrConfig::FromJson(const nlohmann::json& json) {
     AsrConfig config;
-    config.enabled    = json.value("enabled",    false);
-    config.backend    = json.value("backend",    std::string("sherpa-onnx"));
-    config.model_dir  = json.value("model_dir",  std::string(""));
-    config.script_path = json.value("script_path", std::string(""));
-    config.language   = json.value("language",   std::string("zh"));
-    config.n_threads  = json.value("n_threads",  4);
+    config.enabled        = json.value("enabled",        false);
+    config.push_to_talk   = json.value("push_to_talk",   true);
+    config.server_url     = json.value("server_url",     std::string("http://127.0.0.1:9100"));
     return config;
 }
 
@@ -817,10 +831,11 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
     // Serialize TTS (simplified)
     nlohmann::ordered_json tts_json;
     tts_json["enabled"] = tts.enabled;
-    nlohmann::ordered_json tts_provider_json;
-    tts_provider_json["backend"] = tts.backend;
-    tts_provider_json["auto_start"] = tts.gs_auto_start;
-    tts_json["provider"] = nlohmann::ordered_json::array({tts_provider_json});
+    nlohmann::ordered_json tts_provider;
+    tts_provider["backend"] = tts.backend;
+    tts_provider["auto_start"] = tts.gs_auto_start;
+    tts_provider["voice_list"] = tts.voice_list;
+    tts_json["provider"] = nlohmann::ordered_json::array({tts_provider});
     json["tts"] = tts_json;
 
     // Serialize security

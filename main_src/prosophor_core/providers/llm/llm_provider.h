@@ -99,7 +99,6 @@ enum class StreamEvent {
     kContentStart,
     kContentDelta,
     kContentEnd,
-    kError,
 };
 
 /// Response from chat completion API
@@ -156,10 +155,27 @@ class LLMProvider {
 
  protected:
     /// Execute streaming HTTP POST request
-    /// default_timeout: used when request.timeout <= 0 (Ollama: 180, others: 60)
     HttpResponse ExecuteStream(const ChatRequest& request,
-        StreamHandler* stream_handler,
-        int default_timeout = 60) const;
+        StreamHandler* stream_handler) const;
+
+    /// Common ChatStream template — all HTTP providers share the same flow.
+    template<typename Handler>
+    ChatResponse RunChatStream(const ChatRequest& request,
+                                std::function<void(StreamEvent, std::string)> cb,
+                                const char* provider_name) const {
+        Handler handler(std::move(cb));
+        PrintRequestLog(request);
+        auto resp = ExecuteStream(request, &handler);
+        if (!handler.error_msg.empty()) {
+            handler.accumulated_response.error_msg = handler.error_msg;
+        } else if (resp.failed()) {
+            std::string err = std::string(provider_name) + "::ChatStream (HTTP " +
+                              std::to_string(resp.status_code) + "): " + resp.error_msg;
+            LOG_ERROR("{}", err);
+            handler.accumulated_response.error_msg = err;
+        }
+        return handler.accumulated_response;
+    }
 
     virtual HeaderList CreateHeaders(const ChatRequest& request) const = 0;
     virtual void PrintRequestLog(const ChatRequest& request) const = 0;

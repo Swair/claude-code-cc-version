@@ -14,7 +14,7 @@
 #include "common/file_utils.h"
 #include "managers/permission_manager.h"
 #include "core/memory_consolidation_service.h"
-#include "providers/provider_router.h"
+#include "providers/provider_router/llm_provider_router.h"
 
 namespace prosophor {
 
@@ -194,7 +194,7 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
 
     sessions_[session_id] = std::make_unique<AgentSession>(std::move(session));
 
-    // Set output_callback after map insert: raw pointer is now stable for the session's lifetime
+    // Set callbacks after map insert: raw pointer is now stable for the session's lifetime
     sessions_[session_id]->output_callback_ = output_callback_;
 
     LOG_DEBUG("Created session: {} for role: {} (task: {})",
@@ -263,7 +263,7 @@ void AgentSessionManager::SendToSessionAsync(const std::string& session_id,
 
 void AgentSessionManager::StartChain(const std::string& session_id,
                                       std::shared_ptr<AgentSession> session) {
-    thread_pool_.Submit([this, session_id, session]() {
+    GetGlobalThreadPool().Submit([this, session_id, session]() {
         // 生产-消费循环：每次 swap 一批 → 持锁 Loop，中间释放锁
         for (;;) {
             std::vector<std::string> batch;
@@ -476,7 +476,7 @@ void AgentSessionManager::SwitchRoleForSession(const std::string& session_id,
     {   // session_mutex: 与 Loop 路径不并发读写 role/provider/base_url/system_prompt
         auto session_lock = session.ScopedLock();
         session.SetRole(&role_it->second);
-        session.SetProvider(ProviderRouter::GetInstance().GetProviderByName(session.GetRole()->provider_prot));
+        session.SetProvider(LlmProviderRouter::GetInstance().GetProviderByName(session.GetRole()->provider_prot));
 
         auto& config = ProsophorConfig::GetInstance();
         auto prov_it = config.llm_providers.find(session.GetRole()->provider_prot);

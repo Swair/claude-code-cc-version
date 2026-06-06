@@ -2,9 +2,9 @@
 # Prosophor Makefile
 # ==============================================================================
 # 编译目标说明：
-#   1. build        - Linux/macOS 构建 (使用 system 默认编译器)
-#   2. build_win    - Windows 构建 (MSYS2/MinGW, 无 SDL UI)
-#   3. build_win_sdl- Windows 构建 (MSYS2/MinGW, 启用 SDL UI)
+#   1. build        - Linux/macOS 构建 (Linux: CUDA GPU / macOS: CPU)
+#   2. build_win    - Windows 构建 (MSYS2/MinGW, Vulkan GPU, 无 SDL UI)
+#   3. build_win_sdl- Windows 构建 (MSYS2/MinGW, Vulkan GPU, 启用 SDL UI)
 # ==============================================================================
 
 PROJECT_DIR ?= $(abspath ./)
@@ -12,8 +12,8 @@ CMAKE ?= cmake
 MAKE ?= make
 NUM_JOB ?= 8
 
-# Set PATH for MSYS2/MinGW tools (always needed on this system)
-export PATH := /e/devtool/msys64/mingw64/bin:$(PATH)
+# Set PATH for MSYS2/MinGW tools and NVIDIA utilities (nvidia-smi)
+export PATH := /c/Windows/System32:/e/devtool/msys64/mingw64/bin:$(PATH)
 
 PACKAGE_NAME ?= Prosophor
 PACKAGE_VERSION ?= 0.7.1
@@ -39,7 +39,10 @@ CMAKE_ARGS ?= \
 	-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 	-DPACKAGE_VERSION=$(PACKAGE_VERSION) \
+	-DGGML_VULKAN=OFF \
+	-DPROSOPHOR_BUILD_LLAMA_VULKAN=OFF \
 	-DPROSOPHOR_BUILD_LLAMA=ON \
+	-DPROSOPHOR_BUILD_LLAMA_CUDA=ON \
 	$(CMAKE_EXTRA_ARGS)
 
 build:
@@ -67,9 +70,9 @@ CMAKE_ARGS_WIN ?= \
 	-DBUILD_SHARED_LIBS=OFF \
 	-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 	-DGGML_VULKAN=ON \
+	-DPROSOPHOR_BUILD_LLAMA_VULKAN=ON \
 	-DPROSOPHOR_BUILD_LLAMA=ON \
-	-DPROSOPHOR_BUILD_LLAMA_CUDA=ON \
-	-DPROSOPHOR_BUILD_ASR=ON \
+	-DPROSOPHOR_BUILD_LLAMA_CUDA=OFF \
 	-DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
 	-DPACKAGE_VERSION=$(PACKAGE_VERSION) \
 	$(CMAKE_EXTRA_ARGS)
@@ -96,7 +99,7 @@ build_win_sdl:
 # Windows 构建变体（独立目录，支持并行构建）
 # ==============================================================================
 # 变体说明：
-#   tui_fast    - 纯终端+仅远程API，最小体积（无 llama/ASR）
+#   tui_fast    - 纯终端+仅远程API，最小体积（无 llama）
 #   tui         - 纯终端+本地模型
 #   sdl_fast    - 桌面宠物+仅远程API，快速编译
 #   sdl         - 桌面宠物+全功能（当前默认）
@@ -114,37 +117,38 @@ INSTALL_DIR_SDL_FAST ?= $(BUILD_DIR_SDL_FAST)/install
 BUILD_DIR_SDL_FULL ?= $(PROJECT_DIR)/build_win_sdl
 INSTALL_DIR_SDL_FULL ?= $(BUILD_DIR_SDL_FULL)/install
 
+# build_variant 参数: $(1)=目录 $(2)=Vulkan $(3)=LLAMA $(4)=CUDA $(5)=SDL_UI
 define build_variant
 	mkdir -p $(1) && \
 	cd $(1) && \
 	$(CMAKE) $(CMAKE_ARGS_WIN) \
 		-DGGML_VULKAN=$(2) \
+		-DPROSOPHOR_BUILD_LLAMA_VULKAN=$(2) \
 		-DPROSOPHOR_BUILD_LLAMA=$(3) \
 		-DPROSOPHOR_BUILD_LLAMA_CUDA=$(4) \
-		-DPROSOPHOR_BUILD_ASR=$(5) \
-		-DPROSOPHOR_SDL_UI=$(6) .. && \
+		-DPROSOPHOR_SDL_UI=$(5) .. && \
 	ninja -j$(NUM_JOB); \
 	ninja install
 endef
 
 # tui_fast: 纯终端 + 仅远程API，无本地模型
 build_win_tui_fast:
-	$(call build_variant,$(BUILD_DIR_TUI_FAST),OFF,OFF,OFF,OFF,OFF)
+	$(call build_variant,$(BUILD_DIR_TUI_FAST),OFF,OFF,OFF,OFF)
 .PHONY: build_win_tui_fast
 
-# tui: 纯终端 + 本地模型
+# tui: 纯终端 + 本地模型 (Vulkan)
 build_win_tui_full:
-	$(call build_variant,$(BUILD_DIR_TUI_FULL),ON,ON,ON,ON,OFF)
+	$(call build_variant,$(BUILD_DIR_TUI_FULL),ON,ON,OFF,OFF)
 .PHONY: build_win_tui_full
 
 # sdl_fast: 桌面宠物 + 仅远程API，无本地模型
 build_win_sdl_fast:
-	$(call build_variant,$(BUILD_DIR_SDL_FAST),ON,OFF,OFF,OFF,ON)
+	$(call build_variant,$(BUILD_DIR_SDL_FAST),OFF,OFF,OFF,ON)
 .PHONY: build_win_sdl_fast
 
-# sdl: 桌面宠物 + 全功能（已存在，保持兼容）
+# sdl: 桌面宠物 + 全功能 (Vulkan)
 build_win_sdl_full:
-	$(call build_variant,$(BUILD_DIR_SDL_FULL),ON,ON,ON,ON,ON)
+	$(call build_variant,$(BUILD_DIR_SDL_FULL),ON,ON,OFF,ON)
 .PHONY: build_win_sdl_full
 
 # ---- 运行变体 ----
@@ -182,17 +186,6 @@ clean_win_sdl_fast:
 clean_win_sdl_full:
 	rm -rf $(BUILD_DIR_SDL_FULL)
 .PHONY: clean_win_sdl_full
-
-tests:
-	@echo "Running all tests in $(BUILD_DIR_WIN)/unitests..."
-	@for test in $(INSTALL_DIR)/bin/unitests/*_test; do \
-		if [ -x "$$test" ] && [ ! -d "$$test" ]; then \
-			$$test --gtest_list_tests >/dev/null 2>&1 || continue; \
-			echo "=== $$(basename $$test) ==="; \
-			$$test || exit 1; \
-		fi \
-	done
-.PHONY: tests
 
 clean:
 	rm -rf ${BUILD_DIR}
@@ -342,7 +335,12 @@ deploy_all_sdl_fast: deploy_sdl_fast deploy_gitee_sdl_fast
 .PHONY: deploy_all_sdl_fast
 
 # 运行所有单元测试 (执行 bin/tests 目录下所有测试程序)
-.PHONY: run_win_tests
-run_win_tests:
-	@echo "Running all tests in $(INSTALL_DIR_WIN)/bin/tests..."
-	@for test in $(INSTALL_DIR_WIN)/bin/tests/*.exe; do echo "Running $$(basename $$test)..."; $$test || exit 1; done
+# NOTE: 动态库 (libwhisper.dll/ggml*.dll) 位于 bin/，需加入 PATH
+.PHONY: tests
+tests:
+	@echo "Running all tests in $(INSTALL_DIR_WIN)/bin/unitests..."
+	@export PATH="$(INSTALL_DIR_WIN)/bin:$$PATH"; \
+	for test in $(INSTALL_DIR_WIN)/bin/unitests/*.exe; do \
+	  echo "Running $$(basename $$test)..."; \
+	  $$test || exit 1; \
+	done

@@ -112,7 +112,7 @@ void SubagentCoordinator::RunSubagent(Subagent& agent) {
             };
 
         // Set provider (use default provider)
-        auto& provider_router = ProviderRouter::GetInstance();
+        auto& provider_router = LlmProviderRouter::GetInstance();
         session.SetProvider(provider_router.GetDefaultProvider());
 
         // Build system prompt

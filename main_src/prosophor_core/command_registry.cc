@@ -2155,7 +2155,7 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
 }
 
 CommandResult CommandRegistry::CmdModel(const CommandContext& ctx, const std::vector<std::string>& args) {
-    auto& router = ProviderRouter::GetInstance();
+    auto& router = LlmProviderRouter::GetInstance();
 
     if (args.empty()) {
         // Show current provider/model configuration

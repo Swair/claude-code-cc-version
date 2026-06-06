@@ -12,27 +12,32 @@
 
 namespace prosophor {
 
-/// AsrService: singleton facade for speech-to-text
-/// Routes to SenseVoice ASR backend
-class AsrService : public Noncopyable {
+/// AsrProviderRouter: singleton facade for speech-to-text
+/// Routes to HTTP ASR server backend
+class AsrProviderRouter : public Noncopyable {
  public:
-    static AsrService& GetInstance();
+    static AsrProviderRouter& GetInstance();
 
-    /// Initialize — creates the ASR provider
+    /// Initialize — creates the ASR HTTP client
     void Initialize();
 
-    /// Set paths (call before Initialize)
-    void SetScriptPath(const std::string& path) { script_path_ = path; }
-    void SetModelDir(const std::string& dir) { model_dir_ = dir; }
+    /// Set server URL (call before Initialize)
+    void SetServerUrl(const std::string& url) { server_url_ = url; }
 
-    /// Synchronous transcription
-    std::string Transcribe(const std::string& audio_path);
+    /// Direct PCM transcription: int16 mono 16kHz samples → text
+    std::string AsrProcess(const std::vector<int16_t>& pcm);
 
-    /// Asynchronous transcription with callback
-    void TranscribeAsync(const std::string& audio_path);
+    /// Synchronous transcription (audio file)
+    std::string TranscribeFile(const std::string& audio_path);
+
+    /// Transcribe an audio file asynchronously (fire-and-forget thread).
+    void TranscribeFileAsync(const std::string& audio_path);
 
     /// Whether transcription is in progress
     bool IsTranscribing() const { return transcribing_; }
+
+    /// Raw ASR provider pointer
+    AsrProvider* GetRawProvider() { return provider_.get(); }
 
     // -- Callbacks --
     using OnResultCallback = std::function<void(const std::string& text)>;
@@ -42,12 +47,11 @@ class AsrService : public Noncopyable {
     void SetOnError(OnErrorCallback cb) { on_error_ = std::move(cb); }
 
  private:
-    AsrService() = default;
+    AsrProviderRouter() = default;
 
     AsrProvider* GetOrCreateProvider();
 
-    std::string script_path_;
-    std::string model_dir_;
+    std::string server_url_ = "http://127.0.0.1:9100";
     std::unique_ptr<AsrProvider> provider_;
 
     OnResultCallback on_result_;

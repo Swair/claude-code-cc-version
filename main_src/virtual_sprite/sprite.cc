@@ -11,9 +11,10 @@
 #include "agent_engine.h"
 #include "common/log_wrapper.h"
 #include "common/file_utils.h"
-#include "providers/tts/tts_speaker.h"
 #include "managers/agent_role_loader.h"
+#include "managers/agent_session_manager.h"
 #include "common/time_wrapper.h"
+#include "voice/voice_engine.h"
 #include <nlohmann/json.hpp>
 #include <cmath>
 #include <algorithm>
@@ -23,12 +24,10 @@
 #include <fstream>
 #include <random>
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#endif
+#include "platform/platform.h"
 
 namespace prosophor {
+
 
 Sprite::Sprite(const std::string& name, int width, int height, const std::string& role_id)
     : name_(name), role_id_(role_id), width_(width), height_(height) {}
@@ -87,6 +86,25 @@ bool Sprite::Create() {
     session_id_ = engine.CreateSession(effective_role, "");
     LOG_INFO("[Sprite] Session '{}' created for '{}' (role='{}')", session_id_, name_, effective_role);
 
+    // Load role TTS config once (doesn't change at runtime)
+    {
+        const auto role_path = (ProsophorConfig::BaseDir() / "roles" / (effective_role + ".json")).string();
+        if (FileExists(role_path)) {
+            const auto role = AgentRoleLoader::GetInstance().LoadRole(role_path);
+            if (!role.tts_backend.empty()) role_tts_backend_ = role.tts_backend;
+            if (!role.tts_voice.empty()) role_tts_voice_ = role.tts_voice;
+        }
+    }
+
+    // Register per-session TTS speak callback
+    if (auto* session = AgentSessionManager::GetInstance().GetSession(session_id_)) {
+        session->SetTtsSpeakCallback([](const std::string& text,
+                                         const std::string& backend,
+                                         const std::string& voice) {
+            VoiceEngine::GetInstance().Speak(text, backend, voice);
+        });
+    }
+
     // ── Pet loading (textures tied to this sprite window's renderer) ──
     auto binding = LoadSpriteBindingFromRole(effective_role);
     if (!binding.spritesheet_file.empty()) {
@@ -126,10 +144,6 @@ bool Sprite::Create() {
     }
     name_label_.SetText(name_);
 
-    // ── Nav bar ──
-    nav_bar_ = std::make_unique<media_engine::NavBar>();
-    nav_bar_->SetTextColor(media_engine::Colors::Gray35);
-
     // ── Set bubble title and assistant label to sprite display name ──
     speech_bubble_->SetTitle(name_);
     speech_bubble_->SetAssistantDisplayName(name_);
@@ -139,6 +153,8 @@ bool Sprite::Create() {
         AgentEngine::GetInstance().SendUserMessage(session_id_, msg);
     });
 
+    // ── Global VoiceEngine singleton (ASR + TTS) ──
+    VoiceEngine::GetInstance();
 
     // ── Mouse handler: drag + double-click (+ nav popup) ──
     mc.RegMouseHandler(sprite_window_, [this](const media_engine::MouseEvent& me) {
@@ -168,51 +184,6 @@ bool Sprite::Create() {
         auto snap = AgentEngine::GetInstance().GetSessionSnapshot(session_id_);
         speech_bubble_->SetSnapshot(snap ? *snap : RenderSnapshot{});
         speech_bubble_->SetOverrideSize(sprite_window_->GetWidth(), sprite_window_->GetHeight());
-
-        const bool reply_complete = snap && (snap->state == AgentRuntimeState::COMPLETE ||
-                                             snap->state == AgentRuntimeState::STREAM_MODE_COMPLETE);
-        std::string tts_text;
-        if (snap) {
-            tts_text = snap->streaming_text;
-            if (reply_complete && tts_text.empty()) {
-                for (auto it = snap->messages.rbegin(); it != snap->messages.rend(); ++it) {
-                    if (it->role == "assistant") {
-                        for (const auto& block : it->content) {
-                            if (block.type == "text") {
-                                tts_text += block.text;
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-        }
-        if (speech_bubble_->IsVisible() && reply_complete && !tts_text.empty() &&
-            tts_text != last_tts_text_) {
-            last_tts_text_ = tts_text;
-            const auto& config = AgentEngine::GetInstance().GetConfig();
-            if (config.tts.enabled) {
-                tts_disabled_logged_ = false;
-                std::string backend = config.tts.backend;
-                std::string voice = "zh-CN-XiaoxiaoNeural";  // default Edge-TTS voice
-                if (!effective_role_id_.empty()) {
-                    const auto role_path = (ProsophorConfig::BaseDir() / "roles" / (effective_role_id_ + ".json")).string();
-                    if (FileExists(role_path)) {
-                        const auto role = AgentRoleLoader::GetInstance().LoadRole(role_path);
-                        if (!role.tts_backend.empty()) backend = role.tts_backend;
-                        if (!role.tts_voice.empty()) voice = role.tts_voice;
-                    }
-                }
-                auto& tts = TtsSpeaker::GetInstance();
-                tts.ApplyVoiceProfile(backend, voice);
-                LOG_INFO("[Sprite] TTS trigger session='{}' role='{}' chars={} backend='{}' voice='{}'",
-                         session_id_, effective_role_id_, tts_text.size(), backend, voice);
-                tts.SpeakCached(effective_role_id_, tts_text);
-            } else if (!tts_disabled_logged_) {
-                LOG_INFO("[Sprite] TTS skipped session='{}': disabled", session_id_);
-                tts_disabled_logged_ = true;
-            }
-        }
 
         root_widget_.Render(media_engine::RenderContext{});
 
@@ -274,18 +245,6 @@ void Sprite::PetCanvas::Render(const media_engine::RenderContext& ctx) {
     // 4. Cascade to widget-tree children (speech_bubble_)
     for (auto* child : children_) {
         child->Render(ctx);
-    }
-
-    // 5. Nav bar at anchor position
-    if (!sprite.pet_list_.empty()) {
-        char buf[16];
-        std::snprintf(buf, sizeof(buf), "%d/%d",
-                      sprite.current_pet_index_ + 1, sprite.GetPetCount());
-        std::vector<media_engine::NavBar::Item> items = {};
-        // NavBar needs the parent width for ImGui layout; use nav_anchor_.GetWidth()
-        // but the nav bar internally uses the window width (parent_width param).
-        // The actual window width from the root is more accurate here.
-        sprite.nav_bar_->Render(win_w, buf, items);
     }
 }
 
@@ -594,18 +553,6 @@ void Sprite::LoadPetFromDir(const std::string& assets_dir) {
     LOG_WARN("No valid spritesheet found in assets dir: {}", assets_dir);
 }
 
-void Sprite::NextPet() {
-    if (pet_list_.empty()) return;
-    current_pet_index_ = (current_pet_index_ + 1) % pet_list_.size();
-    LoadCurrentPet();
-}
-
-void Sprite::PrevPet() {
-    if (pet_list_.empty()) return;
-    current_pet_index_ = (current_pet_index_ - 1 + static_cast<int>(pet_list_.size())) % pet_list_.size();
-    LoadCurrentPet();
-}
-
 const std::string& Sprite::GetCurrentPetSlug() const {
     static const std::string s_empty;
     if (pet_sprite_) return pet_sprite_->GetSlug();
@@ -714,6 +661,7 @@ void Sprite::SetAgentState(AgentRuntimeState state, const std::string& details) 
     state_details_ = details;
 }
 
+
 void Sprite::SetDragOverride(bool active, bool left) {
     drag_override_active_ = active;
     drag_override_left_ = left;
@@ -725,6 +673,10 @@ void Sprite::SetHovering(bool active) {
 
 void Sprite::ToggleSpeechBubble() {
     speech_bubble_->Toggle();
+}
+
+bool Sprite::IsSpeechBubbleVisible() const {
+    return speech_bubble_->IsVisible();
 }
 
 }  // namespace prosophor

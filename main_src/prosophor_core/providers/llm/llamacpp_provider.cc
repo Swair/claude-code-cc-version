@@ -3,6 +3,7 @@
 
 #include "providers/llm/llamacpp_provider.h"
 #include "common/log_wrapper.h"
+#include "common/thread_pool.h"
 #include "common/time_wrapper.h"
 
 #ifdef PROSOPHOR_HAS_LOCAL_MODEL
@@ -14,7 +15,6 @@
 #include "common/chat-auto-parser.h"
 #include "common/chat.h"
 #pragma GCC diagnostic pop
-#include <thread>
 
 // Redirect llama.cpp log output to spdlog so it doesn't flood the TUI terminal.
 // Called once before any llama API.
@@ -68,7 +68,6 @@ struct LlamacppProvider::Impl {
         vocab = nullptr;
     }
 #endif
-    bool loaded = false;
 };
 
 // Convert KV cache type string to ggml_type enum.
@@ -84,117 +83,164 @@ static ggml_type kv_cache_type_from_string(const std::string& s) {
 LlamacppProvider::LlamacppProvider(const LlamacppModelConfig& cfg)
     : impl_(std::make_unique<Impl>()), cfg_(cfg) {}
 
-LlamacppProvider::~LlamacppProvider() = default;
+LlamacppProvider::~LlamacppProvider() {
+    if (load_future_.valid()) {
+        load_future_.wait();
+    }
+}
 
 bool LlamacppProvider::Load() {
 #ifndef PROSOPHOR_HAS_LOCAL_MODEL
     LOG_ERROR("[local] Built without PROSOPHOR_BUILD_LLAMA");
     return false;
 #else
-    if (impl_->loaded) return true;
-
-    const std::string& path = cfg_.model_path;
-    if (path.empty()) { LOG_ERROR("[local] model_path is empty"); return false; }
-
-    llama_log_set(llama_log_to_spdlog, nullptr);
-
-    LOG_INFO("[local] Loading model: {}", path);
-    auto t0 = SteadyClock::Now();
-
-    llama_model_params mparams = llama_model_default_params();
-    mparams.n_gpu_layers = cfg_.gpu_enable ? -1 : 0;
-    impl_->model = llama_model_load_from_file(path.c_str(), mparams);
-    if (!impl_->model) {
-        LOG_ERROR("[local] Failed to load: {}", path);
-        return false;
-    }
-    impl_->vocab = llama_model_get_vocab(impl_->model);
-
-    llama_context_params cparams = llama_context_default_params();
-    cparams.n_ctx           = static_cast<uint32_t>(cfg_.context_window);
-    cparams.n_threads       = cfg_.threads > 0 ? cfg_.threads : 8;
-    cparams.n_threads_batch = cfg_.n_threads_batch > 0
-                              ? cfg_.n_threads_batch
-                              : std::max(cparams.n_threads * 4, 32);
-    cparams.n_batch         = static_cast<uint32_t>(cfg_.n_batch);
-    cparams.n_ubatch        = static_cast<uint32_t>(cfg_.n_ubatch);
-    cparams.type_k          = kv_cache_type_from_string(cfg_.type_k);
-    cparams.type_v          = kv_cache_type_from_string(cfg_.type_v);
-    cparams.offload_kqv     = cfg_.offload_kqv;
-    cparams.flash_attn_type = cfg_.flash_attn
-                              ? LLAMA_FLASH_ATTN_TYPE_ENABLED
-                              : LLAMA_FLASH_ATTN_TYPE_DISABLED;
-    impl_->ctx = llama_init_from_model(impl_->model, cparams);
-    if (!impl_->ctx) {
-        LOG_ERROR("[local] Failed to create context");
-        impl_->Release();
+    bool expected = false;
+    if (!loading_.compare_exchange_strong(expected, true)) {
+        LOG_WARN("[local] Load already in progress");
         return false;
     }
 
-    llama_sampler_chain_params sparams = llama_sampler_chain_default_params();
-    impl_->sampler = llama_sampler_chain_init(sparams);
-    if (cfg_.min_p > 0.0f) {
-        llama_sampler_chain_add(impl_->sampler, llama_sampler_init_min_p(cfg_.min_p, 1));
-    }
-    llama_sampler_chain_add(impl_->sampler, llama_sampler_init_temp(cfg_.temperature));
-    llama_sampler_chain_add(impl_->sampler,
-        cfg_.seed >= 0
-            ? llama_sampler_init_dist(static_cast<uint32_t>(cfg_.seed))
-            : llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
-
-    // Initialize the full chat template for proper prompt rendering (supports thinking).
-    impl_->chat_tmpls = common_chat_templates_init(impl_->model, "");
-    if (impl_->chat_tmpls) {
-        LOG_DEBUG("[local] Chat template initialized");
+    // If already loaded, just return
+    if (loaded_) {
+        loading_ = false;
+        return true;
     }
 
-    // Detect thinking/reasoning markers from the model's chat template.
-    if (cfg_.thinking) {
+    load_future_ = GetGlobalThreadPool().SubmitWithFuture([this]() {
         try {
-            const char* tmpl_str = llama_model_chat_template(impl_->model, nullptr);
-            if (tmpl_str && tmpl_str[0]) {
-                char buf[64];
-                int n;
-                n = llama_token_to_piece(impl_->vocab, llama_vocab_bos(impl_->vocab),
-                                         buf, (int32_t)sizeof(buf), 0, true);
-                std::string bos(n > 0 ? std::string(buf, (size_t)n) : "");
-                n = llama_token_to_piece(impl_->vocab, llama_vocab_eos(impl_->vocab),
-                                         buf, (int32_t)sizeof(buf), 0, true);
-                std::string eos(n > 0 ? std::string(buf, (size_t)n) : "");
-
-                common_chat_template chat_tmpl(tmpl_str, bos, eos);
-                autoparser::analyze_reasoning reasoning(chat_tmpl, /*supports_tools=*/false);
-
-                impl_->has_reasoning_markers = (reasoning.mode != autoparser::reasoning_mode::NONE);
-                impl_->reason_start          = reasoning.start;
-                impl_->reason_end            = reasoning.end;
-                impl_->thinking_enabled      = true;
-
-                LOG_INFO("[local] Reasoning markers: mode={} start='{}' end='{}'",
-                         static_cast<int>(reasoning.mode),
-                         reasoning.start, reasoning.end);
+            const std::string& path = cfg_.model_path;
+            if (path.empty()) {
+                LOG_ERROR("[local] model_path is empty");
+                load_error_msg_ = "model_path is empty";
+                loading_ = false;
+                return;
             }
-        } catch (const std::exception& e) {
-            LOG_WARN("[local] Reasoning marker detection failed: {}", e.what());
-        }
-    }
 
-    impl_->loaded = true;
-    auto ms = SteadyClock::ElapsedMillis(t0);
-    LOG_INFO("[local] Loaded in {} ms  gpu_enable={}", ms, cfg_.gpu_enable);
+            llama_log_set(llama_log_to_spdlog, nullptr);
+
+            LOG_INFO("[local] Loading model: {}", path);
+            auto t0 = SteadyClock::Now();
+
+            llama_model_params mparams = llama_model_default_params();
+            mparams.n_gpu_layers = cfg_.gpu_enable ? -1 : 0;
+
+            std::lock_guard<std::mutex> lock(model_mutex_);
+            impl_->model = llama_model_load_from_file(path.c_str(), mparams);
+            if (!impl_->model) {
+                LOG_ERROR("[local] Failed to load: {}", path);
+                load_error_msg_ = "Failed to load model: " + path;
+                loading_ = false;
+                return;
+            }
+            impl_->vocab = llama_model_get_vocab(impl_->model);
+
+            llama_context_params cparams = llama_context_default_params();
+            cparams.n_ctx           = static_cast<uint32_t>(cfg_.context_window);
+            cparams.n_threads       = cfg_.threads > 0 ? cfg_.threads : 8;
+            cparams.n_threads_batch = cfg_.n_threads_batch > 0
+                                      ? cfg_.n_threads_batch
+                                      : std::max(cparams.n_threads * 4, 32);
+            cparams.n_batch         = static_cast<uint32_t>(cfg_.n_batch);
+            cparams.n_ubatch        = static_cast<uint32_t>(cfg_.n_ubatch);
+            cparams.type_k          = kv_cache_type_from_string(cfg_.type_k);
+            cparams.type_v          = kv_cache_type_from_string(cfg_.type_v);
+            cparams.offload_kqv     = cfg_.offload_kqv;
+            cparams.flash_attn_type = cfg_.flash_attn
+                                      ? LLAMA_FLASH_ATTN_TYPE_ENABLED
+                                      : LLAMA_FLASH_ATTN_TYPE_DISABLED;
+            impl_->ctx = llama_init_from_model(impl_->model, cparams);
+            if (!impl_->ctx) {
+                LOG_ERROR("[local] Failed to create context");
+                load_error_msg_ = "Failed to create context";
+                impl_->Release();
+                loading_ = false;
+                return;
+            }
+
+            llama_sampler_chain_params sparams = llama_sampler_chain_default_params();
+            impl_->sampler = llama_sampler_chain_init(sparams);
+            if (cfg_.min_p > 0.0f) {
+                llama_sampler_chain_add(impl_->sampler, llama_sampler_init_min_p(cfg_.min_p, 1));
+            }
+            llama_sampler_chain_add(impl_->sampler, llama_sampler_init_temp(cfg_.temperature));
+            llama_sampler_chain_add(impl_->sampler,
+                cfg_.seed >= 0
+                    ? llama_sampler_init_dist(static_cast<uint32_t>(cfg_.seed))
+                    : llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
+
+            // Initialize the full chat template for proper prompt rendering (supports thinking).
+            impl_->chat_tmpls = common_chat_templates_init(impl_->model, "");
+            if (impl_->chat_tmpls) {
+                LOG_DEBUG("[local] Chat template initialized");
+            }
+
+            // Detect thinking/reasoning markers from the model's chat template.
+            if (cfg_.thinking) {
+                try {
+                    const char* tmpl_str = llama_model_chat_template(impl_->model, nullptr);
+                    if (tmpl_str && tmpl_str[0]) {
+                        char buf[64];
+                        int n;
+                        n = llama_token_to_piece(impl_->vocab, llama_vocab_bos(impl_->vocab),
+                                                 buf, (int32_t)sizeof(buf), 0, true);
+                        std::string bos(n > 0 ? std::string(buf, (size_t)n) : "");
+                        n = llama_token_to_piece(impl_->vocab, llama_vocab_eos(impl_->vocab),
+                                                 buf, (int32_t)sizeof(buf), 0, true);
+                        std::string eos(n > 0 ? std::string(buf, (size_t)n) : "");
+
+                        common_chat_template chat_tmpl(tmpl_str, bos, eos);
+                        autoparser::analyze_reasoning reasoning(chat_tmpl, /*supports_tools=*/false);
+
+                        impl_->has_reasoning_markers = (reasoning.mode != autoparser::reasoning_mode::NONE);
+                        impl_->reason_start          = reasoning.start;
+                        impl_->reason_end            = reasoning.end;
+                        impl_->thinking_enabled      = true;
+
+                        LOG_INFO("[local] Reasoning markers: mode={} start='{}' end='{}'",
+                                 static_cast<int>(reasoning.mode),
+                                 reasoning.start, reasoning.end);
+                    }
+                } catch (const std::exception& e) {
+                    LOG_WARN("[local] Reasoning marker detection failed: {}", e.what());
+                }
+            }
+
+            loaded_ = true;
+            loading_ = false;
+            auto ms = SteadyClock::ElapsedMillis(t0);
+            LOG_INFO("[local] Loaded in {} ms  gpu_enable={}", ms, cfg_.gpu_enable);
+        } catch (const std::exception& e) {
+            LOG_ERROR("[local] Load exception: {}", e.what());
+            load_error_msg_ = e.what();
+            loading_ = false;
+        }
+    });
+
     return true;
 #endif
 }
 
 void LlamacppProvider::Unload() {
+    if (load_future_.valid()) {
+        load_future_.wait();
+    }
 #ifdef PROSOPHOR_HAS_LOCAL_MODEL
-    impl_->Release();
-    impl_->loaded = false;
+    {
+        std::lock_guard<std::mutex> lock(model_mutex_);
+        impl_->Release();
+    }
+    loaded_ = false;
+    loading_ = false;
+    load_error_msg_.clear();
     LOG_INFO("[local] Model unloaded");
 #endif
 }
 
-bool LlamacppProvider::IsLoaded() const { return impl_->loaded; }
+bool LlamacppProvider::IsLoaded() const { return loaded_; }
+
+bool LlamacppProvider::IsLoading() const { return loading_; }
+
+std::string LlamacppProvider::GetLoadError() const { return load_error_msg_; }
 
 std::string LlamacppProvider::BuildPrompt(const ChatRequest& request) const {
 #ifndef PROSOPHOR_HAS_LOCAL_MODEL
@@ -338,12 +384,10 @@ ChatResponse LlamacppProvider::ChatStream(
 
 #ifndef PROSOPHOR_HAS_LOCAL_MODEL
     response.error_msg = "Built without PROSOPHOR_BUILD_LLAMA";
-    callback(StreamEvent::kError, response.error_msg);
     return response;
 #else
-    if (!impl_->loaded) {
+    if (!loaded_) {
         response.error_msg = "Model not loaded";
-        callback(StreamEvent::kError, response.error_msg);
         return response;
     }
 
@@ -399,7 +443,6 @@ ChatResponse LlamacppProvider::ChatStream(
     }
     if (prompt.empty()) {
         response.error_msg = "Empty prompt";
-        callback(StreamEvent::kError, response.error_msg);
         return response;
     }
     PrintRequestLog(request);
@@ -416,7 +459,6 @@ ChatResponse LlamacppProvider::ChatStream(
         /*parse_special=*/true);
     if (n_prompt < 0) {
         response.error_msg = "Tokenize failed";
-        callback(StreamEvent::kError, response.error_msg);
         return response;
     }
     prompt_tokens.resize(static_cast<size_t>(n_prompt));
@@ -435,7 +477,6 @@ ChatResponse LlamacppProvider::ChatStream(
             n_prompt = static_cast<int>(prompt_tokens.size());
         } else {
             response.error_msg = "Prompt exceeds context window even with zero reserve";
-            callback(StreamEvent::kError, response.error_msg);
             return response;
         }
     }
@@ -455,7 +496,6 @@ ChatResponse LlamacppProvider::ChatStream(
             llama_batch batch = llama_batch_get_one(prompt_tokens.data() + i, n_tokens);
             if (llama_decode(impl_->ctx, batch) != 0) {
                 response.error_msg = "llama_decode (prefill) failed";
-                callback(StreamEvent::kError, response.error_msg);
                 return response;
             }
         }
@@ -467,7 +507,7 @@ ChatResponse LlamacppProvider::ChatStream(
     int   n_generated = 0;
     char  piece_buf[256];
     auto  t_gen_start = SteadyClock::Now();
-    auto  t_last_log  = t_gen_start;
+    ThrottleLog tlog;
 
     // -- Streaming output via text-based marker detection --
     // Markers (e.g. <|channel>thought / <channel|> for Gemma 4) are
@@ -604,11 +644,10 @@ ChatResponse LlamacppProvider::ChatStream(
         }
         ++n_generated;
 
-        if (SteadyClock::IsExpired(t_last_log, static_cast<int64_t>(5000))) {
+        if (tlog.Check(5000)) {
             double elapsed = SteadyClock::ElapsedSeconds(t_gen_start);
             LOG_DEBUG("[local] Generating... {} tokens  ({:.2f} t/s)",
                      n_generated, n_generated / (elapsed > 0 ? elapsed : 1.0));
-            t_last_log = SteadyClock::Now();
         }
     }
 

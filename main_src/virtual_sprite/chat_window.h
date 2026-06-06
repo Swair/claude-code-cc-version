@@ -5,6 +5,9 @@
 #include <string>
 #include <functional>
 #include <memory>
+#include <vector>
+
+#include "virtual_sprite/settings_window.h"
 
 namespace media_engine { class Window; class InputPanel; class Texture; }
 namespace prosophor { class ChatPanel; }
@@ -37,7 +40,7 @@ public:
     int GetWidth() const { return width_; }
     int GetHeight() const { return height_; }
 
-    void OpenSettings() { settings_open_ = true; }
+    void OpenSettings() { settings_.Open(); }
 
 private:
     void RenderChatUI();
@@ -45,7 +48,6 @@ private:
     void UpdateLayout(int win_w, int win_h);
     void RenderChatContent();
     void RenderRightPanel(int win_w, int win_h);
-    void RenderSettingsWindow();
     void RenderAboutWindow();
     void RenderTokenSpeed(int win_w, int win_h);
     void CreateTrayWindow();
@@ -57,9 +59,10 @@ private:
     media_engine::Window* tray_window_ = nullptr;
     std::unique_ptr<media_engine::Texture> tray_texture_;
 
+    SettingsWindow settings_;
+
     bool          visible_    = true;
     bool          tray_showing_ = false;
-    bool          settings_open_ = false;
     bool          about_open_ = false;
     int           width_      = 800;
     int           height_     = 600;

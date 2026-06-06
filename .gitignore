@@ -3,6 +3,7 @@ build_win
 .claude
 tools
 tests
-simulation_bag
+
 thirdparty_src/
+dist/releases/
 

@@ -199,6 +199,7 @@ struct SecurityConfig {
 struct TtsConfig {
     bool enabled = true;
     std::string backend = "edge-tts";  // "edge-tts" | "gpt-sovits" | "sherpa-onnx"
+    std::string voice = "zh-CN-XiaoxiaoNeural";
 
     // GPT-SoVITS settings
     std::string gs_url = "http://127.0.0.1:9880";
@@ -215,17 +216,17 @@ struct TtsConfig {
     int   sherpa_speaker_id = 0;
     float sherpa_speed      = 1.0f;
 
+    // edge-tts voice list
+    std::vector<std::string> voice_list;
+
     static TtsConfig FromJson(const nlohmann::json& json);
 };
 
 /// Configuration for ASR (Automatic Speech Recognition)
 struct AsrConfig {
     bool enabled = false;
-    std::string backend = "sherpa-onnx";  // "sherpa-onnx" | "sensevoice" (python subprocess)
-    std::string model_dir;                // Path to sherpa-onnx model files
-    std::string script_path;              // Path to run_asr.py (sensevoice backend only)
-    std::string language  = "zh";         // Recognition language
-    int n_threads = 4;
+    bool push_to_talk = true;         // true: hold M to talk; false: VAD full-duplex always-on
+    std::string server_url = "http://127.0.0.1:9100";  // whisper server endpoint
 
     static AsrConfig FromJson(const nlohmann::json& json);
 };

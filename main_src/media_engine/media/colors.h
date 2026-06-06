@@ -24,9 +24,20 @@ struct Color {
         TitleBg = 8,
         TitleBgActive = 9,
         FrameBg = 10,
+        FrameBgHovered = 11,
+        FrameBgActive = 12,
+        Header = 13,
+        HeaderHovered = 14,
+        HeaderActive = 15,
         Button = 18,
         ButtonHovered = 19,
         ButtonActive = 20,
+        Tab = 22,
+        TabHovered = 23,
+        TabActive = 24,
+        TabUnfocused = 25,
+        TabUnfocusedActive = 26,
+        CheckMark = 27,
     };
 };
 
