@@ -1,5 +1,124 @@
 # Changelog
 
+## [0.7.5] — 2026-06-06 语音引擎 + Provider Router 重构 + EdgeTTS 进程内解码 + 设置面板独立
+
+本期重点：全新语音子系统（WebRTC VAD + 噪声抑制 + SDL 音频采集 + 语音通道）；Provider 目录重组为 Router 架构（ASR/TTS/LLM 三路分离）；EdgeTTS 全面重写（移除 ffmpeg 子进程，进程内 dr_mp3 解码）；设置面板从 ChatWindow 独立为可复用窗口；WebSocket 客户端封装；TTS 管线从 TtsSpeaker 迁移至 VoiceEngine + 会话驱动；ASR 从 SenseVoice 子进程切换为 HTTP whisper 服务器。净变化 +13,592 行。
+
+### 语音引擎子系统
+- **VoiceEngine 单例**：统一 ASR（语音→文字）与 TTS（文字→语音）管线
+  - ASR 管道：`FeedPCM()` 接收 16kHz int16 帧，VAD 状态机（3 帧确认说话 → 10 帧间隔 interim → 20 帧静默终结），`PollResult()` 线程安全取结果
+  - TTS 管道：`Synthesize()` 经 TtsProviderRouter 合成，`Speak()` 异步重采样 24kHz→16kHz 后推送到 VoiceChannel 播放
+  - `SanitizeTtsText()`：剥离 Emoji（4 字节 UTF-8）、Markdown 符号、前导 `#`
+- **VAD 状态机**：`FixedBuffer` 5 帧回放缓存防止丢失语音起始；confirm/silence 计数器过滤噪音抖动
+- **WebRTC VAD 嵌入式**：`voice/rtc/` 目录完整移植 WebRTC VAD 库
+  - GMM 高斯混合模型语音/噪声似然估计
+  - Mel 滤波器组 6 子带能量分析（80Hz–4kHz）
+  - 频谱峰值追踪、子带能量特征提取
+  - 支持 3 级检测灵敏度，mode 3 最激进
+- **WebRTC 噪声抑制**：`voice/rtc/ns.*` 移植 WebRTC 降噪器（2148 行）
+  - MMSE 频域噪声估计、最小统计量噪声谱追踪
+  - 128/256 点 FFT 分析合成、语音概率建模
+- **AudioCapture**：SDL3 连续麦克风采集（16kHz S16LE mono），10s 环形缓冲区
+- **VoiceChannel**：全局音频 I/O 泵单例，持有音频线程 + AudioCapture + AudioStreamer，~20ms 轮询
+- **Resampler**：24kHz→16kHz 线性插值（3:2 比例），配合 EdgeTTS 输出转 VAD 输入
+
+### Provider Router 架构重构
+- **目录重组**：所有 provider router 集中到 `providers/provider_router/` 目录
+  - `ProviderRouter` → `LlmProviderRouter`（`llm_provider_router.*`）
+  - 新增 `AsrProviderRouter`（`asr_provider_router.*`）
+  - 新增 `TtsProviderRouter`（`tts_provider_router.*`）
+- **AsrProviderRouter**：替代旧 `AsrService`，读取 `asr.server_url` 创建 `HttpAsrProvider`
+  - `AsrProcess(pcm)` 实时 PCM 转写、`TranscribeFile()` 文件转写、结果/错误回调
+  - 原子 `transcribing_` 防止重叠转写
+- **TtsProviderRouter**：替代旧 `TtsSpeaker`，配置驱动多后端缓存
+  - `SetBackend()` 运行时切换，`shared_mutex` 线程安全
+  - 当前仅实例化 `EdgeTtsProvider`，always fallback edge-tts
+- **HttpAsrProvider**（新增）：HTTP 发送 PCM 到远程 whisper `/v1/transcribe` 服务器
+  - 替换 `SenseVoiceAsrProvider`（Python 子进程 funasr）和 `AsrService`
+
+### EdgeTTS 全面重写（进程内解码）
+- **移除 ffmpeg 子进程依赖**：改为进程内 `dr_mp3` 库直接解码 MP3 到 PCM
+- **PIMPL 移除**：从 PIMPL 模式简化为直接继承 `TtsProvider`
+- **WebSocket 封装**：使用 `WebSocketClient` RAII 包装替代裸 `CURL*` 管理
+- **流式合成移除**：仅保留全量合成模式，`Synthesize(TtsRequest)` 返回内存 PCM 向量
+- **新增 `TtsRequest`/`TtsResponse` 结构体**：文本+语音+采样率→PCM 内存传递
+- `ConnectAndExchange()`：WebSocket 连接 + `speech.config` + SSML 请求
+- `ReceiveAllMp3()`：拉取二进制帧，跳过 2 字节头 + `\r\n\r\n`，累积 MP3 字节
+- 加密辅助函数迁移至 `crypto_utils.h`，日期格式化迁移至 `time_wrapper.h`
+
+### WebSocket 客户端
+- 新增 `websocket_client.h/cc`：libcurl WebSocket RAII 封装
+  - `Connect(url, headers)` — SSL 验证关闭（兼容 EdgeTTS）
+  - `Send()`/`SendText()` — TEXT/BINARY 帧发送
+  - `Recv()` — 带 `CURLE_AGAIN` 重试（50ms 轮询，可配置超时）
+  - `Close()`/`IsConnected()` — 生命周期管理
+  - Move-only 语义
+
+### 设置面板独立
+- 新增 `settings_window.h/cc`：从 ChatWindow 内联设置提取为可复用类
+  - 6 标签页：General / Roles / Providers / Security / TTS / Local Models
+  - TTS 标签页新增**测试发音按钮**（调用 `VoiceEngine::Speak()`）
+  - 角色标签页支持逐角色模型/TTS 语音选择
+  - Cancel 从磁盘重载配置，Save 通过 `SaveSettings()` 热切换运行中会话
+  - 全部标签 i18n 就绪
+
+### TTS 管线重构（会话驱动）
+- **TtsSpeaker 删除**：功能迁移至 `VoiceEngine` + `TtsProviderRouter`
+- **会话级 TTS 集成**：`AgentSession` 新增 `tts_chunks_` 缓冲区 + `TtsSpeakCallback`
+  - 流式 text delta 推入队列，按标点分句后立即回调
+  - 不完整句子缓存，`COMPLETE`/`STREAM_MODE_COMPLETE` 时刷新全部
+  - `TtsSplitSentences()`：`。！？，.!?,\n` 分句
+- **Sprite TTS 适配**：从渲染轮询改为 session 注册回调，移除 `last_tts_text_` 等状态
+- **TTS Provider API 重写**：
+  - `Synthesize(text, output_path)` → `Synthesize(TtsRequest) → TtsResponse`
+  - 流式回调 API 移除，仅保留全量合成
+  - `SynthesizeToFile()` 基类便捷方法（PCM → WAV 写入）
+
+### 通用工具库扩展
+- **crypto_utils.h**（新增）：`Sha256Hex()`（OpenSSL EVP）、`GenerateUuid()`（UUID v4）
+- **list_buffer.h**（新增）：
+  - `ListBuffer<T>`：互斥锁保护的可增长缓冲区（`Push`/`PopAll`/`PopFront`）
+  - `FixedBuffer<T, N>`：非线程安全环形缓冲区，始终保留最后 N 项
+- **mp3_decoder.h/cc**（新增）：基于 `dr_mp3.h` 单头文件库的进程内 MP3 解码
+  - `dr_mp3.h` 单头文件 5412 行，`DRMP3_API=static` 避免 SDL3_mixer 符号冲突
+- **file_utils 增强**：`LoadWav(path)` 加载 WAV → `vector<int16_t>`；`WriteWav()` 写入 WAV；`ParentDir()` 父目录
+- **time_wrapper 增强**：`SystemClock::FormatGmtString()` Python 风格 GMT 日期字符串
+- **log_wrapper 增强**：`THROTTLE_LOG(interval_ms, ...)` 限频日志宏
+
+### LLM Provider 精简
+- `StreamEvent::kError` 枚举值移除
+- `ExecuteStream()` 移除 `default_timeout` 参数
+- 新增 `RunChatStream<Handler>()` 模板方法统一流式流程
+- OpenAI/Anthropic/Ollama/Llamacpp 全部改用模板
+
+### Llamacpp Provider 增强
+- 新增 `ValidateModel()` 方法校验 GGUF 模型兼容性
+- 新增 `GetLoadedModelInfo()` 返回加载模型元信息
+- 修复线程安全与生命周期管理
+
+### AudioStreamer 简化
+- `PushChunk(data, len)` + `PlayWav(path)` 合并为单 `PlayAudio(pcm)` 方法
+- 匹配新的内存 PCM 管线
+
+### Config/角色配置更新
+- **TtsConfig**：新增 `voice` 字段（默认 `zh-CN-XiaoxiaoNeural`）、`voice_list` 数组
+- **AsrConfig**：从 SenseVoice 参数重构为 `push_to_talk` + `server_url`（whisper HTTP）
+- **RoleConfigManager**：新增 `SaveModel()`/`HotSwitch()` LLM 热切换；`SaveTtsVoice()`/`HotSwitchTtsVoice()` TTS 语音热切换
+- `settings.json` 更新 TTS/ASR/角色配置
+
+### 文档更新
+- README.md 重构
+- 新增 README.zh-CN.md（中文版）
+- 删除 README_en.md（由双语 README 替代）
+
+### 文件统计
+- 变更文件：115 个
+- 新增：+16,935 行
+- 删除：-3,343 行
+- 净变化：+13,592 行
+
+---
+
 ## [Unreleased] — 2026-05-27 EdgeTTS 直接 HTTP 协议重写 + Config ordered_json 重构 + 多构建变体
 
 本期重点：EdgeTTS provider 从 Python 子进程调用完全重写为直接 HTTP 协议实现（curl + DRM token + Opus→PCM 流式）；Config 序列化全面迁移至 `ordered_json` 以保证字段顺序确定性；Platform 新增管道子进程支持（`CreatePipedSubprocess`）；构建系统新增 4 种并行构建变体；角色配置绑定 TTS 语音。净变化 +890 行。

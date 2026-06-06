@@ -643,6 +643,16 @@ make -j$(nproc) && make install
 | `build_win_sdl_fast` | 桌面精灵，仅远程 API |
 | `build_win_sdl_full` | 桌面精灵 + 全部功能 |
 
+### 打包与发布
+
+| 目标 | 说明 |
+|------|------|
+| `package` | 构建 + NSIS 安装包（需要 MSYS2/MinGW） |
+| `deploy` | 打包 + 发布到 GitHub Releases（需要 `gh` CLI） |
+| `deploy_all` | 发布到 GitHub + Gitee（Gitee 需要 `GITEE_TOKEN`） |
+
+发布说明自动从 `CHANGELOG.md` 提取对应版本的内容，找不到时回退到 `--generate-notes`。
+
 ### 测试
 
 ```

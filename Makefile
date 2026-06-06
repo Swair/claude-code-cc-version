@@ -16,7 +16,7 @@ NUM_JOB ?= 8
 export PATH := /c/Windows/System32:/e/devtool/msys64/mingw64/bin:$(PATH)
 
 PACKAGE_NAME ?= Prosophor
-PACKAGE_VERSION ?= 0.7.1
+PACKAGE_VERSION ?= 0.7.5
 # BUILD_TYPE ?= RelWithDebInfo
 BUILD_TYPE ?= Debug
 
@@ -205,7 +205,7 @@ PACKAGE_DIR ?= $(PROJECT_DIR)/tools/packaging
 
 package: build_win_sdl
 	cp /e/devtool/msys64/mingw64/etc/ssl/certs/ca-bundle.crt $(INSTALL_DIR_WIN)/bin/
-	cd $(PACKAGE_DIR) && "$(NSIS)" -DPRODUCT_VERSION=$(PACKAGE_VERSION) -DPROSOPHOR_HAS_LLAMA installer.nsi
+	cd $(PACKAGE_DIR) && "$(NSIS)" -DPRODUCT_VERSION=$(PACKAGE_VERSION) installer.nsi
 	mv $(PACKAGE_DIR)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe $(BUILD_DIR_WIN)/
 	@echo "=== Installer created: $(BUILD_DIR_WIN)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe ==="
 .PHONY: package
@@ -224,7 +224,7 @@ define do_package
 endef
 
 package_sdl_full: build_win_sdl_full
-	$(call do_package,$(INSTALL_DIR_SDL_FULL),-DPROSOPHOR_HAS_LLAMA)
+	$(call do_package,$(INSTALL_DIR_SDL_FULL),)
 	@echo "Variant: sdl_full (full feature)"
 .PHONY: package_sdl_full
 
@@ -235,11 +235,19 @@ package_sdl_fast: build_win_sdl_fast
 
 # ---- 部署（构建+打包+GitHub Release） ----
 
+CHANGELOG_NOTES ?= $(BUILD_DIR_WIN)/release_notes.md
+
 define do_deploy
+	python "$(PROJECT_DIR)/tools/extract_changelog.py" $(PACKAGE_VERSION) > "$(CHANGELOG_NOTES)" 2>/dev/null; \
+	if [ -s "$(CHANGELOG_NOTES)" ]; then \
+	  NOTES_OPT="--notes-file \"$(CHANGELOG_NOTES)\""; \
+	else \
+	  NOTES_OPT="--generate-notes"; \
+	fi; \
 	gh release create v$(PACKAGE_VERSION) \
 	  $(1)/$(PACKAGE_NAME)-$(PACKAGE_VERSION)-win64-setup.exe \
 	  --title "v$(PACKAGE_VERSION) ($(2))" \
-	  --generate-notes
+	  $$NOTES_OPT
 endef
 
 deploy: package

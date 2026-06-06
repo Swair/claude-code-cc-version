@@ -643,6 +643,16 @@ make -j$(nproc) && make install
 | `build_win_sdl_fast` | Desktop pet, remote API only |
 | `build_win_sdl_full` | Desktop pet + full features |
 
+### Package & Deploy
+
+| Target | Description |
+|--------|-------------|
+| `package` | Build + NSIS installer (requires MSYS2/MinGW) |
+| `deploy` | Package + publish to GitHub Releases (`gh` CLI required) |
+| `deploy_all` | Deploy to GitHub + Gitee (Gitee requires `GITEE_TOKEN`) |
+
+Release notes are automatically extracted from `CHANGELOG.md` for the matching version. Fallback to `--generate-notes` if no entry found.
+
 ### Tests
 
 ```
