@@ -138,6 +138,7 @@ namespace Colors {
     constexpr Color Orange{255, 165, 0, 255};
     constexpr Color OrangeLight{255, 225, 195, 255};
     constexpr Color OrangeLightest{255, 240, 220, 255};
+    constexpr Color OrangePale{255, 248, 238, 255};
     constexpr Color OrangeWarm{200, 120, 50, 255};
     constexpr Color OrangeDeep{180, 100, 40, 255};
     constexpr Color Gold{255, 215, 0, 255};

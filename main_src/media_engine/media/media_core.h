@@ -138,6 +138,14 @@ class MediaCore {
         void ClampToDisplay();            // 确保主窗口不超出屏幕边界
         bool GetDisplayBoundsForWindow(Window* window, int* x, int* y, int* w, int* h) const;
 
+        static constexpr float kFontScaleMin = 0.8f;
+        static constexpr float kFontScaleMax = 1.1f;
+
+        /// 运行时调整全局字体缩放 (ImGui::GetIO().FontGlobalScale)
+        /// Setup unified ImGui light theme (call once per ImGui context)
+        static void SetupStyle(bool transparent_bg = false);
+        static void SetGlobalFontScale(float scale);
+
     private:
         MediaCore() = default;
 

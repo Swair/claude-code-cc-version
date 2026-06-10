@@ -1,5 +1,95 @@
 # Changelog
 
+## [Unreleased] — 2026-06-10 UI 架构重构：侧边栏导航 + 多面板仪表盘 + 运行时角色管理
+
+本期重点：UI 从单体式聊天窗口重构为侧边栏驱动多面板仪表盘（19 个导航项、18 个独立面板视图）；SettingWindow 从 ChatWindow 完全提取为独立模态窗口；新增 RoleConfigManager 运行时热切换角色模型/TTS 语音；Platform 层新增 7 个跨平台 API；布局常量全面迁移至 LayoutConfig 集中管理；新增字体缩放支持（`font_scale`）。净变化 +2,702 行。
+
+### 侧边栏导航系统
+- **Sidebar 组件**（新增 `components/sidebar.h/cc`）：左侧可折叠导航面板
+  - 19 个 NavItem 分为 5 组：Capabilities/Monitor/Agents/Store/Settings
+  - 品牌区域（Logo + 标题），展开/折叠切换
+  - 可折叠分组（+/- 按钮），激活项橙色竖条指示
+  - 底部 GitHub 星标、官网、版本号、语言切换
+  - 折叠模式仅图标，展开模式图标 + i18n 标签
+  - 懒加载 Logo 纹理，悬停高亮
+
+### 面板视图系统
+- **PanelContainer**（新增 `ui_component/panel_container.h/cc`）：统一面板外层容器
+  - 橙色标题 + 白色背景 + CreamBorder 描边（可配置圆角/直角）
+  - 自动内容区域计算，`SplitRight()` 右侧分割，`BeginScroll()` 滚动子窗口
+- **18 个独立面板视图**（`virtual_sprite/panels/`）：
+  - `chat_view`：主聊天界面 + 右侧可折叠角色卡片面板 + token/s 徽章
+  - `config_view`：SplitView 左右布局，General/Security 分类配置表单
+  - `roles_view`：角色列表 + 复选框 + 编辑区（描述/提示词/模型/语音/自动确认）
+  - `providers_view`：提供商列表 + 表单（API Key/Base URL/Timeout/Thinking/模型参数）
+  - `tts_view`：TTS 启用/禁用、后端/语音选择、测试朗读、ASR 设置
+  - `knowledge_view`：知识库浏览器，可展开分类和条目
+  - `sessions_view`：会话卡片列表（ID/角色/状态/聚焦按钮）
+  - `status_view`：状态仪表板，StatCards 显示服务/会话/配置/内存状态
+  - `logs_view`：日志查看器，All/INFO/WARN/ERROR/DEBUG 过滤
+  - `usage_view`：Token 用量统计（总/输入/输出/预估费用）+ 会话表格
+  - `local_models_view` / `petstore_view` / `memory_view` / `mcp_view` / `security_view` / `skills_view` / `scheduler_view` / `about_view`：信息面板/占位
+- **panel_helpers**：共享 UI 组件库（`SplitView`/`SectionForm`/`StatCard`/`CardBox`/`SaveCancelBar`/`PlaceholderView`）
+
+### ChatWindow 重构
+- 从单体 ~471 行缩减为调度器：`RenderCurrentView()` switch 路由到各面板
+- `sidebar_` 成员驱动导航，`PanelData` 结构体聚合窗口/面板/缩略图
+- `CreateTrayWindow()` / `ShowTray()` / `RenderTray()` 系统托盘支持
+- 移除 `RenderContentArea()` / `RenderTopBar()` / `RenderSettingsView()` 等旧方法
+
+### SettingsWindow 独立
+- 从 ChatWindow 完全提取为独立 `settings_window.h/cc`（+608 行）
+- 模态对话框，6 标签页：General/Roles/Providers/Security/TTS/Local Models
+- `SettingsState` 编辑状态副本，`InitState()` 填充 / `SaveSettings()` 写回热切换
+
+### RoleConfigManager（运行时角色配置管理）
+- 新增 `RoleConfigManager` 类（`role_config_manager.h/cc`）：运行时角色配置持久化
+  - `SaveModel()` / `HotSwitch()`：模型热切换，对所有运行中会话生效
+  - `SaveTtsVoice()` / `HotSwitchTtsVoice()`：TTS 语音热切换
+  - `SaveField()` / `SaveFieldBool()`：任意字段持久化
+  - `HotReload()`：从磁盘重新加载角色 JSON
+
+### Platform 层扩展
+- 新增 7 个跨平台 API（`platform.h/cc`）：
+  - `BrowseForFile()` / `BrowseForDirectory()`：原生文件/目录选择对话框
+  - `OpenWithDefault()`：系统默认打开方式
+  - `TrashFile()`：移动到回收站/回收
+  - `IsAlreadyRunning()`：命名互斥体/文件锁单实例检测
+  - `KillProcessByName()`：按名称终止进程
+  - `GetPipeErrorString()`：管道错误信息
+
+### ImGui Widget 扩展
+- 新增 `SameLine()`、`GetFontScale()`、`GetItemRectSize()`、`IsItemHovered()`
+- `InvisibleButton` / `Button` 添加手型光标
+- `DrawList::Selection()` 选择框绘制
+- `SetHandCursorOnHover()` 便捷方法
+
+### Config 配置更新
+- 新增 `font_scale` 字段（`kFontScaleSmall 0.8f` / `kFontScaleLarge 1.1f` / `kFontScaleSwitch 0.95f`）
+- 新增 `sprite_assets_dir`、`enable_summary` 持久化
+- `SetGlobalFontScale()` 运行时字体缩放支持
+
+### LayoutConfig 全面集中化
+- 从 ~37 行扩展至 ~182 行：所有布局常量集中管理
+- 侧边栏/面板框架/SplitView/聊天区/输入区/日志/用量/会话/精灵/气泡/托盘/Token 徽章布局常量
+- 移除各文件中的内联硬编码值
+
+### i18n 国际化更新
+- en.json / zh-CN.json 新增 ~100+ 翻译键
+- 侧边栏导航标签、视图标题、分组标签
+- 会话/日志/用量面板文本，`font_size`、`tab_asr`、`panel_no_data`、`btn_focus` 等
+
+### 文档更新
+- README.md / README.zh-CN.md 同步更新
+
+### 文件统计
+- 变更文件：52 个
+- 新增：+3,173 行
+- 删除：-471 行
+- 净变化：+2,702 行
+
+---
+
 ## [0.7.5] — 2026-06-06 语音引擎 + Provider Router 重构 + EdgeTTS 进程内解码 + 设置面板独立
 
 本期重点：全新语音子系统（WebRTC VAD + 噪声抑制 + SDL 音频采集 + 语音通道）；Provider 目录重组为 Router 架构（ASR/TTS/LLM 三路分离）；EdgeTTS 全面重写（移除 ffmpeg 子进程，进程内 dr_mp3 解码）；设置面板从 ChatWindow 独立为可复用窗口；WebSocket 客户端封装；TTS 管线从 TtsSpeaker 迁移至 VoiceEngine + 会话驱动；ASR 从 SenseVoice 子进程切换为 HTTP whisper 服务器。净变化 +13,592 行。

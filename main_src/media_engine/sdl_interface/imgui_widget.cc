@@ -446,6 +446,10 @@ void Layout::SameLine() {
     ImGui::SameLine();
 }
 
+void Layout::SameLine(float offset, float spacing) {
+    ImGui::SameLine(offset, spacing);
+}
+
 void Layout::SetCursorPos(float x, float y) {
     ImGui::SetCursorPos(ImVec2(x, y));
 }
@@ -466,6 +470,10 @@ float Layout::GetContentRegionAvailWidth() {
     return ImGui::GetContentRegionAvail().x;
 }
 
+float Layout::GetFontScale() {
+    return ImGui::GetStyle().FontScaleMain;
+}
+
 void Layout::GetCursorScreenPos(float* x, float* y) {
     ImVec2 p = ImGui::GetCursorScreenPos();
     *x = p.x;
@@ -473,7 +481,25 @@ void Layout::GetCursorScreenPos(float* x, float* y) {
 }
 
 bool ImGuiWidget::InvisibleButton(const char* id, float w, float h) {
-    return ImGui::InvisibleButton(id, ImVec2(w, h));
+    bool ret = ImGui::InvisibleButton(id, ImVec2(w, h));
+    if (ImGui::IsItemHovered())
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    return ret;
+}
+
+void ImGuiWidget::GetItemRectSize(float* w, float* h) {
+    ImVec2 size = ImGui::GetItemRectSize();
+    if (w) *w = size.x;
+    if (h) *h = size.y;
+}
+
+bool ImGuiWidget::IsItemHovered() {
+    return ImGui::IsItemHovered();
+}
+
+void ImGuiWidget::SetHandCursorOnHover() {
+    if (ImGui::IsItemHovered())
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
 }
 
 // ============================================================================
@@ -484,6 +510,23 @@ void DrawList::RoundRect(float x, float y, float w, float h,
                          float radius, const Color& color) {
     ImGui::GetWindowDrawList()->AddRectFilled(
         ImVec2(x, y), ImVec2(x + w, y + h), ColorToRGBA(color), radius);
+}
+
+void DrawList::Selection(float x, float y, float w, float h, float bar_w,
+                         const Color& bar_color, const Color& bg_color,
+                         float radius) {
+    auto* dl = ImGui::GetWindowDrawList();
+    auto bg = ColorToRGBA(bg_color);
+    auto bar = ColorToRGBA(bar_color);
+    if (radius > 0 && bar_w > 0) {
+        dl->AddRectFilled(ImVec2(x, y), ImVec2(x + bar_w, y + h), bar, radius,
+            ImDrawFlags_RoundCornersLeft);
+        dl->AddRectFilled(ImVec2(x + bar_w, y), ImVec2(x + w, y + h), bg, radius,
+            ImDrawFlags_RoundCornersRight);
+    } else {
+        dl->AddRectFilled(ImVec2(x, y), ImVec2(x + bar_w, y + h), bar, 0);
+        dl->AddRectFilled(ImVec2(x + bar_w, y), ImVec2(x + w, y + h), bg, 0);
+    }
 }
 
 void DrawList::RoundRectOutline(float x, float y, float w, float h,
@@ -779,7 +822,10 @@ bool ImGuiWidget::SliderFloat(const char* label, double* value, float min, float
 }
 
 bool ImGuiWidget::Button(const char* label, float width, float height) {
-    return ImGui::Button(label, ImVec2(width, height));
+    bool ret = ImGui::Button(label, ImVec2(width, height));
+    if (ImGui::IsItemHovered())
+        ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+    return ret;
 }
 
 void ImGuiWidget::Separator() {

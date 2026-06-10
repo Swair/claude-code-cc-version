@@ -17,6 +17,7 @@ struct Window::Impl {
     ImGuiContext* imgui_ctx = nullptr;
     int width = 0;
     int height = 0;
+    bool transparent_bg = false;
 };
 
 namespace {
@@ -24,26 +25,7 @@ namespace {
 void SetupImGui(ImGuiContext* ctx, SDL_Window* window, SDL_Renderer* renderer,
                 const WindowConfig& cfg, int width, int height) {
     ImGui::SetCurrentContext(ctx);
-    ImGui::StyleColorsLight();
-
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowRounding = 0.0f;
-    style.FrameRounding = 4.0f;
-
-    if (cfg.transparent_bg) {
-        style.Colors[ImGuiCol_WindowBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-        style.Colors[ImGuiCol_PopupBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.2f, 0.2f, 0.2f, 0.9f);
-        style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.3f, 0.5f, 0.8f, 0.5f);
-        style.Colors[ImGuiCol_Button] = ImVec4(0.3f, 0.5f, 0.8f, 0.8f);
-        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.4f, 0.6f, 0.9f, 0.9f);
-        style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.2f, 0.4f, 0.7f, 1.0f);
-    } else {
-        style.Colors[ImGuiCol_WindowBg] = ImVec4(0.12f, 0.12f, 0.14f, 1.0f);
-    }
-
-    style.Colors[ImGuiCol_Text] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
-    style.Colors[ImGuiCol_Border] = ImVec4(0.5f, 0.5f, 0.5f, 0.5f);
+    MediaCore::SetupStyle(cfg.transparent_bg);
 
     ImGuiIO& io = ImGui::GetIO();
 
@@ -53,7 +35,7 @@ void SetupImGui(ImGuiContext* ctx, SDL_Window* window, SDL_Renderer* renderer,
             ImFontConfig font_cfg;
             font_cfg.FontDataOwnedByAtlas = false;
             io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(shared.data.data()),
-                static_cast<int>(shared.data.size()), 16.0f, &font_cfg,
+                static_cast<int>(shared.data.size()), 20.0f, &font_cfg,
                 io.Fonts->GetGlyphRangesChineseFull());
         } else {
             io.Fonts->AddFontDefault();
@@ -80,6 +62,7 @@ Window::Window(const char* title, int width, int height,
     : impl_(std::make_unique<Impl>()) {
     impl_->width = width;
     impl_->height = height;
+    impl_->transparent_bg = cfg.transparent_bg;
 
     uint32_t sdl_flags = 0;
     if (cfg.resizable)          sdl_flags |= SDL_WINDOW_RESIZABLE;
@@ -181,6 +164,14 @@ void Window::SetMinSize(int min_w, int min_h) {
     if (impl_->window) {
         SDL_SetWindowMinimumSize(impl_->window, min_w, min_h);
     }
+}
+
+ImGuiContext* Window::GetImGuiContext() const {
+    return impl_->imgui_ctx;
+}
+
+bool Window::HasTransparentBg() const {
+    return impl_->transparent_bg;
 }
 
 void Window::Show() {

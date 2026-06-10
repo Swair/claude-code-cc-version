@@ -238,7 +238,12 @@ struct ProsophorConfig {
 
     bool enable_summary = true;      // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
 
+    // ── 字体缩放常量（与 MediaCore::kFontScaleMin/Max 同步）──
+    static constexpr float kFontScaleSmall  = 0.8f;
+    static constexpr float kFontScaleLarge  = 1.1f;
+    static constexpr float kFontScaleSwitch = 0.95f; // 切换阈值 (< → small, ≥ → large)
     std::string sprite_assets_dir;   // sprite 资源基目录 ~/.prosophor/assets，按 {sprite_id}/ 组织
+    float font_scale = kFontScaleLarge;      // 当前字体缩放倍率
 
     SecurityConfig security;
     std::unordered_map<std::string, ProviderConfig> llm_providers;

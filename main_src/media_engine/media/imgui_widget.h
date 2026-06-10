@@ -142,6 +142,10 @@ public:
     static void RoundRect(float x, float y, float w, float h, float radius, const Color& color);
     static void RoundRectOutline(float x, float y, float w, float h, float radius,
                                  const Color& color, float thickness = 1.0f);
+    /// Draw selection indicator: left accent bar + filled background
+    static void Selection(float x, float y, float w, float h, float bar_w,
+                          const Color& bar_color, const Color& bg_color,
+                          float radius = 0);
     static void OverlayRectOutline(float x, float y, float w, float h, float radius,
                                    const Color& color, float thickness = 1.0f);
     static void CircleFilled(float cx, float cy, float radius, const Color& color);
@@ -186,6 +190,7 @@ public:
 class Layout {
 public:
     static void SameLine();
+    static void SameLine(float offset, float spacing);
     static void Dummy(float width, float height);
     static void SetCursorPos(float x, float y);
     static void SetCursorPosX(float x);
@@ -194,6 +199,8 @@ public:
     /// Get the available content region width in the current window/child.
     /// Accounts for window padding and scrollbars. Returns 0 if not inside a window.
     static float GetContentRegionAvailWidth();
+    /// Current global font scale (FontScaleMain, 1.0=small, 1.5=large)
+    static float GetFontScale();
 };
 
 /// 文本渲染
@@ -406,6 +413,12 @@ public:
                            const Color& bg_color,
                            const Color& text_color = Colors::White,
                            float radius = 4.0f);
+    /// Get the size of the last rendered item (rect max - rect min)
+    static void GetItemRectSize(float* w, float* h);
+    /// Whether the last rendered item is hovered
+    static bool IsItemHovered();
+    /// Set mouse cursor to hand when last item is hovered
+    static void SetHandCursorOnHover();
 };
 
 /// MenuBar — 传统菜单栏 (ImGui BeginMenuBar / EndMenuBar)

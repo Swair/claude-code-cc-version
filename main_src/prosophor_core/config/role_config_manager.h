@@ -30,6 +30,20 @@ public:
     static void HotSwitchTtsVoice(const std::string& role_id,
                                   const std::string& voice,
                                   const std::string& backend);
+
+    /// Save an arbitrary string field (e.g. "description", "personality_prompt") to the role JSON.
+    /// Returns true if the file was actually changed.
+    static bool SaveField(const std::string& role_id,
+                          const std::string& field_path,
+                          const std::string& value);
+
+    /// Save a boolean field (e.g. "llm.auto_confirm_tools").
+    static bool SaveFieldBool(const std::string& role_id,
+                              const std::string& field_path,
+                              bool value);
+
+    /// Reload the role JSON from disk and update all running sessions for this role.
+    static void HotReload(const std::string& role_id);
 };
 
 } // namespace prosophor

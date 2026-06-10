@@ -12,6 +12,7 @@
 struct SDL_Window;
 struct SDL_Renderer;
 struct ImFontAtlas;
+struct ImGuiContext;
 
 namespace media_engine {
 
@@ -72,6 +73,8 @@ public:
     void SetAspectRatio(float ratio);
     void SetMinSize(int min_w, int min_h);
 
+    ImGuiContext* GetImGuiContext() const;
+    bool HasTransparentBg() const;
 
 private:
     friend class MediaCore;

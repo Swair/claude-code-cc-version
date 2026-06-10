@@ -129,6 +129,10 @@ public:
     /// On other platforms, always returns default_path.
     static std::string SelectPlatformPath(const std::string& default_path, const std::string& win_path);
 
+    /// Check if another instance of the application is already running.
+    /// Uses a named mutex (Windows) or lock file (POSIX) to detect duplicates.
+    static bool IsAlreadyRunning();
+
     /// Check if a TCP port is open on localhost
     static bool CheckPortOpen(int port);
 
@@ -204,6 +208,15 @@ public:
     /// Open native folder selection dialog. Returns selected directory path, or empty on cancel.
     /// On non-Windows platforms, always returns empty.
     static std::string BrowseForDirectory();
+
+    /// Open a file/URL/app with the system default program.
+    /// Returns true on success.
+    static bool OpenWithDefault(const std::string& path);
+
+    /// Move a file to the system trash/recycle bin.
+    /// Falls back to ~/.trash if no system trash is available.
+    /// Returns true on success.
+    static bool TrashFile(const std::string& path);
 };
 
 }  // namespace prosophor

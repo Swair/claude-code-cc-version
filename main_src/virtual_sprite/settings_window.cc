@@ -154,6 +154,7 @@ void SettingsWindow::Render() {
         if (auto _tab = media_engine::ScopedTabItem(L.Get("tab_local_models").c_str())) {
             RenderLocalModelsTab();
         }
+
     }
 
     media_engine::ImGuiWidget::Separator();

@@ -22,6 +22,7 @@
 #include <windows.h>
 #include <commdlg.h>
 #include <shlobj.h>
+#include <shellapi.h>
 #include <process.h>
 #else
 #include <arpa/inet.h>
@@ -35,6 +36,8 @@
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
 #endif
+
+#include <sys/file.h>  // flock()
 #endif
 
 namespace prosophor {
@@ -751,6 +754,95 @@ std::string Platform::BrowseForDirectory() {
     return {};
 #else
     return {};
+#endif
+}
+
+bool Platform::OpenWithDefault(const std::string& path) {
+#ifdef _WIN32
+    HINSTANCE ret = ShellExecuteA(NULL, "open", path.c_str(), NULL, NULL, SW_SHOWNORMAL);
+    return (intptr_t)ret > 32;
+#elif __APPLE__
+    std::string cmd = "open \"" + path + "\"";
+    return system(cmd.c_str()) == 0;
+#else
+    std::string cmd = "xdg-open \"" + path + "\"";
+    return system(cmd.c_str()) == 0;
+#endif
+}
+
+bool Platform::TrashFile(const std::string& path) {
+    if (!std::filesystem::exists(path)) return false;
+    std::error_code ec;
+
+#ifdef _WIN32
+    // Use Shell32 SHFileOperation for recycle bin
+    SHFILEOPSTRUCTA op = {};
+    op.wFunc = FO_DELETE;
+    op.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT;
+    std::string from = path + '\0';  // double-null terminated
+    op.pFrom = from.c_str();
+    return SHFileOperationA(&op) == 0;
+#else
+    // POSIX: try `trash` CLI first, fallback to ~/.trash
+    std::string trash_cmd = "trash \"" + path + "\" 2>/dev/null";
+    if (system(trash_cmd.c_str()) == 0) return true;
+
+    const char* home = getenv("HOME");
+    std::string trash_dir = std::string(home ? home : "/tmp") + "/.trash";
+    std::filesystem::create_directories(trash_dir, ec);
+    if (ec) return false;
+    auto dest = std::filesystem::path(trash_dir) / std::filesystem::path(path).filename();
+    std::filesystem::rename(path, dest, ec);
+    return !ec;
+#endif
+}
+
+bool Platform::IsAlreadyRunning() {
+#ifdef _WIN32
+    static HANDLE s_mutex = nullptr;
+    if (s_mutex) return false;
+
+    s_mutex = CreateMutexW(nullptr, FALSE, L"Prosophor-SingleInstance");
+    if (!s_mutex) return false;
+
+    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+        CloseHandle(s_mutex);
+        s_mutex = nullptr;
+        return true;
+    }
+
+    return false;
+#else
+    static int lock_fd = -1;
+    if (lock_fd >= 0) return false;
+
+    std::string lock_path;
+    if (const char* home = getenv("HOME")) {
+        lock_path = std::string(home) + "/.prosophor/prosophor.lock";
+    } else {
+        lock_path = "/tmp/prosophor.lock";
+    }
+
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(
+            std::filesystem::path(lock_path).parent_path(), ec);
+    }
+
+    lock_fd = open(lock_path.c_str(), O_CREAT | O_RDWR, 0644);
+    if (lock_fd < 0) return false;
+
+    if (flock(lock_fd, LOCK_EX | LOCK_NB) != 0) {
+        close(lock_fd);
+        lock_fd = -1;
+        return true;
+    }
+
+    // Write PID for diagnostic purposes
+    std::string pid_str = std::to_string(getpid()) + "\n";
+    write(lock_fd, pid_str.c_str(), pid_str.size());
+
+    return false;
 #endif
 }
 

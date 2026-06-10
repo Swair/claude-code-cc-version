@@ -152,8 +152,10 @@ void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {
 }
 
 void ChatPanel::RenderMessage(const std::string& role, const std::string& content, size_t index) {
+    float fs = media_engine::Layout::GetFontScale();
+
     if (index > 0) {
-        media_engine::Layout::Dummy(0, 4);
+        media_engine::Layout::Dummy(0, 4.0f * fs);
     }
 
     // Store ChatMessage with timestamp on first render (freeze at message-received time)
@@ -172,9 +174,11 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
     if (content_w < 50.0f) content_w = 50.0f;  // guard against degenerate layout
 
     // Measure exact message height for background rect
-    float label_h = hide_role_labels_ ? 0 : 20.0f;
-    float text_h = media_engine::Text::CalcWrappedHeight(content.c_str(), content_w) + 4.0f;
-    float total_h = (index > 0 ? 4.0f : 0) + label_h + text_h + 8.0f;
+    float h_pad = 8.0f * fs;
+    float v_pad = 6.0f * fs;
+    float label_h = hide_role_labels_ ? 0 : 20.0f * fs;
+    float text_h = media_engine::Text::CalcWrappedHeight(content.c_str(), content_w - h_pad * 2.0f) + v_pad * 2.0f;
+    float total_h = (index > 0 ? 4.0f * fs : 0) + label_h + text_h + 2.0f * fs;
 
     // Choose background color by role
     media_engine::Color bg_color = user_bg_color_;
@@ -186,7 +190,7 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
 
     float start_x, start_y;
     media_engine::Layout::GetCursorScreenPos(&start_x, &start_y);
-    media_engine::DrawList::RoundRect(start_x, start_y - 2.0f, scroll_window_->GetWidth(), total_h, 6.0f, bg_color);
+    media_engine::DrawList::RoundRect(start_x, start_y - 2.0f * fs, content_w, total_h, 6.0f * fs, bg_color);
 
     // Light theme (cream background):
     //   user     → black (text) / dark gray (label)
@@ -217,7 +221,7 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
         label += " [" + SystemClock::FormatTimestamp(
             static_cast<std::time_t>(display_messages_[index].timestamp), "%H:%M:%S") + "]";
         media_engine::Text::Colored(role_color, label.c_str());
-        media_engine::Layout::Dummy(0, 2);
+        media_engine::Layout::Dummy(0, 2.0f * fs);
     }
     // Use read-only multiline input for mouse-selectable text
     std::vector<char> text_buf(content.begin(), content.end());
@@ -225,12 +229,11 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
     float input_w = content_w;
     std::string input_id = "##txt" + std::to_string(index);
     media_engine::Style::PushColor(media_engine::Color::Slot::Text, text_color);
-    // Zero FramePadding so text area = widget width, matching CalcWrappedHeight
-    auto _fp = media_engine::ScopedStyleVar::FramePadding(0, 0);
+    auto _fp = media_engine::ScopedStyleVar::FramePadding(h_pad, v_pad);
     media_engine::ImGuiWidget::InputTextMultiline(
         input_id.c_str(), text_buf.data(), text_buf.size(), input_w, text_h, true);
     media_engine::Style::PopColor();
-    media_engine::Layout::Dummy(0, 2);
+    media_engine::Layout::Dummy(0, 2.0f * fs);
 }
 
 void ChatPanel::ScrollToBottom() {

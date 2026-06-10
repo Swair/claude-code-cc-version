@@ -17,7 +17,7 @@
     "auto_confirm_tools": true
   },
   "tts": {
-    "voice": "zh-CN-YunjianNeural",
+    "voice": "zh-CN-XiaoxiaoNeural",
     "backend": "edge-tts"
   }
 }

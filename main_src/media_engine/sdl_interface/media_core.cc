@@ -173,10 +173,28 @@ float MediaCore::GetDeltaTimeS() { return delta_s_; }
 
 void MediaCore::LoadSharedChineseFont() {
     if (!shared_font_.data.empty()) return;
+    // Try TTF fonts first (more compatible), then TTC
     const char* font_paths[] = {
+        // Windows — TTF before TTC
+        "C:/Windows/Fonts/simhei.ttf",
+        "C:/Windows/Fonts/msyh.ttf",
+        "C:/Windows/Fonts/msyhbd.ttf",
         "C:/Windows/Fonts/msyh.ttc",
         "C:/Windows/Fonts/simsun.ttc",
-        "C:/Windows/Fonts/simhei.ttf",
+        "C:/Windows/Fonts/simsunb.ttf",
+        // Linux — common CJK fonts
+        "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/noto-cjk/NotoSansCJKsc-Regular.otf",
+        "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
+        "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+        // macOS — common CJK fonts
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/STHeiti Light.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+        "~/Library/Fonts/NotoSansCJKsc-Regular.otf",
     };
     for (const auto* path : font_paths) {
         std::ifstream f(path, std::ios::binary | std::ios::ate);
@@ -471,6 +489,49 @@ Window* MediaCore::CreateMediaWindow(const char* title, int w, int h,
     }
 
     return ptr;
+}
+
+void MediaCore::SetupStyle(bool transparent_bg) {
+    auto& style = ImGui::GetStyle();
+    ImGui::StyleColorsLight();
+    style.WindowRounding = 0.0f;
+    style.FrameRounding = 4.0f;
+    style.Colors[ImGuiCol_Text] = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
+    style.Colors[ImGuiCol_Border] = ImVec4(0.5f, 0.5f, 0.5f, 0.5f);
+    if (transparent_bg) {
+        style.Colors[ImGuiCol_WindowBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+        style.Colors[ImGuiCol_PopupBg] = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(0.9f, 0.9f, 0.9f, 0.9f);
+        style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.85f, 0.85f, 0.85f, 0.9f);
+        style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.8f, 0.8f, 0.8f, 0.9f);
+        style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.3f, 0.5f, 0.8f, 0.5f);
+        style.Colors[ImGuiCol_Button] = ImVec4(0.3f, 0.5f, 0.8f, 0.8f);
+        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.4f, 0.6f, 0.9f, 0.9f);
+        style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.2f, 0.4f, 0.7f, 1.0f);
+    } else {
+        style.Colors[ImGuiCol_WindowBg] = ImVec4(0.96f, 0.96f, 0.96f, 1.0f);
+        style.Colors[ImGuiCol_PopupBg] = ImVec4(0.96f, 0.96f, 0.96f, 1.0f);
+        style.Colors[ImGuiCol_FrameBg] = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);
+        style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.95f, 0.95f, 0.95f, 1.0f);
+        style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.9f, 0.9f, 0.9f, 1.0f);
+        style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.3f, 0.5f, 0.8f, 0.5f);
+        style.Colors[ImGuiCol_Button] = ImVec4(0.85f, 0.85f, 0.85f, 1.0f);
+        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
+        style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.75f, 0.75f, 0.75f, 1.0f);
+    }
+}
+
+void MediaCore::SetGlobalFontScale(float scale) {
+    scale = std::clamp(scale, kFontScaleMin, kFontScaleMax);
+    ImGuiContext* saved = ImGui::GetCurrentContext();
+    for (auto& win : Instance().all_windows_) {
+        ImGui::SetCurrentContext(win->GetImGuiContext());
+        ImGui::GetStyle() = ImGuiStyle();
+        SetupStyle(win->HasTransparentBg());
+        ImGui::GetStyle().ScaleAllSizes(scale);
+        ImGui::GetStyle().FontScaleMain = scale;
+    }
+    ImGui::SetCurrentContext(saved);
 }
 
 } // namespace media_engine

@@ -47,6 +47,7 @@ class Sprite : public Noncopyable {
     media_engine::Window* GetWindow() const { return sprite_window_; }
     const std::string& GetSessionId() const { return session_id_; }
     const std::string& GetName() const { return name_; }
+    const std::string& GetRoleId() const { return effective_role_id_; }
     const std::string& GetTtsBackend() const { return role_tts_backend_; }
     const std::string& GetTtsVoice() const { return role_tts_voice_; }
 

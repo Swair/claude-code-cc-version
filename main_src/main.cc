@@ -18,6 +18,11 @@ int main(int argc, char* argv[]) {
 
     prosophor::Platform::SetConsoleUtf8();
 
+    if (prosophor::Platform::IsAlreadyRunning()) {
+        fprintf(stderr, "Prosophor is already running.\n");
+        return 1;
+    }
+
     const auto& config = prosophor::ProsophorConfig::GetInstance();
     prosophor::InitLog(config.log_level);
     LOG_DEBUG("Prosophor v{}", PROSOPHOR_VERSION);

@@ -44,9 +44,6 @@ void UIRenderer::RenderContextMenu(media_engine::Window* current_win) {
     if (media_engine::Popup::MenuItem(L.Get("ctx_show_main").c_str())) {
         if (on_show_main_window_) on_show_main_window_();
     }
-    if (media_engine::Popup::MenuItem(L.Get("ctx_settings").c_str())) {
-        if (on_open_settings_) on_open_settings_();
-    }
     media_engine::ImGuiWidget::Separator();
     if (media_engine::Popup::MenuItem(L.Get("ctx_quit").c_str())) {
         media_engine::MediaCore::Instance().Quit();

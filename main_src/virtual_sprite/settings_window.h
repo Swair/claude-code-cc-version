@@ -23,7 +23,8 @@ public:
 
     void Render();
     bool IsOpen() const { return open_; }
-    void Open() { open_ = true; }
+    void Open() { open_ = true; initial_tab_ = 0; }
+    void Open(int tab) { open_ = true; initial_tab_ = tab; }
 
 private:
     void InitState();
@@ -40,6 +41,7 @@ private:
     std::unique_ptr<SettingsState> s_;
 
     bool open_ = false;
+    int  initial_tab_ = 0;
 
     // Local model edit state (shared with StartLLM button)
     std::string edit_lm_model_path_;

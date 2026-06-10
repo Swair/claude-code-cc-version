@@ -9,6 +9,7 @@
 #include "common/log_wrapper.h"
 #include "common/i18n.h"
 #include "agent_engine.h"
+#include "config/config.h"
 
 #include "providers/provider_router/asr_provider_router.h"
 #include "platform/platform.h"
@@ -73,9 +74,19 @@ void VirtualSprite::GlobalInit() {
 
     // ── Create central chat window FIRST (becomes primary window) ──
     {
-        LayoutConfig cfg;
-        central_window_.Create(cfg.chat_window_width, cfg.chat_window_height);
+        int disp_w = 1920, disp_h = 1080;
+        media_engine::MediaCore::GetPrimaryDisplaySize(&disp_w, &disp_h);
+        int win_w = static_cast<int>(disp_w * 0.7f);
+        int win_h = static_cast<int>(disp_h * 0.7f);
+        central_window_.Create(win_w, win_h);
         central_window_.SetVisible(true);
+
+        // Apply font scale from config (requires ImGui context, which window creates)
+        {
+            auto& fs = ProsophorConfig::GetInstance().font_scale;
+            fs = (fs < ProsophorConfig::kFontScaleSwitch) ? ProsophorConfig::kFontScaleSmall : ProsophorConfig::kFontScaleLarge;
+            media_engine::MediaCore::SetGlobalFontScale(fs);
+        }
 
         central_window_.SetOnSubmit([](const std::string& msg) {
             auto& engine = AgentEngine::GetInstance();
@@ -121,10 +132,6 @@ void VirtualSprite::GlobalInit() {
         }
     });
     UIRenderer::Instance().SetOnShowMainWindow([this]() {
-        central_window_.SetVisible(true);
-    });
-    UIRenderer::Instance().SetOnOpenSettings([this]() {
-        central_window_.OpenSettings();
         central_window_.SetVisible(true);
     });
     UIRenderer::Instance().SetOnNewSprite([]() {

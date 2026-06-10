@@ -477,6 +477,7 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
     }
     config.enable_summary = json.value("enable_summary", true);
     config.sprite_assets_dir = ExpandHome(json.value("sprite_assets_dir", "~/.prosophor/assets"));
+    config.font_scale = json.value("font_scale", ProsophorConfig::kFontScaleLarge);
 
     if (json.contains("llm_providers") && json["llm_providers"].is_object()) {
         for (const auto& [key, value] : json["llm_providers"].items()) {
@@ -751,6 +752,7 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
     json["log_level"] = log_level;
     json["enable_summary"] = enable_summary;
     json["sprite_assets_dir"] = sprite_assets_dir;
+    json["font_scale"] = font_scale;
 
     // Serialize llm_providers in fixed order: anthropic, ollama, openai, llamacpp
     static const char* kProviderOrder[] = {"anthropic", "ollama", "openai", "llamacpp"};
