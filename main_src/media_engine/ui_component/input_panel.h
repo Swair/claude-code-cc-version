@@ -61,7 +61,7 @@ private:
     float border_width_ = 1.0f;
     float padding_ = 8.0f;
     float corner_radius_ = 0.0f;
-    float input_ratio_ = 0.82f;  // 输入框占内容区比例
+    float input_ratio_ = 0.88f;  // 输入框占内容区比例
 };
 
 }  // namespace media_engine

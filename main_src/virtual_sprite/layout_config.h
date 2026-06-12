@@ -30,8 +30,8 @@ struct LayoutConfig {
     // ════════════════════════════════════════════════════════════════════
     // Shell 骨架 — sidebar + topbar 构成主框架
     // ════════════════════════════════════════════════════════════════════
-    int   sidebar_width_expanded  = 300;   // 侧边栏展开宽度 (px)
-    int   sidebar_width_collapsed = 48;    // 侧边栏折叠宽度 (px)
+    float sidebar_width_ratio      = 0.12f;// 侧边栏展开宽度 (窗口宽度比例)
+    int   sidebar_width_collapsed  = 48;   // 侧边栏折叠宽度 (px)
     float topbar_height           = 32.0f; // 顶部状态栏高度 (px)
 
     // ── Sidebar 内部 ──
@@ -64,6 +64,7 @@ struct LayoutConfig {
 
     // ── Panel 内部间距 ──
     float panel_widget_spacing    = 26.0f; // 表单行间距
+    float panel_left_list_w       = 200.0f;// 子面板左侧栏宽度
     float panel_label_w           = 140.0f;// 标签占宽 (SameLine 用)
     float panel_save_btn_w        = 70.0f; // Save 按钮宽度
     float panel_btn_gap           = 8.0f;  // 按钮间距
@@ -86,7 +87,7 @@ struct LayoutConfig {
     float section_card_w_extra    = 16.0f; // SectionCard 宽缩减
     float section_card_right_margin = 24.0f; // SectionCard 右侧边距
     float card_content_indent     = 16.0f; // SectionCard 内容区缩进 (icx = cx + 此值)
-    float card_widget_offset      = 140.0f;// SectionCard 控件偏移标签 (iwx = icx + 此值)
+    float card_widget_offset      = 200.0f;// SectionCard 控件偏移标签 (iwx = icx + 此值)
     float section_title_gap       = 40.0f; // SectionCard 标题到内容行间距
     float split_list_item_h       = 30.0f; // 分割面板列表项高度
     float split_list_item_gap     = 2.0f;  // 分割面板列表项间距
@@ -112,7 +113,7 @@ struct LayoutConfig {
     // ════════════════════════════════════════════════════════════════════
     // 输入区域
     // ════════════════════════════════════════════════════════════════════
-    float input_area_height       = 100.0f;// 底部输入区高度 (px)
+    float input_area_height       = 56.0f; // 底部输入区高度 (px)
 
     // ════════════════════════════════════════════════════════════════════
     // Right Panel (角色卡片列表)

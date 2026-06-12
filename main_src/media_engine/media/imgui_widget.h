@@ -132,6 +132,17 @@ constexpr int ImGuiWindowFlags_NoDecoration =
     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
     ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
 
+// ── TreeNode flags ──
+constexpr int ImGuiTreeNodeFlags_None = 0;
+constexpr int ImGuiTreeNodeFlags_NoArrow = 1 << 6;
+constexpr int ImGuiTreeNodeFlags_DefaultOpen = 1 << 4;
+constexpr int ImGuiTreeNodeFlags_SpanAvailWidth = 1 << 10;
+
+// ── Child flags ──
+constexpr int ImGuiChildFlags_None = 0;
+constexpr int ImGuiChildFlags_Borders = 1 << 0;
+constexpr int ImGuiChildFlags_AutoResizeY = 1 << 5;
+
 // ============================================================================
 // ImGui 工具函数封装 - 避免外部文件直接 include imgui.h
 // ============================================================================
@@ -273,6 +284,7 @@ public:
     static void PushVar_WindowBorderSize(float size);
     static void PushVar_ScrollbarSize(float size);
     static void PushVar_FrameBorderSize(float size);
+    static void PushVar_FrameRounding(float radius);
     static void PushVar_FramePadding(float x, float y);
     static void PushVar_WindowPadding(float x, float y);
     static void PopVar(int count = 1);
@@ -299,6 +311,9 @@ public:
     }
     static ScopedStyleVar FrameBorderSize(float size) {
         Style::PushVar_FrameBorderSize(size); return ScopedStyleVar();
+    }
+    static ScopedStyleVar FrameRounding(float radius) {
+        Style::PushVar_FrameRounding(radius); return ScopedStyleVar();
     }
     static ScopedStyleVar WindowPadding(float x, float y) {
         Style::PushVar_WindowPadding(x, y); return ScopedStyleVar();
@@ -405,6 +420,8 @@ public:
     static bool Button(const char* label, float width = 0.0f, float height = 0.0f);
     static void Separator();
     static bool TreeNode(const char* label);
+    static bool TreeNodeEx(const char* label, int flags);
+    static bool IsTreeNodeOpen(const char* label, int default_open = 0);
     static void TreePop();
     static void BulletText(const char* fmt, ...);
     static bool InvisibleButton(const char* id, float w, float h);

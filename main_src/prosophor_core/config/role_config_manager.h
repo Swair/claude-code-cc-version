@@ -31,7 +31,7 @@ public:
                                   const std::string& voice,
                                   const std::string& backend);
 
-    /// Save an arbitrary string field (e.g. "description", "personality_prompt") to the role JSON.
+    /// Save an arbitrary string field (e.g. "description", "soul") to the role JSON.
     /// Returns true if the file was actually changed.
     static bool SaveField(const std::string& role_id,
                           const std::string& field_path,
@@ -41,6 +41,11 @@ public:
     static bool SaveFieldBool(const std::string& role_id,
                               const std::string& field_path,
                               bool value);
+
+    /// Save an integer field (e.g. "llm.max_iterations").
+    static bool SaveFieldInt(const std::string& role_id,
+                             const std::string& field_path,
+                             int value);
 
     /// Reload the role JSON from disk and update all running sessions for this role.
     static void HotReload(const std::string& role_id);

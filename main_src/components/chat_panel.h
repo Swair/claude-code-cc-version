@@ -40,8 +40,8 @@ public:
     void SetRoleFilter(const std::string& role) { role_filter_ = role; }
     void SetHideRoleLabels(bool hide) { hide_role_labels_ = hide; }
 
-    /// Override the display name for "assistant" role (e.g., sprite name)
-    void SetAssistantDisplayName(const std::string& name) { assistant_display_name_ = name; }
+    /// Override the display name for "assistant" role name (e.g., sprite name)
+    void SetAssistantRoleName(const std::string& name) { assistant_role_name_ = name; }
 
     // -- 外观 setter --
     void SetBackgroundColor(const media_engine::Color& color) { media_engine::Widget::SetBackgroundColor(color); if (panel_) panel_->SetBackgroundColor(color); }
@@ -55,7 +55,7 @@ private:
     std::unique_ptr<media_engine::ScrollWindow> scroll_window_;
     std::string role_filter_;
     bool hide_role_labels_ = false;
-    std::string assistant_display_name_;
+    std::string assistant_role_name_;
     RenderSnapshot snapshot_;
     std::string last_session_id_;
     mutable std::vector<ChatMessage> display_messages_;

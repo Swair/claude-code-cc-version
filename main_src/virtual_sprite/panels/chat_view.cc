@@ -23,14 +23,14 @@ void ChatWindow::RenderChatView(int cont_x, int cont_y, int cont_w, int cont_h) 
     // 右侧角色面板 (展开或折叠手柄)
     if (right_panel_open_) {
         int rp_w = static_cast<int>(static_cast<float>(cont_x + cont_w) * Lc.right_panel_ratio);
-        RenderRightPanel(cont_x + cont_w - rp_w, rp_w, cont_y + cont_h);
+        RenderRightPanel(cont_x + cont_w - rp_w, rp_w, cont_y, cont_h);
         cont_w -= rp_w;
     } else {
         float hx = static_cast<float>(cont_x + cont_w) - 10.0f;
         float hy = static_cast<float>(cont_y + cont_h / 2) - 16.0f;
         media_engine::DrawList::RoundRect(hx, hy, 10.0f, 32.0f, Lc.rounding_small,
             media_engine::Colors::CreamBorder);
-        if (media_engine::ImGuiWidget::IconButton("right_panel_restore", ">",
+        if (media_engine::ImGuiWidget::IconButton("right_panel_restore", "<",
                 hx, hy, 10.0f,
                 media_engine::Colors::CreamBorder,
                 media_engine::Colors::Gray55, 3.0f)) {
@@ -50,7 +50,7 @@ void ChatWindow::RenderChatView(int cont_x, int cont_y, int cont_w, int cont_h) 
     float msg_h = inner_h - input_h - 4.0f;
 
     d_->chat_panel->SetPixelRect(inner_x, inner_y, inner_w, msg_h);
-    d_->input_panel->SetPixelRect(inner_x, inner_y + msg_h + 4.0f, inner_w, input_h);
+    d_->input_panel->SetPixelRect(inner_x, inner_y + msg_h + 4.0f, inner_w - 6.0f, input_h);
 
     RenderChatContent();
     RenderTokenSpeed(static_cast<int>(inner_x), static_cast<int>(inner_y),
@@ -80,39 +80,40 @@ void ChatWindow::RenderChatContent() {
     d_->chat_panel->SetSnapshot(snap.value_or(RenderSnapshot{}));
 
     std::string sprite_name = SpriteManager::GetInstance().GetFocusedSpriteName();
-    if (!sprite_name.empty()) d_->chat_panel->SetAssistantDisplayName(sprite_name);
+    if (!sprite_name.empty()) d_->chat_panel->SetAssistantRoleName(sprite_name);
 
     d_->chat_panel->Render(media_engine::RenderContext{});
     d_->input_panel->Render(media_engine::RenderContext{});
 }
 
-void ChatWindow::RenderRightPanel(int panel_x, int panel_w, int win_h) {
+void ChatWindow::RenderRightPanel(int panel_x, int panel_w, int panel_y, int panel_h) {
     auto& L = I18n::Instance();
     float sm = Spacing();
     float x = static_cast<float>(panel_x);
-    float h = static_cast<float>(win_h);
+    float y = static_cast<float>(panel_y);
+    float h = static_cast<float>(panel_h);
 
     float tog_x = x - 14.0f;
-    float tog_y = h / 2.0f - 20.0f;
-    if (media_engine::ImGuiWidget::IconButton("right_panel_toggle", "<",
+    float tog_y = y + h / 2.0f - 20.0f;
+    if (media_engine::ImGuiWidget::IconButton("right_panel_toggle", ">",
             tog_x, tog_y, 14.0f,
             media_engine::Colors::CreamBorder,
             media_engine::Colors::Gray55, 2.0f)) {
         right_panel_open_ = false;
     }
 
-    media_engine::DrawList::RoundRect(x, 0, static_cast<float>(panel_w), h, 0,
+    media_engine::DrawList::RoundRect(x, y, static_cast<float>(panel_w), h, 0,
         media_engine::Colors::CreamLight);
-    media_engine::DrawList::RoundRect(x, 3.0f, 2.0f, h - 3.0f, 0,
+    media_engine::DrawList::RoundRect(x, y + 3.0f, 2.0f, h - 3.0f, 0,
         media_engine::Colors::OrangeWarm);
-    media_engine::DrawList::RoundRect(x + 1, 3.0f, 1.0f, h - 3.0f, 0,
+    media_engine::DrawList::RoundRect(x + 1, y + 3.0f, 1.0f, h - 3.0f, 0,
         media_engine::Colors::CreamBorder);
 
     float cx = x + static_cast<float>(panel_w) - 14.0f;
-    media_engine::DrawList::CircleFilled(cx, 12.0f, 5.0f, media_engine::Colors::OrangeLight);
-    media_engine::DrawList::CircleFilled(cx, 12.0f, 3.0f, media_engine::Colors::OrangeWarm);
+    media_engine::DrawList::CircleFilled(cx, y + 12.0f, 5.0f, media_engine::Colors::OrangeLight);
+    media_engine::DrawList::CircleFilled(cx, y + 12.0f, 3.0f, media_engine::Colors::OrangeWarm);
 
-    media_engine::Layout::SetCursorScreenPos(x + 8.0f, 22.0f);
+    media_engine::Layout::SetCursorScreenPos(x + 8.0f, y + 22.0f);
     auto _panel = media_engine::ScopedChild(
         "role_panel", static_cast<float>(panel_w) - 7.0f, h - 30.0f);
 

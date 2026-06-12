@@ -55,10 +55,13 @@ void InputPanel::RenderContent() {
     float input_text_h = 20.0f;
     float cy = y_ + (height_ - input_text_h) / 2.0f;
 
-    constexpr float kBtnW = 30.0f;
+    float content_w = width_ - padding_ * 2.0f;
+    float input_w = content_w * input_ratio_;
+    float kBtnW = (content_w - input_w) / 2.0f;
     constexpr float kBtnSpacing = 4.0f;
-    float input_w = width_ - padding_ * 2.0f - kBtnW * 2.0f - kBtnSpacing * 2.0f;
+    if (kBtnW > 30.0f) kBtnW = 30.0f;
 
+    auto _round = ScopedStyleVar::FrameRounding(6.0f);
     ScopedItemWidth _(input_w);
     input_text_->Render(cx, cy);
 

@@ -474,8 +474,13 @@ void MediaCore::Shutdown() {
 
 Window* MediaCore::CreateMediaWindow(const char* title, int w, int h,
                                  const WindowConfig& cfg) {
+    ImGuiContext* saved_ctx = ImGui::GetCurrentContext();
     auto win = std::make_unique<Window>(title, w, h, cfg);
-    if (!win->GetSDLWindow()) return nullptr;
+    if (!win->GetSDLWindow()) {
+        ImGui::SetCurrentContext(saved_ctx);
+        return nullptr;
+    }
+    ImGui::SetCurrentContext(saved_ctx);
 
     auto* ptr = win.get();
     bool is_first = all_windows_.empty();
@@ -489,6 +494,18 @@ Window* MediaCore::CreateMediaWindow(const char* title, int w, int h,
     }
 
     return ptr;
+}
+
+void MediaCore::DestroyMediaWindow(Window* window) {
+    if (!window || window == primary_window_) return;
+    window_handlers_.erase(window);
+    mouse_window_handlers_.erase(window);
+    for (auto it = all_windows_.begin(); it != all_windows_.end(); ++it) {
+        if (it->get() == window) {
+            all_windows_.erase(it);
+            break;
+        }
+    }
 }
 
 void MediaCore::SetupStyle(bool transparent_bg) {

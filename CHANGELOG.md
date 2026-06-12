@@ -1,5 +1,53 @@
 # Changelog
 
+## [Unreleased] — 2026-06-12 电脑整理面板 + 角色配置重构 + 响应式侧边栏 + 桌宠延迟管理
+
+本期重点：新增"电脑整理"面板（磁盘扫描、大文件/临时文件/备份文件检测，可回收空间估算）；角色 JSON 配置统一重构（`display_name`→`role_name`，`personality_prompt`→`soul`，`spritesheet_path`→`spritesheet`）；Sidebar 从固定像素改为窗口比例响应式宽度；SprriteManager 新增延迟创建/销毁队列安全跨帧管理精灵生命周期；MediaCore 新增 `DestroyMediaWindow` 窗口销毁 API；Provider 面板 UI 重构（折叠模型卡片、统一字段布局、添加模型按钮）；InputPanel 自适应按钮大小与圆角优化。净变化 +845 行。
+
+### 电脑整理系统
+- **ComputerOrganize 面板**（新增 `panels/computer_organize_view.cc`）：磁盘分区选择（已用量/总量标签）、扫描大文件/临时文件/备份文件、取消扫描、可回收空间汇总
+- **disk_cleaner 角色**（新增 `config/roles/disk_cleaner.json`）：专用磁盘清理 AI 角色，qwen3:8b 模型，配合 Organize 面板使用
+- **sidebar 导航**：新增 `NavItem::ComputerOrganize` 条目 + i18n（`nav_computer_organize` / `view_computer_organize`）
+- **导航自动切角色**：点击 "电脑整理" 时自动切换会话角色为 `disk_cleaner`
+
+### 角色配置重构
+- **字段重命名**（所有 12 个角色 JSON 文件）：`display_name` → `role_name`，`personality_prompt` → `soul`，`spritesheet_path` → `spritesheet`
+- **新增字段**：所有角色新增 `llm.enable_streaming`；Roles 面板编辑新增 `role_name`、`spritesheet`、`soul`、`max_iterations`、`enable_streaming` 字段
+- **内部重命名**：`AgentRole::personality_prompt` → `soul`，`ChatPanel::assistant_display_name_` → `assistant_role_name_`，`SpeechBubble::SetAssistantDisplayName` → `SetAssistantRoleName`
+- **RoleConfigManager**：新增 `SaveFieldInt` 方法；`HotReload` 适配 `soul`/`role_name` 字段
+
+### 响应式 Sidebar
+- **比例宽度**：`LayoutConfig::sidebar_width_expanded` 替换为 `sidebar_width_ratio`（默认 0.12），`GetWidth()` 改为计算值
+- **渲染更新**：`Sidebar::Render` 新增 `win_w` 参数
+- **选中项样式**：统一为橙色左侧竖条 + 淡橙底色，不再使用 `Selection()` 函数
+
+### SpriteManager 延迟操作
+- **安全生命周期**：新增 `QueueCreateSprite` / `RemoveSpriteByRoleId` 方法，将创建/销毁延后到下一帧 `ProcessPendingOps` 处理
+- **Role 保存联动**：Roles 面板 Save 时自动创建/销毁对应桌宠
+
+### MediaCore 窗口管理
+- **DestroyMediaWindow**：新增窗口销毁 API（移除 handler + `all_windows_` 条目），用于桌宠精灵窗口清理
+- **Window 析构**：增加 SDL_Renderer / SDL_Window 显式资源释放
+- **CreateMediaWindow**：修复缺失的 ImGuiContext 还原
+
+### ImGuiWidget 扩展
+- **TreeNodeEx** / **IsTreeNodeOpen**：新增树节点控制 API
+- **ImGuiChildFlags**：公开 `Borders` / `AutoResizeY` 标志
+- **Style**：新增 `PushVar_FrameRounding`
+
+### Provider 面板 UI 重构
+- **折叠模型卡片**：模型区域改为可折叠（`+`/`-` 切换），节省面板空间
+- **统一条目布局**：每个 Entry 使用 `ScopedChild` 边框包装，`field_row` 标签 + 控件对齐
+- **添加模型按钮**：条目内新增 "Add Model" 按钮
+
+### UI 视觉统一
+- **选中项样式统一**：Sidebar、ConfigView、ProvidersView、RolesView 统一为 "橙条左竖线 + 圆角淡橙底" 选中样式
+- **InputPanel**：输入框比例 `0.82→0.88`，按钮宽度自适应，新增 `FrameRounding(6f)` 圆角
+- **LayoutConfig**：`input_area_height` 100→56，新增 `panel_left_list_w`（200），`card_widget_offset` 140→200
+
+### i18n 更新
+- 中/英文新增 `nav_computer_organize`、`view_computer_organize`、`computer_organize_select_drive`
+
 ## [Unreleased] — 2026-06-10 UI 架构重构：侧边栏导航 + 多面板仪表盘 + 运行时角色管理
 
 本期重点：UI 从单体式聊天窗口重构为侧边栏驱动多面板仪表盘（19 个导航项、18 个独立面板视图）；SettingWindow 从 ChatWindow 完全提取为独立模态窗口；新增 RoleConfigManager 运行时热切换角色模型/TTS 语音；Platform 层新增 7 个跨平台 API；布局常量全面迁移至 LayoutConfig 集中管理；新增字体缩放支持（`font_scale`）。净变化 +2,702 行。

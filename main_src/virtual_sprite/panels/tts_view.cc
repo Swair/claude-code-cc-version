@@ -52,11 +52,11 @@ void ChatWindow::RenderTtsView(int cont_x, int cont_y, int cont_w, int cont_h) {
         iy += 30.0f * s;
         PanelHelper::SectionCard(cx, iy, cw, 120.0f * s, L.Get("tab_asr").c_str());
         iy += 40.0f;
-        iy = PanelHelper::LabelRow(cx, iy, L.Get("asr_enabled").c_str(), wx,
+        iy = PanelHelper::LabelRow(cx, iy, "enabled", wx,
             [&](){ media_engine::Layout::Dummy(8.0f * s, 0); media_engine::Layout::SameLine(); media_engine::ImGuiWidget::Checkbox("##asr_en", &config.asr.enabled); }, s);
-        iy = PanelHelper::LabelRow(cx, iy, L.Get("asr_push_to_talk").c_str(), wx,
+        iy = PanelHelper::LabelRow(cx, iy, "push_to_talk", wx,
             [&](){ media_engine::Layout::Dummy(8.0f * s, 0); media_engine::Layout::SameLine(); media_engine::ImGuiWidget::Checkbox("##asr_ptt", &config.asr.push_to_talk); }, s);
-        iy = PanelHelper::LabelRow(cx, iy, L.Get("asr_server_url").c_str(), wx, [&](){
+        iy = PanelHelper::LabelRow(cx, iy, "server_url", wx, [&](){
             char buf[512]; std::strncpy(buf, config.asr.server_url.c_str(), sizeof(buf)-1); buf[sizeof(buf)-1] = 0;
             if (media_engine::ImGuiWidget::InputText("##asr_url", buf, sizeof(buf))) config.asr.server_url = buf;
         }, s);

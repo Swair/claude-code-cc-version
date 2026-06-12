@@ -61,11 +61,12 @@ private:
     void RenderSchedulerView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderMcpView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderPetStoreView(int cont_x, int cont_y, int cont_w, int cont_h);
+    void RenderComputerOrganizeView(int cont_x, int cont_y, int cont_w, int cont_h);
 
     // Sub-components
     void UpdateLayout(int main_w, int main_h);
     void RenderChatContent();
-    void RenderRightPanel(int panel_x, int panel_w, int win_h);
+    void RenderRightPanel(int panel_x, int panel_w, int panel_y, int panel_h);
     void RenderTokenSpeed(int main_x, int main_y, int main_w, int main_h);
     void RenderAboutWindow();
 

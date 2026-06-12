@@ -70,7 +70,7 @@ struct SettingsWindow::SettingsState {
     std::vector<std::string> available_models;
     std::vector<int> role_model_idx;
     std::vector<int> role_voice_idx;
-    std::vector<std::string> role_display_names;
+    std::vector<std::string> role_names;
 
     // Security
     std::string perm_level;
@@ -238,7 +238,7 @@ void SettingsWindow::InitState() {
     // Read each role's current model, TTS voice, and display name
     s_->role_model_idx.assign(s_->all_role_ids.size(), 0);
     s_->role_voice_idx.assign(s_->all_role_ids.size(), 0);
-    s_->role_display_names.assign(s_->all_role_ids.size(), "");
+    s_->role_names.assign(s_->all_role_ids.size(), "");
     const auto& voice_list = config.tts.voice_list;
     for (size_t i = 0; i < s_->all_role_ids.size(); ++i) {
         std::string rp = (ProsophorConfig::BaseDir() / "roles" / (s_->all_role_ids[i] + ".json")).string();
@@ -248,7 +248,7 @@ void SettingsWindow::InitState() {
             auto rj = nlohmann::json::parse(f);
 
             // Display name
-            s_->role_display_names[i] = rj.value("display_name", s_->all_role_ids[i]);
+            s_->role_names[i] = rj.value("role_name", s_->all_role_ids[i]);
 
             // Model
             std::string rm = rj["llm"]["model"];
@@ -333,8 +333,8 @@ void SettingsWindow::RenderRolesTab() {
     for (size_t i = 0; i < s_->all_role_ids.size(); ++i) {
         bool checked = (s_->role_checked[i] != 0);
         std::string label = s_->all_role_ids[i];
-        if (!s_->role_display_names[i].empty() && s_->role_display_names[i] != label)
-            label += " - " + s_->role_display_names[i];
+        if (!s_->role_names[i].empty() && s_->role_names[i] != label)
+            label += " - " + s_->role_names[i];
         CheckboxSetting(label.c_str(), checked);
         s_->role_checked[i] = checked ? 1 : 0;
 
@@ -409,7 +409,7 @@ void SettingsWindow::RenderProvidersTab() {
                         InputIntSetting(pid("ctx").c_str(), agent.context_window);
                         SettingLabel("Thinking");
                         CheckboxSetting(pid("think").c_str(), agent.thinking);
-                        SettingLabel("Streaming");
+                        SettingLabel("enable_streaming");
                         CheckboxSetting(pid("stream").c_str(), agent.enable_streaming);
                         media_engine::ImGuiWidget::TreePop();
                     }
@@ -440,7 +440,7 @@ void SettingsWindow::RenderSecurityTab() {
     s_->perm_level = perm_levels[pl_idx];
 
     Spacer();
-    SettingLabel(L.Get("security_allow_local_exec").c_str());
+    SettingLabel("allow_local_execute");
     CheckboxSetting("##allow_local_exec", s_->allow_local_exec);
 }
 
@@ -475,7 +475,7 @@ void SettingsWindow::RenderTtsTab() {
             s_->edge_voice = voice_list[voice_idx];
 
         Spacer();
-        SettingLabel("Auto Start");
+        SettingLabel("gs_auto_start");
         CheckboxSetting("##edge_auto_start", s_->edge_auto_start);
 
         Spacer();
@@ -520,7 +520,7 @@ void SettingsWindow::RenderLocalModelsTab() {
     InputIntSetting("##lm_port", edit_lm_port_);
 
     Spacer();
-    SettingLabel(L.Get("local_model_start_timeout").c_str());
+    SettingLabel("start_timeout_ms");
     InputIntSetting("##lm_start_timeout", edit_lm_start_timeout_);
 }
 

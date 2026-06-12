@@ -43,7 +43,7 @@ struct AgentRole {
 
     // === 性格配置 ===
     std::string personality;           // "concise", "detailed", "cautious", "creative"
-    std::string personality_prompt;    // 性格提示词："你说话简洁，直接给代码"
+    std::string soul;    // 性格提示词："你说话简洁，直接给代码"
 
     // === 系统指令 ===
     std::string role_system_prompt;         // 角色专属 system prompt
@@ -77,11 +77,11 @@ struct AgentRole {
         }
 
         // 2. 性格要求
-        if (!personality_prompt.empty()) {
+        if (!soul.empty()) {
             if (!prompt.empty()) {
                 prompt += "\n";
             }
-            prompt += "性格要求：" + personality_prompt + "\n";
+            prompt += "性格要求：" + soul + "\n";
         }
 
         return prompt;

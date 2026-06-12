@@ -36,6 +36,13 @@ public:
     /// Find sprite by window pointer (for context menu routing).
     Sprite* FindByWindow(media_engine::Window* win);
 
+    /// Mark sprite by role ID for deferred removal (safe across frame boundaries).
+    bool RemoveSpriteByRoleId(const std::string& role_id);
+    void QueueCreateSprite(const std::string& role_id);
+
+    /// Process pending create/remove — call once per frame before rendering.
+    void ProcessPendingOps();
+
     /// Remove all sprites.
     void Clear();
 
@@ -60,6 +67,8 @@ private:
     NewSpriteCallback on_new_sprite_;
     std::string focused_session_;
     std::vector<std::unique_ptr<Sprite>> sprites_;
+    std::vector<std::string> pending_remove_roles_;
+    std::vector<std::string> pending_create_roles_;
 };
 
 }  // namespace prosophor

@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "virtual_sprite/sprite_manager.h"
+#include "virtual_sprite/virtual_sprite.h"
 #include "virtual_sprite/sprite.h"
+#include "virtual_sprite/layout_config.h"
 #include "media_engine/media_engine.h"
 #include "common/log_wrapper.h"
 
@@ -49,6 +51,7 @@ Sprite* SpriteManager::CreateSprite(const std::string& name, int width, int heig
 }
 
 void SpriteManager::UpdateAll(float dt) {
+    ProcessPendingOps();
     for (auto& s : sprites_) {
         s->UpdateAnimation(dt);
     }
@@ -80,6 +83,47 @@ std::string SpriteManager::GetFocusedSpriteName() const {
         }
     }
     return {};
+}
+
+bool SpriteManager::RemoveSpriteByRoleId(const std::string& role_id) {
+    pending_remove_roles_.push_back(role_id);
+    return true;
+}
+
+void SpriteManager::QueueCreateSprite(const std::string& role_id) {
+    pending_create_roles_.push_back(role_id);
+}
+
+void SpriteManager::ProcessPendingOps() {
+    for (const auto& role_id : pending_create_roles_) {
+        try {
+            auto& vs = VirtualSprite::GetInstance();
+            auto* sp = CreateSprite(role_id, LayoutConfig{}.sprite_window_width,
+                LayoutConfig{}.sprite_window_height, role_id);
+            if (sp) {
+                sp->SetOnToggleCentralWindow([&vs]() {
+                    vs.GetCentralWindow().SetVisible(!vs.GetCentralWindow().IsVisible());
+                });
+            }
+        } catch (const std::exception& e) {
+            LOG_ERROR("SpriteManager: failed to create sprite for role '{}': {}", role_id, e.what());
+        }
+    }
+    pending_create_roles_.clear();
+    for (const auto& role_id : pending_remove_roles_) {
+        for (auto it = sprites_.begin(); it != sprites_.end(); ++it) {
+            if ((*it)->GetRoleId() == role_id) {
+                if ((*it)->GetSessionId() == focused_session_)
+                    focused_session_.clear();
+                if (auto* win = (*it)->GetWindow())
+                    media_engine::MediaCore::Instance().DestroyMediaWindow(win);
+                sprites_.erase(it);
+                LOG_INFO("SpriteManager: sprite for role '{}' removed (total={})", role_id, sprites_.size());
+                break;
+            }
+        }
+    }
+    pending_remove_roles_.clear();
 }
 
 void SpriteManager::Clear() {

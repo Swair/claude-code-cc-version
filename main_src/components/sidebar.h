@@ -31,6 +31,7 @@ enum class NavItem {
     Scheduler,
     Mcp,
     PetStore,
+    ComputerOrganize,
     About,
     ActiveTriggers
 };
@@ -48,7 +49,7 @@ public:
     Sidebar();
     ~Sidebar();
 
-    void Render(int win_h);
+    void Render(int win_w, int win_h);
 
     NavItem GetActiveItem() const { return active_item_; }
     void SetActiveItem(NavItem item) { active_item_ = item; }
@@ -76,6 +77,7 @@ private:
     bool collapsed_ = false;
     NavItem active_item_ = NavItem::Chat;
     NavCallback on_nav_;
+    mutable int sidebar_width_ = 300;
     int last_win_h_ = 0;
     std::unordered_map<SidebarGroup, bool> group_expanded_;
     media_engine::Window* render_window_ = nullptr;

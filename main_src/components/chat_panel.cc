@@ -216,8 +216,8 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
     }
 
     if (!hide_role_labels_) {
-        std::string label = (role == "assistant" && !assistant_display_name_.empty())
-                            ? assistant_display_name_ : role;
+        std::string label = (role == "assistant" && !assistant_role_name_.empty())
+                            ? assistant_role_name_ : role;
         label += " [" + SystemClock::FormatTimestamp(
             static_cast<std::time_t>(display_messages_[index].timestamp), "%H:%M:%S") + "]";
         media_engine::Text::Colored(role_color, label.c_str());

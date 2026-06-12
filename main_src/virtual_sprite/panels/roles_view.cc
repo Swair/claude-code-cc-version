@@ -1,6 +1,7 @@
 #include "virtual_sprite/chat_window.h"
 #include "virtual_sprite/panels/panel_helpers.h"
 #include "virtual_sprite/layout_config.h"
+#include "virtual_sprite/sprite_manager.h"
 #include "config/config.h"
 #include "config/role_config_manager.h"
 #include "media_engine/media_engine.h"
@@ -11,35 +12,43 @@
 #include <nlohmann/json.hpp>
 #include <algorithm>
 #include <cstring>
+#include <cstdio>
 
 namespace prosophor {
 
 namespace {
 
-static std::vector<std::string> all_ids, dnames, avail_models, descrs, prompts;
-static std::vector<int> checked, model_idx, voice_idx, auto_confirms;
+static std::vector<std::string> all_ids, dnames, avail_models, descrs, prompts, spritesheets;
+static std::vector<int> checked, model_idx, voice_idx, auto_confirms, max_iters, enable_streams;
 static std::vector<const char*> m_cstrs, v_cstrs;
 static bool scan = true;
 static int s_sel = 0;
 
 void ScanRoles() {
     auto& config = ProsophorConfig::GetInstance();
-    all_ids.clear(); dnames.clear(); descrs.clear(); prompts.clear();
+    all_ids.clear(); dnames.clear(); descrs.clear(); prompts.clear(); spritesheets.clear(); max_iters.clear();
     std::string rd = (ProsophorConfig::BaseDir() / "roles").string();
     if (DirExists(rd)) for (auto& e : std::filesystem::directory_iterator(rd))
         if (e.is_regular_file() && e.path().extension() == ".json") all_ids.push_back(e.path().stem().string());
     std::sort(all_ids.begin(), all_ids.end());
     dnames.resize(all_ids.size()); checked.assign(all_ids.size(), 0);
     descrs.resize(all_ids.size()); prompts.resize(all_ids.size());
+    spritesheets.resize(all_ids.size()); max_iters.assign(all_ids.size(), 0);
     auto_confirms.assign(all_ids.size(), 0);
+    enable_streams.assign(all_ids.size(), 1);
     for (size_t i = 0; i < all_ids.size(); ++i) {
         if (std::find(config.default_role.begin(), config.default_role.end(), all_ids[i]) != config.default_role.end()) checked[i] = 1;
         std::string fp = (ProsophorConfig::BaseDir() / "roles" / (all_ids[i] + ".json")).string();
         std::ifstream f(fp); if (f.is_open()) try { auto rj = nlohmann::json::parse(f);
-            dnames[i] = rj.value("display_name", all_ids[i]);
+            dnames[i] = rj.value("role_name", all_ids[i]);
             descrs[i] = rj.value("description", "");
-            prompts[i] = rj.value("personality_prompt", "");
-            auto_confirms[i] = rj["llm"].value("auto_confirm_tools", false) ? 1 : 0;
+            spritesheets[i] = rj.value("spritesheet", "");
+            prompts[i] = rj.value("soul", "");
+            if (rj.contains("llm") && rj["llm"].is_object()) {
+                max_iters[i] = rj["llm"].value("max_iterations", 15);
+                auto_confirms[i] = rj["llm"].value("auto_confirm_tools", false) ? 1 : 0;
+                enable_streams[i] = rj["llm"].value("enable_streaming", true) ? 1 : 0;
+            }
         } catch(...) { dnames[i] = all_ids[i]; } else dnames[i] = all_ids[i];
     }
     avail_models.clear();
@@ -78,7 +87,7 @@ void ChatWindow::RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h)
     Lc2.split_list_item_gap = 2.0f * s;
     Lc2.split_list_text_x = 12.0f * s;
 
-    float left_w = 220.0f * s;
+    float left_w = Lc.panel_left_list_w;
 
     auto sv = SplitView(pf.a, left_w, btn_h, gap);
 
@@ -96,25 +105,28 @@ void ChatWindow::RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h)
             float bh = Lc2.split_list_item_h;
             float iw = sv.left_w - 4.0f;
             bool ck = (checked[i] != 0);
+            float ck_w = 20.0f * s;
             media_engine::Layout::SetCursorScreenPos(sv.left_x, cy);
             if (media_engine::ImGuiWidget::InvisibleButton(
-                    ("rl_" + all_ids[i]).c_str(), sv.left_w, bh))
+                    ("rl_" + all_ids[i]).c_str(), sv.left_w - ck_w, bh))
                 s_sel = (int)i;
             bool hov = media_engine::ImGuiWidget::IsItemHovered();
-            if (act)
-                media_engine::DrawList::Selection(sv.left_x, cy, iw, bh, 3.0f,
-                    media_engine::Colors::Orange, media_engine::Colors::OrangeLightest, 4.0f);
-            else if (hov)
-                media_engine::DrawList::RoundRect(sv.left_x, cy, iw, bh, 4.0f,
+            constexpr float kPad = 4.0f;
+            if (act) {
+                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, iw - kPad, bh, 4.0f,
+                    media_engine::Colors::OrangeLightest);
+                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, 3.0f, bh, 4.0f,
+                    media_engine::Colors::Orange);
+            } else if (hov) {
+                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, iw - kPad, bh, 4.0f,
                     media_engine::Colors::OrangePale);
-            std::string lbl = all_ids[i];
-            if (!dnames[i].empty() && dnames[i] != all_ids[i]) lbl += " - " + dnames[i];
+            }
             media_engine::DrawList::Text(sv.left_x + Lc2.split_list_text_x - Lc2.split_list_item_gap, cy + Lc2.split_list_text_y,
                 act ? media_engine::Colors::OrangeDeep
                     : hov ? media_engine::Colors::Orange
                     : media_engine::Colors::Gray40,
-                lbl.c_str());
-            media_engine::Layout::SetCursorScreenPos(sv.left_x + sv.left_w - 20.0f * s, cy + 5.0f * s);
+                all_ids[i].c_str());
+            media_engine::Layout::SetCursorScreenPos(sv.left_x + sv.left_w - ck_w, cy + 5.0f * s);
             media_engine::ImGuiWidget::Checkbox(("##rl_ck_" + all_ids[i]).c_str(), &ck);
             checked[i] = ck ? 1 : 0;
             cy += bh + Lc2.split_list_item_gap;
@@ -152,36 +164,68 @@ void ChatWindow::RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h)
 
         float iy = cY + 40.0f * s;
 
+        // role_name
+        dnames[i].resize(256);
+        iy = PanelHelper::LabelRow(cx, iy, "role_name", wx,
+            [&](){ media_engine::ImGuiWidget::InputText(("##rn_" + all_ids[i]).c_str(), dnames[i].data(), dnames[i].size()); }, s);
+        dnames[i].resize(std::strlen(dnames[i].data()));
+
+        // spritesheet
+        spritesheets[i].resize(256);
+        iy = PanelHelper::LabelRow(cx, iy, "spritesheet", wx,
+            [&](){ media_engine::ImGuiWidget::InputText(("##sp_" + all_ids[i]).c_str(), spritesheets[i].data(), spritesheets[i].size()); }, s);
+        spritesheets[i].resize(std::strlen(spritesheets[i].data()));
+
+        // description
         descrs[i].resize(1024);
         media_engine::Layout::SetCursorScreenPos(cx + Lc.label_row_pad, iy);
-        media_engine::Text::Colored(media_engine::Colors::Gray55, L.Get("description").c_str());
+        media_engine::Text::Colored(media_engine::Colors::Gray55, "description");
         iy += 22.0f * s;
         media_engine::Layout::SetCursorScreenPos(cx + Lc.label_row_pad, iy);
         media_engine::ImGuiWidget::InputTextMultiline(("##desc_" + all_ids[i]).c_str(), descrs[i].data(), descrs[i].size(), scw - Lc.label_row_pad - 16.0f, 50.0f * s, false);
         descrs[i].resize(std::strlen(descrs[i].data()));
         iy += 60.0f * s;
 
+        // soul
         prompts[i].resize(4096);
         media_engine::Layout::SetCursorScreenPos(cx + Lc.label_row_pad, iy);
-        media_engine::Text::Colored(media_engine::Colors::Gray55, L.Get("personality_prompt").c_str());
+        media_engine::Text::Colored(media_engine::Colors::Gray55, "soul");
         iy += 22.0f * s;
         media_engine::Layout::SetCursorScreenPos(cx + Lc.label_row_pad, iy);
         media_engine::ImGuiWidget::InputTextMultiline(("##prompt_" + all_ids[i]).c_str(), prompts[i].data(), prompts[i].size(), scw - Lc.label_row_pad - 16.0f, 70.0f * s, false);
         prompts[i].resize(std::strlen(prompts[i].data()));
         iy += 80.0f * s;
 
+        // auto_confirm_tools
         bool ac = (auto_confirms[i] != 0);
-        iy = PanelHelper::LabelRow(cx, iy, "auto-confirm", wx,
+        iy = PanelHelper::LabelRow(cx, iy, "auto_confirm_tools", wx,
             [&](){ media_engine::ImGuiWidget::Checkbox(("##autoconf_" + all_ids[i]).c_str(), &ac); }, s);
         auto_confirms[i] = ac ? 1 : 0;
 
-        iy = PanelHelper::LabelRow(cx, iy, L.Get("model").c_str(), wx, [&](){
+        // enable_streaming
+        bool es = (enable_streams[i] != 0);
+        iy = PanelHelper::LabelRow(cx, iy, "enable_streaming", wx,
+            [&](){ media_engine::ImGuiWidget::Checkbox(("##es_" + all_ids[i]).c_str(), &es); }, s);
+        enable_streams[i] = es ? 1 : 0;
+
+        // max_iterations
+        iy = PanelHelper::LabelRow(cx, iy, "max_iterations", wx, [&,i](){
+            char buf[16];
+            snprintf(buf, sizeof(buf), "%d", max_iters[i]);
+            media_engine::ImGuiWidget::InputText(("##mi_" + all_ids[i]).c_str(), buf, sizeof(buf));
+            int v = atoi(buf);
+            if (v > 0) max_iters[i] = v;
+        }, s);
+
+        // model
+        iy = PanelHelper::LabelRow(cx, iy, "model", wx, [&](){
             float cw_half = ((cx + cw) - wx) * 0.5f;
             auto _w = media_engine::ScopedItemWidth(cw_half);
             media_engine::ImGuiWidget::Combo(("##mdl_" + all_ids[i]).c_str(), &model_idx[i], m_cstrs.data(), (int)m_cstrs.size()); }, s);
 
+        // tts voice
         if (vc > 0) {
-            iy = PanelHelper::LabelRow(cx, iy, L.Get("voice").c_str(), wx, [&](){
+            iy = PanelHelper::LabelRow(cx, iy, "voice", wx, [&](){
                 float cw_half = ((cx + cw) - wx) * 0.5f;
                 auto _w = media_engine::ScopedItemWidth(cw_half);
                 media_engine::ImGuiWidget::Combo(("##voi_" + all_ids[i]).c_str(), &voice_idx[i], v_cstrs.data(), vc); }, s);
@@ -199,7 +243,7 @@ buttons:
     float btn_w = Lc.panel_save_btn_w, btn_d = Lc.panel_btn_gap;
     float bx = pf.a.x + pf.a.w - (btn_w * 2 + btn_d) - Lc.panel_btn_right_gap;
     media_engine::Layout::SetCursorScreenPos(bx, by);
-    if (media_engine::ImGuiWidget::Button(L.Get("btn_save").c_str(), btn_w, 0)) {
+    if (media_engine::ImGuiWidget::Button(L.Get("btn_save").c_str(), btn_w, 0)) try {
         std::vector<std::string> nr;
         for (size_t i = 0; i < all_ids.size(); ++i) if (checked[i]) {
             nr.push_back(all_ids[i]);
@@ -213,14 +257,30 @@ buttons:
                 RoleConfigManager::SaveTtsVoice(all_ids[i], v, config.tts.backend);
                 RoleConfigManager::HotSwitchTtsVoice(all_ids[i], v, config.tts.backend);
             }
+            RoleConfigManager::SaveField(all_ids[i], "role_name", dnames[i]);
+            RoleConfigManager::SaveField(all_ids[i], "spritesheet", spritesheets[i]);
             RoleConfigManager::SaveField(all_ids[i], "description", descrs[i]);
-            RoleConfigManager::SaveField(all_ids[i], "personality_prompt", prompts[i]);
+            RoleConfigManager::SaveField(all_ids[i], "soul", prompts[i]);
+            RoleConfigManager::SaveFieldInt(all_ids[i], "llm.max_iterations", max_iters[i]);
             RoleConfigManager::SaveFieldBool(all_ids[i], "llm.auto_confirm_tools", auto_confirms[i] != 0);
+            RoleConfigManager::SaveFieldBool(all_ids[i], "llm.enable_streaming", enable_streams[i] != 0);
+        }
+        // Queue sprite create/remove — executed in next update tick (safe)
+        auto& old_roles = config.default_role;
+        for (size_t i = 0; i < all_ids.size(); ++i) {
+            bool was = std::find(old_roles.begin(), old_roles.end(), all_ids[i]) != old_roles.end();
+            bool now = checked[i] != 0;
+            if (!was && now)
+                SpriteManager::GetInstance().QueueCreateSprite(all_ids[i]);
+            else if (was && !now)
+                SpriteManager::GetInstance().RemoveSpriteByRoleId(all_ids[i]);
         }
         config.default_role = nr; config.SaveToFile(); scan = true;
         for (size_t i = 0; i < all_ids.size(); ++i) if (checked[i]) {
             RoleConfigManager::HotReload(all_ids[i]);
         }
+    } catch (const std::exception& e) {
+        fprintf(stderr, "[roles_view] Save failed: %s\n", e.what());
     }
     media_engine::Layout::SameLine(); media_engine::Layout::Dummy(btn_d, 0); media_engine::Layout::SameLine();
     if (media_engine::ImGuiWidget::Button(L.Get("nav_refresh").c_str(), btn_w, 0)) scan = true;

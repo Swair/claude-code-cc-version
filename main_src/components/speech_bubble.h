@@ -99,7 +99,7 @@ public:
     void SetBubbleBorderColor(const media_engine::Color& c)     { border_color_ = c; }
     void SetTitleTextColor(const media_engine::Color& c)        { title_text_color_ = c; }
     void SetTitle(const std::string& title)                     { title_text_ = title; }
-    void SetAssistantDisplayName(const std::string& name)       { if (chat_panel_) chat_panel_->SetAssistantDisplayName(name); }
+    void SetAssistantRoleName(const std::string& name)       { if (chat_panel_) chat_panel_->SetAssistantRoleName(name); }
     void SetButtonColor(const media_engine::Color& c)           { button_color_ = c; }
     void SetSendButtonColor(const media_engine::Color& c)       { if (input_panel_) input_panel_->SetSendButtonColor(c); }
 

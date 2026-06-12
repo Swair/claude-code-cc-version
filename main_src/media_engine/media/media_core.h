@@ -121,6 +121,9 @@ class MediaCore {
         Window* CreateMediaWindow(const char* title, int w, int h,
                              const WindowConfig& cfg = {});
 
+        // 销毁窗口（移除 handler + 从 all_windows_ 中移除）
+        void DestroyMediaWindow(Window* window);
+
         // 事件处理函数，更新函数
         void EventProcess();
         void Update();

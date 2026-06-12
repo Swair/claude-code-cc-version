@@ -19,8 +19,8 @@ struct ConfigTab {
 };
 
 static std::vector<ConfigTab> s_tabs = {
-    {"general",  "General"},
-    {"security", "Security"},
+    {"general",  "tab_general"},
+    {"security", "tab_security"},
 };
 
 static int s_sel = 0;
@@ -40,10 +40,11 @@ void ChatWindow::RenderConfigView(int cont_x, int cont_y, int cont_w, int cont_h
     Lc2.split_list_item_h *= ls;
     Lc2.split_list_text_y *= ls;
     Lc2.split_list_item_gap *= ls;
+    Lc2.split_list_text_x = 12.0f * ls;
     Lc2.section_title_gap *= ls;
 
     float gap = Lc2.panel_widget_spacing;
-    float left_w = Lc2.panel_label_w;
+    float left_w = Lc2.panel_left_list_w;
 
     auto sv = SplitView(f.a, left_w, f.btn_h, gap);
 
@@ -63,12 +64,16 @@ void ChatWindow::RenderConfigView(int cont_x, int cont_y, int cont_w, int cont_h
                     ("cfg_tab_" + std::to_string(i)).c_str(), sv.left_w, bh))
                 s_sel = i;
             bool hov = media_engine::ImGuiWidget::IsItemHovered();
-            if (act)
-                media_engine::DrawList::Selection(sv.left_x, cy, iw, bh, 3.0f,
-                    media_engine::Colors::Orange, media_engine::Colors::OrangeLightest, 4.0f);
-            else if (hov)
-                media_engine::DrawList::RoundRect(sv.left_x, cy, iw, bh, 4.0f,
+            constexpr float kPad = 4.0f;
+            if (act) {
+                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, iw - kPad, bh, 4.0f,
+                    media_engine::Colors::OrangeLightest);
+                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, 3.0f, bh, 4.0f,
+                    media_engine::Colors::Orange);
+            } else if (hov) {
+                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, iw - kPad, bh, 4.0f,
                     media_engine::Colors::OrangePale);
+            }
             media_engine::DrawList::Text(sv.left_x + Lc2.split_list_text_x - Lc2.split_list_item_gap, cy + Lc2.split_list_text_y,
                 act ? media_engine::Colors::OrangeDeep
                     : hov ? media_engine::Colors::Orange
@@ -91,7 +96,7 @@ void ChatWindow::RenderConfigView(int cont_x, int cont_y, int cont_w, int cont_h
         float iy = sv.right_y + Lc2.split_list_text_y;
 
         if (s_tabs[s_sel].key == std::string("general")) {
-            PanelHelper::SectionCard(cx, iy, cw, 180.0f * ls, L.Get("tab_general").c_str());
+            PanelHelper::SectionCard(cx, iy, cw, 240.0f * ls, L.Get("tab_general").c_str());
             iy += Lc2.section_title_gap;
             float icx = cx + Lc2.card_content_indent;
             float iwx = icx + Lc2.card_widget_offset;
@@ -125,7 +130,7 @@ void ChatWindow::RenderConfigView(int cont_x, int cont_y, int cont_w, int cont_h
 
             iy = PanelHelper::LabelRow(icx, iy, L.Get("general_sprite_assets_dir").c_str(), iwx, [&](){
                 char buf[512]; std::strncpy(buf, config.sprite_assets_dir.c_str(), sizeof(buf)-1); buf[sizeof(buf)-1] = 0;
-                float input_w = std::max(60.0f, ((cx + cw) - iwx - 36.0f - 4.0f) * 0.5f);
+                float input_w = std::max(120.0f, ((cx + cw) - iwx - 36.0f - 4.0f) * 0.75f);
                 { auto _w = media_engine::ScopedItemWidth(input_w);
                   media_engine::ImGuiWidget::InputText("##cfg_sd", buf, sizeof(buf)); }
                 media_engine::Layout::SameLine();

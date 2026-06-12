@@ -414,6 +414,10 @@ void Style::PushVar_FrameBorderSize(float size) {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, size);
 }
 
+void Style::PushVar_FrameRounding(float radius) {
+    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, radius);
+}
+
 void Style::PushVar_FramePadding(float x, float y) {
     ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(x, y));
 }
@@ -476,8 +480,8 @@ float Layout::GetFontScale() {
 
 void Layout::GetCursorScreenPos(float* x, float* y) {
     ImVec2 p = ImGui::GetCursorScreenPos();
-    *x = p.x;
-    *y = p.y;
+    if (x) *x = p.x;
+    if (y) *y = p.y;
 }
 
 bool ImGuiWidget::InvisibleButton(const char* id, float w, float h) {
@@ -833,7 +837,16 @@ void ImGuiWidget::Separator() {
 }
 
 bool ImGuiWidget::TreeNode(const char* label) {
-    return ImGui::TreeNode(label);
+    return ImGui::TreeNodeEx(label, ImGuiTreeNodeFlags_None);
+}
+
+bool ImGuiWidget::TreeNodeEx(const char* label, int flags) {
+    return ImGui::TreeNodeEx(label, flags);
+}
+
+bool ImGuiWidget::IsTreeNodeOpen(const char* label, int default_open) {
+    ImGuiID id = ImGui::GetID(label);
+    return ImGui::GetStateStorage()->GetInt(id, default_open) != 0;
 }
 
 void ImGuiWidget::TreePop() {

@@ -62,7 +62,14 @@ bool ChatWindow::Create(int width, int height) {
 
     sidebar_.SetRenderWindow(win);
 
-    // Sidebar navigation — 所有项均由 RenderCurrentView 路由，无需额外操作
+    sidebar_.SetOnNav([this](NavItem item) {
+        if (item == NavItem::ComputerOrganize) {
+            std::string sid = SpriteManager::GetInstance().GetFocusedSession();
+            if (!sid.empty()) {
+                AgentEngine::GetInstance().SwitchRole(sid, "disk_cleaner");
+            }
+        }
+    });
 
     media_engine::MediaCore::Instance().RegRenderHandler(win, [win, this]() {
         auto _app = media_engine::ScopedColors(
@@ -129,7 +136,7 @@ void ChatWindow::RenderChatUI() {
         static_cast<float>(win_h), 0, media_engine::Colors::MilkyWhite);
 
     // 1. Sidebar (left)
-    sidebar_.Render(win_h);
+    sidebar_.Render(win_w, win_h);
     int sb_w = sidebar_.GetWidth();
 
     // 2. Content area (right of sidebar)
@@ -166,8 +173,9 @@ void ChatWindow::RenderCurrentView(int cont_x, int cont_y, int cont_w, int cont_
         case NavItem::KnowledgeBase: RenderKnowledgeView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Scheduler:    RenderSchedulerView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Mcp:          RenderMcpView(cont_x, cont_y, cont_w, cont_h); break;
-        case NavItem::PetStore:     RenderPetStoreView(cont_x, cont_y, cont_w, cont_h); break;
-        default:                    RenderChatView(cont_x, cont_y, cont_w, cont_h); break;
+        case NavItem::PetStore:         RenderPetStoreView(cont_x, cont_y, cont_w, cont_h); break;
+        case NavItem::ComputerOrganize: RenderComputerOrganizeView(cont_x, cont_y, cont_w, cont_h); break;
+        default:                        RenderChatView(cont_x, cont_y, cont_w, cont_h); break;
     }
 }
 

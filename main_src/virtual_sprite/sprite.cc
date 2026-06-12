@@ -146,7 +146,7 @@ bool Sprite::Create() {
 
     // ── Set bubble title and assistant label to sprite display name ──
     speech_bubble_->SetTitle(name_);
-    speech_bubble_->SetAssistantDisplayName(name_);
+    speech_bubble_->SetAssistantRoleName(name_);
 
     // ── SpeechBubble onSubmit callback ──
     speech_bubble_->SetOnSubmit([this](const std::string& msg) {
@@ -381,7 +381,7 @@ void Sprite::LoadCurrentPet() {
         name_label_.SetText(name_);
         if (speech_bubble_) {
             speech_bubble_->SetTitle(name_);
-            speech_bubble_->SetAssistantDisplayName(name_);
+            speech_bubble_->SetAssistantRoleName(name_);
         }
     } else {
         pet_sprite_.reset();
@@ -396,9 +396,9 @@ Sprite::SpriteBinding Sprite::LoadSpriteBindingFromRole(const std::string& role_
         nlohmann::json j;
         ifs >> j;
         std::string sid = j.value("sprite_id", "");
-        std::string sp_file = j.value("spritesheet_path", "");
+        std::string sp_file = j.value("spritesheet", "");
         std::string assets_dir = j.value("sprite_assets_dir", "");
-        std::string display_name = j.value("display_name", "");
+        std::string display_name = j.value("role_name", "");
         return {sid, assets_dir, sp_file, display_name};
     } catch (const std::exception& e) {
         LOG_WARN("[Sprite] Failed to read role '{}': {}", role_id, e.what());

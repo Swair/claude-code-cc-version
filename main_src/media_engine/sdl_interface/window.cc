@@ -89,6 +89,10 @@ Window::~Window() {
         ImGui::DestroyContext(impl_->imgui_ctx);
         impl_->imgui_ctx = nullptr;
     }
+    if (impl_) {
+        if (impl_->renderer) SDL_DestroyRenderer(impl_->renderer);
+        if (impl_->window) SDL_DestroyWindow(impl_->window);
+    }
 }
 
 Window::Window(Window&& other) noexcept

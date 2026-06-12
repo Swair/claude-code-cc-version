@@ -69,7 +69,7 @@ std::vector<AgentRole> AgentRoleLoader::LoadAllRoles(const std::string& roles_di
 AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::string& file_stem) const {
     AgentRole role;
     role.id = j.value("id", file_stem);
-    role.name = j.value("display_name", j.value("name", role.id));
+    role.name = j.value("role_name", j.value("name", role.id));
     role.description = j.value("description", "");
     role.sprite_id = j.value("sprite_id", "");
     role.sprite_assets_dir = j.value("sprite_assets_dir", "");
@@ -159,7 +159,7 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
 
     // 性格配置
     role.personality = j.value("personality", "default");
-    role.personality_prompt = j.value("personality_prompt", "");
+    role.soul = j.value("soul", "");
     role.role_system_prompt = j.value("system_prompt", "");
 
     // sprite_id → 查找 sprite JSON，同名覆盖 role 字段
@@ -201,8 +201,8 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
                 role.description = it->get<std::string>();
             if (auto it = sj.find("personality"); it != sj.end() && it->is_string())
                 role.personality = it->get<std::string>();
-            if (auto it = sj.find("personality_prompt"); it != sj.end() && it->is_string())
-                role.personality_prompt = it->get<std::string>();
+            if (auto it = sj.find("soul"); it != sj.end() && it->is_string())
+                role.soul = it->get<std::string>();
             if (auto it = sj.find("system_prompt"); it != sj.end() && it->is_string())
                 role.role_system_prompt = it->get<std::string>();
             LOG_DEBUG("Sprite overlay applied for sprite_id='{}': name='{}', desc='{}', personality='{}'",

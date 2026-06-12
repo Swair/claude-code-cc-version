@@ -30,14 +30,15 @@ void Sidebar::ToggleGroup(SidebarGroup group) {
 }
 
 int Sidebar::GetWidth() const {
-    auto L = LayoutConfig{};
-    return collapsed_ ? L.sidebar_width_collapsed : L.sidebar_width_expanded;
+    return sidebar_width_;
 }
 
-    void Sidebar::Render(int win_h) {
+    void Sidebar::Render(int win_w, int win_h) {
         auto& L18n = I18n::Instance();
         auto L = LayoutConfig{};
-        int sb_w = GetWidth();
+        sidebar_width_ = collapsed_ ? L.sidebar_width_collapsed
+                                    : std::clamp(static_cast<int>(static_cast<float>(win_w) * L.sidebar_width_ratio), 180, 280);
+        int sb_w = sidebar_width_;
         float fw = static_cast<float>(sb_w);
         float fh = static_cast<float>(win_h);
         float s = ProsophorConfig::GetInstance().font_scale;
@@ -85,12 +86,18 @@ int Sidebar::GetWidth() const {
                 bool hov = media_engine::ImGuiWidget::IsItemHovered();
                 bool act = (active_item_ == item);
 
-                if (hov && !act)
-                    media_engine::DrawList::RoundRect(0, sy, fw, item_h, 4.0f,
+                constexpr float kPad = 4.0f;
+                float sx = kPad;
+                float sw = fw - kPad * 2;
+                if (act) {
+                    media_engine::DrawList::RoundRect(sx, sy, sw, item_h, 4.0f,
+                        media_engine::Colors::OrangeLightest);
+                    media_engine::DrawList::RoundRect(sx, sy, L.sb_act_bar_w, item_h, 4.0f,
+                        media_engine::Colors::Orange);
+                } else if (hov) {
+                    media_engine::DrawList::RoundRect(sx, sy, sw, item_h, 4.0f,
                         media_engine::Colors::OrangePale);
-                if (act)
-                    media_engine::DrawList::Selection(0, sy, fw - 4.0f, item_h, L.sb_act_bar_w,
-                        media_engine::Colors::Orange, media_engine::Colors::OrangeLightest, 4.0f);
+                }
 
                 auto icon_col = act ? media_engine::Colors::OrangeDeep
                              : hov ? media_engine::Colors::Orange
@@ -144,6 +151,7 @@ int Sidebar::GetWidth() const {
         if (IsGroupExpanded(SidebarGroup::Agents)) {
             nav_item(NavItem::PetStore, "P", L18n.Get("nav_petstore").c_str(), indent_s);
             nav_item(NavItem::KnowledgeBase, "K", L18n.Get("nav_knowledge").c_str(), indent_s);
+            nav_item(NavItem::ComputerOrganize, "D", L18n.Get("nav_computer_organize").c_str(), indent_s);
         }
 
         // ═══ 服务 ═══

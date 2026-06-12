@@ -181,6 +181,35 @@ bool RoleConfigManager::SaveFieldBool(const std::string& role_id,
     return false;
 }
 
+bool RoleConfigManager::SaveFieldInt(const std::string& role_id,
+                                     const std::string& field_path,
+                                     int value) {
+    auto rp = ProsophorConfig::BaseDir() / "roles" / (role_id + ".json");
+    if (!DirExists(rp.parent_path().string())) return false;
+    auto content = ReadFile(rp.string());
+    if (!content) return false;
+    nlohmann::ordered_json rj;
+    try { rj = nlohmann::ordered_json::parse(*content); }
+    catch (...) { return false; }
+
+    auto* j = &rj;
+    size_t dot = 0, start = 0;
+    while ((dot = field_path.find('.', start)) != std::string::npos) {
+        std::string key = field_path.substr(start, dot - start);
+        if (!j->contains(key) || !(*j)[key].is_object()) (*j)[key] = nlohmann::ordered_json::object();
+        j = &(*j)[key];
+        start = dot + 1;
+    }
+    std::string leaf = field_path.substr(start);
+    int cur = (*j).value(leaf, 0);
+    if (cur != value) {
+        (*j)[leaf] = value;
+        WriteOrderedJson(rp.string(), rj, 2);
+        return true;
+    }
+    return false;
+}
+
 void RoleConfigManager::HotReload(const std::string& role_id) {
     auto& mgr = AgentSessionManager::GetInstance();
     auto sessions = mgr.GetSessionsByRole(role_id);
@@ -195,8 +224,8 @@ void RoleConfigManager::HotReload(const std::string& role_id) {
         try {
             nlohmann::json rj = nlohmann::json::parse(*content);
             role->description = rj.value("description", role->description);
-            role->personality_prompt = rj.value("personality_prompt", role->personality_prompt);
-            role->name = rj.value("display_name", role->name);
+            role->soul = rj.value("soul", role->soul);
+            role->name = rj.value("role_name", role->name);
             if (rj.contains("tts") && rj["tts"].is_object()) {
                 role->tts_voice = rj["tts"].value("voice", role->tts_voice);
                 role->tts_backend = rj["tts"].value("backend", role->tts_backend);

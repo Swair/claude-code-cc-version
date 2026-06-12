@@ -6,6 +6,7 @@
 #include "common/i18n.h"
 #include <cstring>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <algorithm>
 
@@ -44,7 +45,7 @@ void ChatWindow::RenderProvidersView(int cont_x, int cont_y, int cont_w, int con
     if (s_scan) { InitOrder(config.llm_providers); s_scan = false; }
 
     float gap = 12.0f;
-    float left_w = 140.0f;
+    float left_w = Lc.panel_left_list_w;
 
     auto sv = SplitView(f.a, left_w, f.btn_h, gap);
 
@@ -64,12 +65,16 @@ void ChatWindow::RenderProvidersView(int cont_x, int cont_y, int cont_w, int con
                     ("ps_" + name).c_str(), sv.left_w, bh))
                 s_sel = name;
             bool hov = media_engine::ImGuiWidget::IsItemHovered();
-            if (act)
-                media_engine::DrawList::Selection(sv.left_x, cy, iw, bh, 3.0f,
-                    media_engine::Colors::Orange, media_engine::Colors::OrangeLightest, 4.0f);
-            else if (hov)
-                media_engine::DrawList::RoundRect(sv.left_x, cy, iw, bh, 4.0f,
+            constexpr float kPad = 4.0f;
+            if (act) {
+                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, iw - kPad, bh, 4.0f,
+                    media_engine::Colors::OrangeLightest);
+                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, 3.0f, bh, 4.0f,
+                    media_engine::Colors::Orange);
+            } else if (hov) {
+                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, iw - kPad, bh, 4.0f,
                     media_engine::Colors::OrangePale);
+            }
             media_engine::DrawList::Text(sv.left_x + Lc.split_list_text_x * sm - Lc.split_list_item_gap * sm, cy + Lc.split_list_text_y * sm,
                 act ? media_engine::Colors::OrangeDeep
                     : hov ? media_engine::Colors::Orange
@@ -100,80 +105,137 @@ void ChatWindow::RenderProvidersView(int cont_x, int cont_y, int cont_w, int con
             media_engine::Text::Colored(media_engine::Colors::Gray55, "(no entries)");
             media_engine::Layout::Dummy(0, 4.0f * sm);
         }
-
         for (size_t ei = 0; ei < prov.entries.size(); ++ei) {
             auto& entry = prov.entries[ei];
+            media_engine::Layout::Dummy(0, 6.0f * sm);
+
+            auto _entry = media_engine::ScopedChild(
+                ("##pv_entry_" + std::to_string(ei)).c_str(),
+                sv.right_w - 8.0f, 0,
+                media_engine::ImGuiChildFlags_Borders | media_engine::ImGuiChildFlags_AutoResizeY,
+                media_engine::ImGuiWindowFlags_None);
+
             auto id = [&](const char* suf) {
                 return "##pv_" + std::to_string(ei) + "_" + suf;
             };
 
-            media_engine::Layout::Dummy(0, 4.0f * sm);
-            media_engine::ImGuiWidget::Separator();
+            float cw = media_engine::Layout::GetContentRegionAvailWidth();
+            float widget_w = (cw - 120.0f) * 2.0f / 3.0f;
+            float entryFY;
+            media_engine::Layout::GetCursorScreenPos(nullptr, &entryFY);
+            float entryCX;
+            media_engine::Layout::GetCursorScreenPos(&entryCX, nullptr);
+            float entryLH = Lc.panel_widget_spacing * sm;
 
-            media_engine::Text::Colored(media_engine::Colors::Gray55, "API Key");
+            auto field_row = [&](const char* label, std::function<void(float)> widget_fn) {
+                media_engine::Layout::SetCursorScreenPos(entryCX + 8.0f, entryFY);
+                media_engine::Text::Colored(media_engine::Colors::Gray55, label);
+                media_engine::Layout::SetCursorScreenPos(entryCX + 120.0f, entryFY);
+                auto _fw = media_engine::ScopedItemWidth(widget_w);
+                widget_fn(widget_w);
+                entryFY += entryLH;
+            };
+
             char buf[1024];
-            std::strncpy(buf, entry.api_key.c_str(), sizeof(buf) - 1);
-            buf[sizeof(buf) - 1] = 0;
-            if (media_engine::ImGuiWidget::InputText(id("ak").c_str(), buf, sizeof(buf)))
-                entry.api_key = buf;
+            field_row("api_key", [&](float) {
+                std::strncpy(buf, entry.api_key.c_str(), sizeof(buf) - 1);
+                buf[sizeof(buf) - 1] = 0;
+                if (media_engine::ImGuiWidget::InputText(id("ak").c_str(), buf, sizeof(buf)))
+                    entry.api_key = buf;
+            });
+            field_row("base_url", [&](float) {
+                std::strncpy(buf, entry.base_url.c_str(), sizeof(buf) - 1);
+                buf[sizeof(buf) - 1] = 0;
+                if (media_engine::ImGuiWidget::InputText(id("url").c_str(), buf, sizeof(buf)))
+                    entry.base_url = buf;
+            });
+            field_row("timeout", [&](float) {
+                media_engine::ImGuiWidget::InputInt(id("to").c_str(), &entry.timeout);
+            });
+            field_row("thinking", [&](float) {
+                media_engine::ImGuiWidget::Checkbox(id("thk").c_str(), &entry.thinking);
+            });
 
-            media_engine::Text::Colored(media_engine::Colors::Gray55, "Base URL");
-            std::strncpy(buf, entry.base_url.c_str(), sizeof(buf) - 1);
-            buf[sizeof(buf) - 1] = 0;
-            if (media_engine::ImGuiWidget::InputText(id("url").c_str(), buf, sizeof(buf)))
-                entry.base_url = buf;
+            media_engine::Layout::Dummy(0, 4.0f * sm);
 
-            media_engine::Text::Colored(media_engine::Colors::Gray55, "Timeout (s)");
-            media_engine::ImGuiWidget::InputInt(id("to").c_str(), &entry.timeout);
+            // ── Models section ──
+            {
+                float mCW = cw - 8.0f;
+                static std::unordered_map<size_t, bool> s_models_open;
+                if (s_models_open.find(ei) == s_models_open.end())
+                    s_models_open[ei] = true;
+                bool& m_open = s_models_open[ei];
 
-            media_engine::Text::Colored(media_engine::Colors::Gray55, "Thinking");
-            media_engine::ImGuiWidget::Checkbox(id("thk").c_str(), &entry.thinking);
+                float sy;
+                media_engine::Layout::GetCursorScreenPos(nullptr, &sy);
+                float ty = sy + 2.0f * sm;
+                media_engine::Layout::SetCursorScreenPos(entryCX + 8.0f, ty);
+                std::string arrow_str = m_open ? " -" : " +";
+                media_engine::Text::Colored(media_engine::Colors::OrangeDeep, ("models" + arrow_str).c_str());
 
-            // ── Models (gray card container, matching Config style) ──
-            if (!entry.models.empty()) {
+                media_engine::Layout::SetCursorScreenPos(entryCX + 8.0f, sy);
+                if (media_engine::ImGuiWidget::InvisibleButton(("##mdl_click_" + std::to_string(ei)).c_str(), cw - 8.0f, 30.0f * sm))
+                    m_open = !m_open;
 
-                float mCX2, mCY2;
-                media_engine::Layout::GetCursorScreenPos(&mCX2, &mCY2);
-                float mCW = sv.right_w - Lc.section_card_right_margin + Lc.split_right_child_wextra;
-                float mCardX = sv.right_x;
-                media_engine::DrawList::RoundRect(mCardX, mCY2, mCW, 200.0f, Lc.panel_radius,
-                    media_engine::Colors::Beige);
-                media_engine::DrawList::Text(mCardX + 14.0f, mCY2 + 10.0f,
-                    media_engine::Colors::OrangeDeep, "Models");
+                if (m_open) {
+                    float model_y;
+                    media_engine::Layout::GetCursorScreenPos(nullptr, &model_y);
+                    media_engine::Layout::SetCursorScreenPos(entryCX + 8.0f, model_y + 4.0f * sm);
+                    for (auto& [mk, mv] : entry.models) {
+                        auto pid = [&](const char* suf) {
+                            return "##pvm_" + std::to_string(ei) + "_" + mk + "_" + suf;
+                        };
 
-                media_engine::Layout::SetCursorScreenPos(mCardX + 14.0f, mCY2 + 36.0f);
-                for (auto& [mk, mv] : entry.models) {
-                    auto pid = [&](const char* suf) {
-                        return "##pvm_" + std::to_string(ei) + "_" + mk + "_" + suf;
-                    };
+                        auto _mc = media_engine::ScopedChild(
+                            ("##mdl_card_" + std::to_string(ei) + "_" + mk).c_str(),
+                            mCW, 0,
+                            media_engine::ImGuiChildFlags_Borders | media_engine::ImGuiChildFlags_AutoResizeY,
+                            media_engine::ImGuiWindowFlags_None);
 
-                    media_engine::Text::Colored(media_engine::Colors::Gray40, mk.c_str());
+                        media_engine::Layout::Dummy(0, 4.0f * sm);
+                        auto _sw = media_engine::ScopedItemWidth((mCW - 50.0f) / 3.0f);
 
-                    auto _sw = media_engine::ScopedItemWidth((mCW - 28.0f) * 0.5f);
-                    media_engine::Text::Colored(media_engine::Colors::Gray55, "Temperature");
-                    double temp = mv.temperature;
-                    media_engine::ImGuiWidget::SliderFloat(pid("tmp").c_str(), &temp, 0.0f, 2.0f, "%.1f");
-                    mv.temperature = static_cast<float>(temp);
+                        char mbuf[256];
+                        std::strncpy(mbuf, mv.model.c_str(), sizeof(mbuf) - 1);
+                        mbuf[sizeof(mbuf) - 1] = 0;
+                        media_engine::Text::Colored(media_engine::Colors::Gray55, "model");
+                        if (media_engine::ImGuiWidget::InputText(pid("mdl").c_str(), mbuf, sizeof(mbuf)))
+                            mv.model = mbuf;
 
-                    media_engine::Text::Colored(media_engine::Colors::Gray55, "Max Tokens");
-                    media_engine::ImGuiWidget::InputInt(pid("mt").c_str(), &mv.max_tokens);
+                        media_engine::Text::Colored(media_engine::Colors::Gray55, "temperature");
+                        double temp = mv.temperature;
+                        media_engine::ImGuiWidget::SliderFloat(pid("tmp").c_str(), &temp, 0.0f, 2.0f, "%.1f");
+                        mv.temperature = static_cast<float>(temp);
 
-                    media_engine::Text::Colored(media_engine::Colors::Gray55, "Context Window");
-                    media_engine::ImGuiWidget::InputInt(pid("cw").c_str(), &mv.context_window);
+                        media_engine::Text::Colored(media_engine::Colors::Gray55, "max_tokens");
+                        media_engine::ImGuiWidget::InputInt(pid("mt").c_str(), &mv.max_tokens);
 
-                    media_engine::Layout::Dummy(0, 4.0f * sm);
+                        media_engine::Text::Colored(media_engine::Colors::Gray55, "context_window");
+                        media_engine::ImGuiWidget::InputInt(pid("cw").c_str(), &mv.context_window);
+                        media_engine::Layout::Dummy(0, 4.0f * sm);
+                    }
+
+                    float btn_y;
+                    media_engine::Layout::GetCursorScreenPos(nullptr, &btn_y);
+                    media_engine::Layout::SetCursorScreenPos(entryCX + cw - 140.0f - 8.0f, btn_y);
+                    if (media_engine::ImGuiWidget::Button(("+ Add Model##" + std::to_string(ei)).c_str(), 140.0f, 0)) {
+                        int n = (int)entry.models.size() + 1;
+                        std::string new_key = "new-model-" + std::to_string(n);
+                        while (entry.models.count(new_key)) { ++n; new_key = "new-model-" + std::to_string(n); }
+                        ModelConfig mc;
+                        mc.name = new_key;
+                        mc.model = new_key;
+                        entry.models[new_key] = mc;
+                    }
                 }
-
-                float mEX2, mEY2;
-                media_engine::Layout::GetCursorScreenPos(&mEX2, &mEY2);
-                float mCH = mEY2 - mCY2 + 4.0f;
-                media_engine::DrawList::RoundRectOutline(mCardX, mCY2, mCW, mCH, Lc.panel_radius,
-                    media_engine::Colors::Gray63, 1.0f);
             }
         }
 
-        media_engine::Layout::Dummy(0, 4.0f * sm);
-        if (media_engine::ImGuiWidget::Button(("+ Add Entry##" + s_sel).c_str(), 0, 0)) {
+        media_engine::Layout::Dummy(0, 6.0f * sm);
+        float add_entry_y;
+        media_engine::Layout::GetCursorScreenPos(nullptr, &add_entry_y);
+        media_engine::Layout::SetCursorScreenPos(sv.right_x + sv.right_w - 140.0f - 8.0f, add_entry_y);
+        if (media_engine::ImGuiWidget::Button(("+ Add Entry##" + s_sel).c_str(), 140.0f, 0)) {
             ProviderEntryConfig ne;
             ne.timeout = 30;
             prov.entries.push_back(std::move(ne));
