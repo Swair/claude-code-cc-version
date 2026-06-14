@@ -187,7 +187,7 @@ void ChatWindow::RenderCurrentView(int cont_x, int cont_y, int cont_w, int cont_
 // ============================================================================
 void ChatWindow::RenderActiveTriggersView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto& L = I18n::Instance();
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, L.Get("nav_active_triggers").c_str());
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("nav_active_triggers").c_str());
     float sm = Spacing();
 
     auto& triggers = ActiveTriggerManager::GetInstance();

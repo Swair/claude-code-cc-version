@@ -90,12 +90,15 @@ void VirtualSprite::GlobalInit() {
 
         central_window_.SetOnSubmit([](const std::string& msg) {
             auto& engine = AgentEngine::GetInstance();
-            auto snap = engine.GetFocusedSessionSnapshot();
-            std::string sid = snap ? snap->session_id
-                                   : engine.CreateSession(
-                                       engine.GetConfig().default_role.empty()
-                                           ? "default"
-                                           : engine.GetConfig().default_role[0], "");
+            std::string sid = SpriteManager::GetInstance().GetFocusedSession();
+            if (sid.empty()) {
+                auto snap = engine.GetFocusedSessionSnapshot();
+                sid = snap ? snap->session_id
+                           : engine.CreateSession(
+                               engine.GetConfig().default_role.empty()
+                                   ? "default"
+                                   : engine.GetConfig().default_role[0], "");
+            }
             engine.SendUserMessage(sid, msg);
         });
 
@@ -190,6 +193,11 @@ void VirtualSprite::GlobalInit() {
     for (const auto& role_id : role_list) {
         create_sprite(role_id, sprite_cfg.sprite_window_width, sprite_cfg.sprite_window_height, role_id);
     }
+
+    // Set initial focus to the first sprite's session
+    auto& sprites = SpriteManager::GetInstance().GetAll();
+    if (!sprites.empty())
+        SpriteManager::GetInstance().SetFocusedSession(sprites[0]->GetSessionId());
 
     // Global update: animate all sprites
     media.RegUpdateHandler([]() {

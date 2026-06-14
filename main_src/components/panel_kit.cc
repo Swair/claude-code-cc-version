@@ -1,7 +1,4 @@
-// Copyright 2026 Prosophor Contributors
-// SPDX-License-Identifier: Apache-2.0
-
-#include "virtual_sprite/panels/panel_helpers.h"
+#include "components/panel_kit.h"
 #include "virtual_sprite/layout_config.h"
 #include "config/config.h"
 #include "media_engine/media_engine.h"
@@ -10,12 +7,11 @@
 
 namespace prosophor {
 
-// ============================================================================
-// SaveCancelPanel — 底部 Save/Cancel 按钮栏（I18n 依赖，保持在 app 层）
-// ============================================================================
-void SaveCancelPanel(const Area& area, float btn_h,
-                     std::function<void()> on_save,
-                     std::function<void()> on_cancel)
+// ── ActionBar ──
+
+void ActionBar(const Area& area, float btn_h,
+               std::function<void()> on_save,
+               std::function<void()> on_cancel)
 {
     auto Lc = LayoutConfig{};
     auto& L = I18n::Instance();
@@ -36,11 +32,10 @@ void SaveCancelPanel(const Area& area, float btn_h,
     }
 }
 
-// ============================================================================
-// SplitView — 左右分割面板布局计算
-// ============================================================================
-SplitView::SplitView(const Area& content, float left_width,
-                     float btn_h, float gap)
+// ── SplitPanel ──
+
+SplitPanel::SplitPanel(const Area& content, float left_width,
+                       float btn_h, float gap)
 {
     auto Lc = LayoutConfig{};
     inner_h = content.h - btn_h - gap - Lc.split_list_text_y;
@@ -55,34 +50,16 @@ SplitView::SplitView(const Area& content, float left_width,
     right_w = content.w - left_width - Lc.split_left_gap - Lc.split_right_child_wextra;
 }
 
-void SplitView::DrawDivider() const {
+void SplitPanel::DrawDivider() const {
     auto Lc = LayoutConfig{};
     media_engine::DrawList::RoundRect(divider_x, right_y - Lc.split_right_child_pad + Lc.split_list_text_y,
         Lc.split_divider_w, inner_h - Lc.split_list_text_y * 2, 0,
         media_engine::Colors::CreamBorder);
 }
 
-// ============================================================================
-// SectionForm — BeginScroll + SectionCard 表单容器
-// ============================================================================
-SectionForm::SectionForm(const Area& area, const char* title, float card_h,
-                         float btn_h, float gap)
-    : _child(PanelFrame::BeginScroll(area, btn_h, gap))
-{
-    auto Lc = LayoutConfig{};
-    cx = area.x;
-    wx = cx + Lc.card_content_indent + Lc.card_widget_offset;
-    float card_y = area.y + 8.0f;
-    float cw = area.w - Lc.section_card_right_margin;
-    PanelHelper::SectionCard(cx, card_y, cw, card_h, title);
-    iy = card_y + 42.0f;
-}
+// ── PanelHelper (legacy) ──
 
-// ============================================================================
-// PanelHelper (legacy)
-// ============================================================================
-
-PanelHelper::Area PanelHelper::ContentArea(float cont_x, float cont_y, float cont_w, float cont_h) {
+PanelHelper::HelperArea PanelHelper::ContentArea(float cont_x, float cont_y, float cont_w, float cont_h) {
     return {cont_x + 12.0f, cont_y + 44.0f, cont_w - 24.0f, cont_h - 56.0f};
 }
 
@@ -131,15 +108,80 @@ void PanelHelper::SaveCancelBar(float cx, float cy, float cw, float ch,
     }
 }
 
-void PanelHelper::SectionCard(float cx, float cy, float cw, float h, const char* title) {
+Card::Card(float x, float y, float w, const char* title, float sm,
+           const media_engine::Color& bg_color,
+           const media_engine::Color& border_color,
+           const media_engine::Color& title_color,
+           float radius, float fixed_h, bool title_above)
+    : x_(x), y_(y), w_(w), fixed_h_(fixed_h), title_(title ? title : "")
+    , bg_color_(bg_color), border_color_(border_color), title_color_(title_color)
+    , radius_(radius), sm_(sm), title_above_(title_above)
+{
     auto Lc = LayoutConfig{};
-    float sx = cx + Lc.section_card_pad, sw = cw - Lc.section_card_w_extra;
-    media_engine::DrawList::RoundRect(sx, cy, sw, h, Lc.panel_radius,
-        media_engine::Colors::Beige);
-    media_engine::DrawList::RoundRectOutline(sx, cy, sw, h, Lc.panel_radius,
-        media_engine::Colors::Gray63, 1.0f);
-    media_engine::DrawList::Text(cx + Lc.label_row_pad, cy + 10.0f,
-        media_engine::Colors::OrangeDeep, title);
+    content_x_ = x + Lc.card_content_indent;
+    widget_x_ = content_x_ + Lc.card_widget_offset;
+    // Title above border (auto-shift y_ so title fits within content area)
+    if (title_above && title) {
+        y_ += 20.0f * sm_;
+        next_y_ = y_ + 6.0f * sm_;
+    } else {
+        next_y_ = y_ + (fixed_h_ <= 0 ? Lc.section_title_gap : fixed_h_);
+        if (title)
+            media_engine::DrawList::Text(x_ + Lc.label_row_pad, y_ + 10.0f,
+                title_color, title_.c_str());
+    }
+    // Split channels: layer 0 = background (drawn in destructor), layer 1 = content
+    media_engine::DrawList::ChannelsSplit(2);
+    media_engine::DrawList::ChannelsSetCurrent(1);  // content renders on top layer
+}
+
+Card::~Card() {
+    auto Lc = LayoutConfig{};
+    float card_h = fixed_h_ > 0 ? fixed_h_ : (next_y_ - y_) + 8.0f * sm_;
+    float sx = x_ + Lc.section_card_pad;
+    float sw = w_ - Lc.section_card_w_extra;
+    // Draw background + outline on layer 0 (behind content)
+    media_engine::DrawList::ChannelsSetCurrent(0);
+    media_engine::DrawList::RoundRect(sx, y_, sw, card_h, radius_, bg_color_);
+    media_engine::DrawList::RoundRectOutline(sx, y_, sw, card_h, radius_,
+        border_color_, 1.0f);
+    // Title text on layer 0 (above card, behind content - safe since no overlap)
+    if (title_above_ && !title_.empty())
+        media_engine::DrawList::Text(x_ + Lc.label_row_pad, y_ - 20.0f * sm_,
+            title_color_, title_.c_str());
+    media_engine::DrawList::ChannelsMerge();
+}
+
+float Card::Field(const char* label, std::function<void()> widget_fn) {
+    next_y_ = PanelHelper::LabelRow(content_x_, next_y_, label, widget_x_,
+                                    std::move(widget_fn), sm_);
+    return next_y_;
+}
+
+FocusCard::FocusCard(float x, float y, float w, float h,
+                     bool focused, bool hover, float radius) {
+    media_engine::DrawList::RoundRect(x, y, w, h, radius,
+        focused ? media_engine::Colors::OrangeLightest
+                : hover ? media_engine::Colors::OrangeLightest
+                : media_engine::Colors::White);
+    if (focused)
+        media_engine::DrawList::RoundRectOutline(x, y, w, h, radius,
+            media_engine::Colors::OrangeWarm, 1.5f);
+}
+
+WhiteCard::WhiteCard(float x, float y, float w, float h,
+                     const char* title) {
+    auto sm = Spacing();
+    if (title) {
+        Card card(x, y, w, title, sm,
+                  media_engine::Colors::White,
+                  media_engine::Colors::CreamBorder,
+                  media_engine::Colors::OrangeDeep, 6.0f, h, false);
+    } else {
+        media_engine::DrawList::RoundRect(x, y, w, h, 6.0f, media_engine::Colors::White);
+        media_engine::DrawList::RoundRectOutline(x, y, w, h, 6.0f,
+            media_engine::Colors::CreamBorder, 1.0f);
+    }
 }
 
 float PanelHelper::LabelRow(float cx, float iy, const char* label, float wx,
@@ -157,9 +199,7 @@ float PanelHelper::Spacing(float base, float scale) {
     return base * scale;
 }
 
-// ============================================================================
-// 通用组件实现
-// ============================================================================
+// ── 通用组件 ──
 
 float CardBox(float x, float y, float w, const char* title) {
     float h = 60.0f;
@@ -185,13 +225,13 @@ float SeparatorLine(float x, float iy, float w, float spacing) {
     return iy + spacing;
 }
 
-void PlaceholderView(int cont_x, int cont_y, int cont_w, int cont_h,
+void PlaceholderPage(int cont_x, int cont_y, int cont_w, int cont_h,
                      const char* view_title, const char* section_title,
                      std::initializer_list<const char*> lines)
 {
     auto Lc = LayoutConfig{};
     auto& L = I18n::Instance();
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, view_title);
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, view_title);
     float sm = Spacing();
     float iy = f.a.y + 10.0f * sm;
     if (section_title && section_title[0]) {
@@ -207,9 +247,9 @@ void PlaceholderView(int cont_x, int cont_y, int cont_w, int cont_h,
     media_engine::DrawList::Text(f.a.x + Lc.content_pad, iy, media_engine::Colors::Gray47, L.Get("panel_coming_soon").c_str());
 }
 
-void StatCard(float x, float y, float w, float h,
-              const char* title, const char* value,
-              const media_engine::Color& accent)
+StatCard::StatCard(float x, float y, float w, float h,
+                   const char* title, const char* value,
+                   const media_engine::Color& accent)
 {
     float sm = Spacing();
     media_engine::DrawList::RoundRect(x, y, w, h, 6.0f, media_engine::Colors::White);

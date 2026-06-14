@@ -234,7 +234,7 @@ bool InputText::Render(float pos_x, float pos_y) {
         if (impl_->on_text_changed_) {
             impl_->on_text_changed_(std::string(impl_->buffer_.data()));
         }
-        if (impl_->enter_returns_true_) {
+        if (impl_->enter_returns_true_ && ImGui::IsItemDeactivatedAfterEdit()) {
             impl_->enter_pressed_ = true;
         }
         return true;
@@ -410,6 +410,10 @@ void Style::PushVar_WindowPadding(float x, float y) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(x, y));
 }
 
+void Style::PushVar_WindowRounding(float radius) {
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, radius);
+}
+
 void Style::PushVar_FrameBorderSize(float size) {
     ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, size);
 }
@@ -538,6 +542,18 @@ void DrawList::RoundRectOutline(float x, float y, float w, float h,
                                 float thickness) {
     ImGui::GetWindowDrawList()->AddRect(
         ImVec2(x, y), ImVec2(x + w, y + h), ColorToRGBA(color), radius, 0, thickness);
+}
+
+void DrawList::ChannelsSplit(int count) {
+    ImGui::GetWindowDrawList()->ChannelsSplit(count);
+}
+
+void DrawList::ChannelsSetCurrent(int n) {
+    ImGui::GetWindowDrawList()->ChannelsSetCurrent(n);
+}
+
+void DrawList::ChannelsMerge() {
+    ImGui::GetWindowDrawList()->ChannelsMerge();
 }
 
 void DrawList::CircleFilled(float cx, float cy, float radius, const Color& color) {

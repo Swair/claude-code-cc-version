@@ -159,6 +159,9 @@ public:
                           float radius = 0);
     static void OverlayRectOutline(float x, float y, float w, float h, float radius,
                                    const Color& color, float thickness = 1.0f);
+    static void ChannelsSplit(int count);
+    static void ChannelsSetCurrent(int n);
+    static void ChannelsMerge();
     static void CircleFilled(float cx, float cy, float radius, const Color& color);
     static void CircleOutline(float cx, float cy, float radius, const Color& color,
                               float thickness = 1.0f);
@@ -287,6 +290,7 @@ public:
     static void PushVar_FrameRounding(float radius);
     static void PushVar_FramePadding(float x, float y);
     static void PushVar_WindowPadding(float x, float y);
+    static void PushVar_WindowRounding(float radius);
     static void PopVar(int count = 1);
 };
 
@@ -317,6 +321,9 @@ public:
     }
     static ScopedStyleVar WindowPadding(float x, float y) {
         Style::PushVar_WindowPadding(x, y); return ScopedStyleVar();
+    }
+    static ScopedStyleVar WindowRounding(float radius) {
+        Style::PushVar_WindowRounding(radius); return ScopedStyleVar();
     }
 private:
     ScopedStyleVar() = default;

@@ -129,8 +129,14 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
     session.SetSessionHistoryDir((base_dir / "sessions" / session_id / "history").string());
     std::filesystem::create_directories(session.GetSessionHistoryDir());
 
-    // 初始化工作目录（默认为当前工作目录）
-    session.SetWorkingDirectory(std::filesystem::current_path().string());
+    // 初始化工作目录（优先使用配置的 workspace_path）
+    {
+        auto& cfg = ProsophorConfig::GetInstance();
+        std::string wd = cfg.workspace_path.empty()
+            ? std::filesystem::current_path().string()
+            : cfg.workspace_path;
+        session.SetWorkingDirectory(wd);
+    }
 
     // 初始化 base_url/api_key/timeout（从 provider entry 中按 model 查找）
     {
@@ -486,6 +492,10 @@ void AgentSessionManager::SwitchRoleForSession(const std::string& session_id,
             session.SetTimeout(prov_it->second.timeout);
         }
 
+        // Update working directory from config
+        if (!config.workspace_path.empty())
+            session.SetWorkingDirectory(config.workspace_path);
+
         session.SetSystemPrompt(BuildSystemPrompt(session));
     }
 
@@ -504,8 +514,13 @@ std::vector<SystemSchema> AgentSessionManager::BuildSystemPrompt(const AgentSess
            << "  - config/settings.json — 全局配置\n"
            << "  - roles/ — 角色定义\n"
            << "  - skills/ — 技能文件（可用 /skills list 查看）\n"
-           << "  - sessions/ — 会话记录\n"
-           << "\n";
+           << "  - sessions/ — 会话记录\n";
+
+    if (!session.GetWorkingDirectory().empty()) {
+        prompt << "当前工作目录：" << session.GetWorkingDirectory() << "\n";
+    }
+
+    prompt << "\n";
 
     // 1. Role Memory (长期记忆 - 习惯/偏好) - 从 AgentRole 封装方法加载
     if (session.GetRole()) {

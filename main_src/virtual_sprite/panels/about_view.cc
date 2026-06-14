@@ -7,7 +7,7 @@ namespace prosophor {
 
 void ChatWindow::RenderAboutView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto& L = I18n::Instance();
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, L.Get("about_title").c_str());
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("about_title").c_str());
 
     float iy = f.a.y + 16.0f;
     media_engine::DrawList::Text(f.a.x + 24.0f, iy, media_engine::Colors::OrangeDeep,

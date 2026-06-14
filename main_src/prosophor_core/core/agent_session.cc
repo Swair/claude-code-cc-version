@@ -178,6 +178,14 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
 
     // ── TTS: pop chunks, join, split, send complete sentences ──
     if (tts_speak_callback_) {
+        // Determine effective voice — if "none", discard all chunks and skip TTS
+        std::string voice = role_ && !role_->tts_voice.empty()
+            ? role_->tts_voice : "zh-CN-XiaoxiaoNeural";
+        if (voice == "none") {
+            tts_chunks_.Clear();
+            return;
+        }
+
         auto items = tts_chunks_.PopAll();
         if (items.empty()) return;
 
@@ -194,7 +202,6 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
         } else {
             // 流式进行中：分句，完整句子发送，末尾不完整句保留到下次
             auto segments = TtsSplitSentences(pending, 5);
-            // LOG_INFO("Split TTS text into {} segments: pending='{}'", segments.size(), pending);
             if (segments.size() >= 2) {
                 // 至少有两段 → 前面的都是完整句子，最后一段可能不完整，因为还没有done结束
                 for (size_t i = 0; i + 1 < segments.size(); ++i)
@@ -210,8 +217,6 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
 
         std::string backend = role_ && !role_->tts_backend.empty()
             ? role_->tts_backend : "edge-tts";
-        std::string voice = role_ && !role_->tts_voice.empty()
-            ? role_->tts_voice : "zh-CN-XiaoxiaoNeural";
         tts_speak_callback_(to_send, backend, voice);
     }
 }

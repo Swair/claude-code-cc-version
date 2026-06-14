@@ -180,6 +180,9 @@ bool Sprite::Create() {
 
     // ── Render handler: pet + speech bubble (via widget tree) + context menu ──
     mc.RegRenderHandler(sprite_window_, [this]() {
+        // Sprite window always uses small font regardless of global font scale
+        media_engine::MediaCore::SetWindowFontScale(sprite_window_, ProsophorConfig::kFontScaleSmall);
+
         // Pre-set snapshot and window size, then render through widget tree cascade
         auto snap = AgentEngine::GetInstance().GetSessionSnapshot(session_id_);
         speech_bubble_->SetSnapshot(snap ? *snap : RenderSnapshot{});

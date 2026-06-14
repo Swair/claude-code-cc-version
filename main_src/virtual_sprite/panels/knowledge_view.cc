@@ -48,13 +48,13 @@ void ScanKnowledgeBase() {
 void ChatWindow::RenderKnowledgeView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto Lc = LayoutConfig{};
     auto& L = I18n::Instance();
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, L.Get("view_knowledge").c_str());
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("view_knowledge").c_str());
 
     if (s_scan) ScanKnowledgeBase();
 
     float btn_h = 30.0f, gap = 12.0f;
     {
-        auto _child = PanelFrame::BeginScroll(f.a, btn_h, gap);
+        auto _child = PanelContainer::BeginScroll(f.a, btn_h, gap);
         float cx = f.a.x + 8.0f;
         float iy = f.a.y + 8.0f;
 

@@ -16,7 +16,7 @@ NUM_JOB ?= 8
 export PATH := /c/Windows/System32:/e/devtool/msys64/mingw64/bin:$(PATH)
 
 PACKAGE_NAME ?= Prosophor
-PACKAGE_VERSION ?= 0.7.6
+PACKAGE_VERSION ?= 0.7.7
 # BUILD_TYPE ?= RelWithDebInfo
 BUILD_TYPE ?= Debug
 

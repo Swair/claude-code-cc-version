@@ -52,6 +52,26 @@ struct PanelContainer {
         float scroll_w_extra = 24.0f;   // 内容区右侧滚动条间距
     };
 
+    /// 标题栏子组件：OrangeDeep 标题文字
+    struct TitleBar {
+        static void Draw(float cont_x, float cont_y, const Config& cfg);
+    };
+
+    /// 背景面板子组件：圆角矩形背景 + 描边
+    /// ComputeFrame() 返回面板外框矩形（含内边距前）
+    struct Background {
+        struct Frame { float x, y, w, h; };
+        static Frame ComputeFrame(float cont_x, float cont_y,
+                                  float cont_w, float cont_h,
+                                  const Config& cfg);
+        static void Draw(const Frame& frame, const Config& cfg);
+    };
+
+    /// 内容区计算子组件：从面板外框计算内容可用区域
+    struct ContentArea {
+        static Area Compute(const Background::Frame& frame, const Config& cfg);
+    };
+
     Area a;            // 内容区坐标（供面板内部使用）
     float btn_h = 0;   // 底部按钮高度
 

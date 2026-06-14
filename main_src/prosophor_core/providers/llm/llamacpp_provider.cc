@@ -14,6 +14,7 @@
 #include "common/reasoning-budget.h"
 #include "common/chat-auto-parser.h"
 #include "common/chat.h"
+#include "ggml-backend.h"
 #pragma GCC diagnostic pop
 
 // Redirect llama.cpp log output to spdlog so it doesn't flood the TUI terminal.
@@ -122,7 +123,20 @@ bool LlamacppProvider::Load() {
             auto t0 = SteadyClock::Now();
 
             llama_model_params mparams = llama_model_default_params();
-            mparams.n_gpu_layers = cfg_.gpu_enable ? -1 : 0;
+            mparams.n_gpu_layers = cfg_.n_gpu_layers;
+
+            // Route MoE expert weights to CPU to save VRAM (needed for large MoE models
+            // like Qwen 35B-A3B on 8GB GPUs; no effect on dense models like Gemma).
+            llama_model_tensor_buft_override moe_overrides[2] = {};
+            if (cfg_.cpu_moe) {
+                moe_overrides[0] = llm_ffn_exps_cpu_override();
+                mparams.tensor_buft_overrides = moe_overrides;
+                LOG_INFO("[local] MoE experts routed to CPU (cpu_moe=true)");
+            }
+            if (cfg_.no_mmap) {
+                mparams.use_mmap = false;
+                LOG_INFO("[local] mmap disabled (no_mmap=true)");
+            }
 
             std::lock_guard<std::mutex> lock(model_mutex_);
             impl_->model = llama_model_load_from_file(path.c_str(), mparams);
@@ -208,7 +222,7 @@ bool LlamacppProvider::Load() {
             loaded_ = true;
             loading_ = false;
             auto ms = SteadyClock::ElapsedMillis(t0);
-            LOG_INFO("[local] Loaded in {} ms  gpu_enable={}", ms, cfg_.gpu_enable);
+            LOG_INFO("[local] Loaded in {} ms  n_gpu_layers={}", ms, cfg_.n_gpu_layers);
         } catch (const std::exception& e) {
             LOG_ERROR("[local] Load exception: {}", e.what());
             load_error_msg_ = e.what();

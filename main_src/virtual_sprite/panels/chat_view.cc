@@ -30,7 +30,7 @@ void ChatWindow::RenderChatView(int cont_x, int cont_y, int cont_w, int cont_h) 
         float hy = static_cast<float>(cont_y + cont_h / 2) - 16.0f;
         media_engine::DrawList::RoundRect(hx, hy, 10.0f, 32.0f, Lc.rounding_small,
             media_engine::Colors::CreamBorder);
-        if (media_engine::ImGuiWidget::IconButton("right_panel_restore", "<",
+        if (media_engine::ImGuiWidget::IconButton("right_panel_restore", "\xe2\x97\x80",  // ◀
                 hx, hy, 10.0f,
                 media_engine::Colors::CreamBorder,
                 media_engine::Colors::Gray55, 3.0f)) {
@@ -38,8 +38,8 @@ void ChatWindow::RenderChatView(int cont_x, int cont_y, int cont_w, int cont_h) 
         }
     }
 
-    // PanelFrame 统一容器 (白色圆角卡 + 标题 + FrameBorder)
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, L.Get("view_chat").c_str());
+    // PanelContainer 统一容器 (白色圆角卡 + 标题 + FrameBorder)
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("view_chat").c_str());
 
     // 消息 + 输入区域 (在 f.a 内定位)
     float inner_x = f.a.x + 4.0f;
@@ -95,7 +95,7 @@ void ChatWindow::RenderRightPanel(int panel_x, int panel_w, int panel_y, int pan
 
     float tog_x = x - 14.0f;
     float tog_y = y + h / 2.0f - 20.0f;
-    if (media_engine::ImGuiWidget::IconButton("right_panel_toggle", ">",
+    if (media_engine::ImGuiWidget::IconButton("right_panel_toggle", "\xe2\x96\xb6",  // ▶
             tog_x, tog_y, 14.0f,
             media_engine::Colors::CreamBorder,
             media_engine::Colors::Gray55, 2.0f)) {
@@ -143,13 +143,7 @@ void ChatWindow::RenderRightPanel(int panel_x, int panel_w, int panel_y, int pan
             SpriteManager::GetInstance().SetFocusedSession(s->GetSessionId());
 
         bool hov = media_engine::ImGuiWidget::IsItemHovered();
-        media_engine::DrawList::RoundRect(cx2, cy, card_w, 64.0f, 6.0f,
-            focused ? media_engine::Colors::OrangeLightest
-                    : hov ? media_engine::Colors::OrangeLightest
-                    : media_engine::Colors::White);
-        if (focused)
-            media_engine::DrawList::RoundRectOutline(cx2, cy, card_w, 64.0f, 6.0f,
-                media_engine::Colors::OrangeWarm, 1.5f);
+        FocusCard(cx2, cy, card_w, 64.0f, focused, hov);
 
         float thumb_x = cx2 + 8.0f;
         float thumb_y = cy + 8.0f;
@@ -197,7 +191,7 @@ void ChatWindow::RenderTokenSpeed(int main_x, int main_y, int main_w, int main_h
     float wx, wy;
     media_engine::ImGuiWindow::GetPos(&wx, &wy);
     float bx = wx + static_cast<float>(main_x) + static_cast<float>(main_w) - badge_w - 8.0f;
-    float by = wy + static_cast<float>(main_y) + static_cast<float>(main_h) - badge_h - 8.0f;
+    float by = wy + static_cast<float>(main_y) + static_cast<float>(main_h) - badge_h - 64.0f;
 
     media_engine::DrawList::RoundRect(bx, by, badge_w, badge_h, Lc.rounding_small,
         media_engine::Colors::WhiteTranslucent);

@@ -6,7 +6,7 @@ namespace prosophor {
 
 void ChatWindow::RenderSecurityView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto& L = I18n::Instance();
-    PlaceholderView(cont_x, cont_y, cont_w, cont_h, L.Get("view_security").c_str(), "", {
+    PlaceholderPage(cont_x, cont_y, cont_w, cont_h, L.Get("view_security").c_str(), "", {
         "Pending Approvals",
         "No pending approvals.",
     });

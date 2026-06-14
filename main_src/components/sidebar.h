@@ -69,7 +69,7 @@ private:
     void RenderCollapseGroup(SidebarGroup group, const char* label);
     void RenderNavItem(NavItem item, const char* icon, const char* label);
     void RenderSeparator();
-    void RenderFooter(int win_h);
+    void RenderFooter(int win_h, float label_x);
 
     bool IsGroupExpanded(SidebarGroup group) const;
     void ToggleGroup(SidebarGroup group);

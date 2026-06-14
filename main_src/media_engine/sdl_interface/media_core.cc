@@ -139,6 +139,7 @@ void MediaCore::MediaInit() {
     SdlResource::Instance().Init();
 
     LoadSharedChineseFont();
+    LoadSharedEmojiFont();
 
     last_timestamp_ns_ = SDL_GetTicksNS();
     frame_duration_ns_ = 1e9 / FPS_; // 纳秒转换
@@ -207,6 +208,33 @@ void MediaCore::LoadSharedChineseFont() {
         return;
     }
     LOG_WARN("[MediaCore] No Chinese font found, atlas will be default");
+}
+
+void MediaCore::LoadSharedEmojiFont() {
+    if (!shared_emoji_font_.data.empty()) return;
+    // Emoji 字体：Windows → Linux → macOS
+    const char* emoji_paths[] = {
+        "C:/Windows/Fonts/seguiemj.ttf",                      // Windows Segoe UI Emoji
+        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",  // Linux Noto Color Emoji
+        "/usr/share/fonts/noto/NotoColorEmoji.ttf",           // Linux (alt path)
+        "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
+        "/usr/share/fonts/noto/NotoEmoji-Regular.ttf",
+        "/usr/share/fonts/truetype/Symbola.ttf",
+        "/usr/share/fonts/truetype/joypixels/JoyPixels.ttf",
+        "/System/Library/Fonts/Apple Color Emoji.ttc",       // macOS
+        "/Library/Fonts/Apple Color Emoji.ttc",               // macOS (alt)
+    };
+    for (const auto* path : emoji_paths) {
+        std::ifstream f(path, std::ios::binary | std::ios::ate);
+        if (!f) continue;
+        auto sz = f.tellg();
+        shared_emoji_font_.data.resize(static_cast<std::size_t>(sz));
+        f.seekg(0);
+        f.read(reinterpret_cast<char*>(shared_emoji_font_.data.data()), sz);
+        LOG_INFO("[MediaCore] Loaded Emoji font ({} bytes) from {}", static_cast<std::size_t>(sz), path);
+        return;
+    }
+    LOG_WARN("[MediaCore] No Emoji font found, emoji will not render");
 }
 
 void MediaCore::MainRun() {
@@ -548,6 +576,15 @@ void MediaCore::SetGlobalFontScale(float scale) {
         ImGui::GetStyle().ScaleAllSizes(scale);
         ImGui::GetStyle().FontScaleMain = scale;
     }
+    ImGui::SetCurrentContext(saved);
+}
+
+void MediaCore::SetWindowFontScale(Window* window, float scale) {
+    if (!window) return;
+    scale = std::clamp(scale, kFontScaleMin, kFontScaleMax);
+    ImGuiContext* saved = ImGui::GetCurrentContext();
+    ImGui::SetCurrentContext(window->GetImGuiContext());
+    ImGui::GetStyle().FontScaleMain = scale;
     ImGui::SetCurrentContext(saved);
 }
 

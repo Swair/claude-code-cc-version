@@ -13,7 +13,7 @@ InputPanel::InputPanel(float x, float y, float width, float height)
         [this](const std::string& /*text*/) {});
     input_text_->SetEnterReturnsTrue(true);
 
-    send_button_ = std::make_unique<Button>(" > ", [this]() {
+    send_button_ = std::make_unique<Button>("Send", [this]() {
         std::string msg(input_text_->GetText());
         if (!msg.empty()) {
             input_text_->SetText("");
@@ -24,15 +24,15 @@ InputPanel::InputPanel(float x, float y, float width, float height)
     send_button_->SetHoveredColor(Colors::Gray78a);
     send_button_->SetActiveColor(Colors::Gray63);
 
-    mic_button_ = std::make_unique<Button>("M", [this]() {
+    mic_button_ = std::make_unique<Button>("\xf0\x9f\x8e\xa4", [this]() {  // 🎤
         mic_on_ = !mic_on_;
         if (mic_on_) {
-            mic_button_->SetLabel("\xe2\x97\x8f");
+            mic_button_->SetLabel("\xf0\x9f\x94\xb4");  // 🔴
             mic_button_->SetBgColor(Colors::RedMid);
             mic_button_->SetHoveredColor(Colors::RedDark);
             mic_button_->SetActiveColor(Colors::DarkRed);
         } else {
-            mic_button_->SetLabel("M");
+            mic_button_->SetLabel("\xf0\x9f\x8e\xa4");  // 🎤
             mic_button_->SetBgColor(Colors::Gray70a);
             mic_button_->SetHoveredColor(Colors::Gray78a);
             mic_button_->SetActiveColor(Colors::Gray63);

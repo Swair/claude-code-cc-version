@@ -91,6 +91,7 @@ class MediaCore {
             std::vector<unsigned char> data;
         };
         SharedFont& GetSharedChineseFont() { return shared_font_; }
+        SharedFont& GetSharedEmojiFont() { return shared_emoji_font_; }
 
         static MediaCore& Instance() {
             static MediaCore instance;
@@ -148,13 +149,16 @@ class MediaCore {
         /// Setup unified ImGui light theme (call once per ImGui context)
         static void SetupStyle(bool transparent_bg = false);
         static void SetGlobalFontScale(float scale);
+        static void SetWindowFontScale(Window* window, float scale);
 
     private:
         MediaCore() = default;
 
         void LoadSharedChineseFont();
+        void LoadSharedEmojiFont();
 
         SharedFont shared_font_;
+        SharedFont shared_emoji_font_;
 
         bool game_exit_ = false;
         uint64_t FPS_ = 60;

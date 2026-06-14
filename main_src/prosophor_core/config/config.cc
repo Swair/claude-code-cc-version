@@ -330,7 +330,12 @@ LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
     LlamacppModelConfig config;
     config.model_path = Platform::NormalizePath(json.value("model_path", ""));
     config.port = json.value("port", 8080);
-    config.gpu_enable = json.value("gpu_enable", json.value("n_gpu_layers", -1) != 0);
+    // Backward compat: gpu_enable=true → -1, gpu_enable=false → 0; else use n_gpu_layers directly
+    if (json.contains("gpu_enable")) {
+        config.n_gpu_layers = json.value("gpu_enable", true) ? -1 : 0;
+    } else {
+        config.n_gpu_layers = json.value("n_gpu_layers", -1);
+    }
     config.threads      = json.value("threads", json.value("n_threads", json.value("nThreads", 0)));
     config.auto_start = json.value("auto_start", json.value("autoStart", true));
     config.start_timeout_ms = json.value("start_timeout_ms", json.value("startTimeoutMs", 60000));
@@ -348,6 +353,8 @@ LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
     config.n_threads_batch = json.value("n_threads_batch", 0);
     config.offload_kqv     = json.value("offload_kqv", true);
     config.flash_attn      = json.value("flash_attn", true);
+    config.cpu_moe         = json.value("cpu_moe", false);
+    config.no_mmap         = json.value("no_mmap", false);
     config.min_p           = json.value("min_p", 0.05f);
     config.seed            = json.value("seed", -1);
     return config;
@@ -356,7 +363,7 @@ LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
 nlohmann::ordered_json LlamacppModelConfig::ToJson() const {
     nlohmann::ordered_json j;
     j["model_path"] = model_path;
-    j["gpu_enable"] = gpu_enable;
+    j["n_gpu_layers"] = n_gpu_layers;
     j["threads"] = threads;
     j["auto_start"] = auto_start;
     j["context_window"] = context_window;
@@ -369,6 +376,8 @@ nlohmann::ordered_json LlamacppModelConfig::ToJson() const {
     j["n_ubatch"] = n_ubatch;
     j["offload_kqv"] = offload_kqv;
     j["flash_attn"] = flash_attn;
+    j["cpu_moe"] = cpu_moe;
+    j["no_mmap"] = no_mmap;
     j["min_p"] = min_p;
     j["seed"] = seed;
     return j;
@@ -395,6 +404,8 @@ TtsConfig TtsConfig::FromJson(const nlohmann::json& json) {
                 config.voice_list.push_back(v.get<std::string>());
         }
     }
+    // Always include "none" option to disable TTS per role
+    config.voice_list.push_back("none");
     config.gs_url = json.value("gs_url", json.value("gsUrl", "http://127.0.0.1:9880"));
     config.gs_install_path = json.value("gs_install_path", json.value("gsInstallPath", ""));
     config.gs_auto_start = json.value("gs_auto_start", json.value("gsAutoStart", true));
@@ -477,6 +488,7 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
     }
     config.enable_summary = json.value("enable_summary", true);
     config.sprite_assets_dir = ExpandHome(json.value("sprite_assets_dir", "~/.prosophor/assets"));
+    config.workspace_path = ExpandHome(json.value("workspace_path", ""));
     config.font_scale = json.value("font_scale", ProsophorConfig::kFontScaleLarge);
 
     if (json.contains("llm_providers") && json["llm_providers"].is_object()) {
@@ -488,12 +500,6 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
                 for (const auto& entry : value) {
                     ProviderConfig entry_config = ProviderConfig::FromJson(entry);
 
-                    // Propagate entry-level thinking to all models in this entry
-                    bool entry_thinking = entry.value("thinking", false);
-                    for (auto& [name, mc] : entry_config.model_configs) {
-                        mc.thinking = entry_thinking;
-                    }
-
                     if (first) {
                         merged_config = entry_config;
                         first = false;
@@ -502,9 +508,12 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
                     // For llamacpp — extract LlamacppModelConfig from model entries.
                     // MUST be after `merged_config = entry_config` so it doesn't get overwritten.
                     if (key == "llamacpp" && entry.contains("models")) {
+                        bool entry_auto_start = entry.value("auto_start", true);
                         for (const auto& m : entry["models"]) {
                             auto lcfg = LlamacppModelConfig::FromJson(m);
-                            lcfg.thinking = entry_thinking;
+                            lcfg.auto_start = (config.llamacpp_models.empty())
+                                              ? entry_auto_start
+                                              : false;
                             if (!lcfg.model_path.empty()) {
                                 config.llamacpp_models.push_back(lcfg);
                                 merged_config.llamacpp_cfg = lcfg;
@@ -517,7 +526,6 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
                     e.api_key = entry_config.api_key;
                     e.base_url = entry_config.base_url;
                     e.timeout = entry_config.timeout;
-                    e.thinking = entry_thinking;
                     e.models = entry_config.model_configs;
                     merged_config.entries.push_back(std::move(e));
                     // Key models as provider_name/model_name
@@ -752,6 +760,7 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
     json["log_level"] = log_level;
     json["enable_summary"] = enable_summary;
     json["sprite_assets_dir"] = sprite_assets_dir;
+    json["workspace_path"] = workspace_path;
     json["font_scale"] = font_scale;
 
     // Serialize llm_providers in fixed order: anthropic, ollama, openai, llamacpp
@@ -775,9 +784,8 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
                         const auto& lc = llamacpp_models[0];
                         model_json["model"] = model_config.model;
                         model_json["model_path"] = lc.model_path;
-                        model_json["gpu_enable"] = lc.gpu_enable;
+                        model_json["n_gpu_layers"] = lc.n_gpu_layers;
                         model_json["threads"] = lc.threads;
-                        model_json["auto_start"] = lc.auto_start;
                         model_json["context_window"] = lc.context_window;
                         model_json["max_tokens"] = lc.max_tokens;
                         model_json["temperature"] = lc.temperature;
@@ -788,6 +796,8 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
                         model_json["n_ubatch"] = lc.n_ubatch;
                         model_json["offload_kqv"] = lc.offload_kqv;
                         model_json["flash_attn"] = lc.flash_attn;
+                        model_json["cpu_moe"] = lc.cpu_moe;
+                        model_json["no_mmap"] = lc.no_mmap;
                         model_json["min_p"] = lc.min_p;
                         model_json["seed"] = lc.seed;
                     } else {
@@ -803,7 +813,9 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
                 entry_json["api_key"] = entry.api_key;
                 entry_json["base_url"] = entry.base_url;
                 entry_json["timeout"] = entry.timeout;
-                entry_json["thinking"] = entry.thinking;
+                if (strcmp(name, "llamacpp") == 0 && !llamacpp_models.empty()) {
+                    entry_json["auto_start"] = llamacpp_models[0].auto_start;
+                }
                 entry_json["models"] = models_json;
                 entries_json.push_back(entry_json);
             }
@@ -822,7 +834,6 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
             entry_json["api_key"] = config.api_key;
             entry_json["base_url"] = config.base_url;
             entry_json["timeout"] = config.timeout;
-            entry_json["thinking"] = false;
             entry_json["models"] = models_json;
             entries_json.push_back(entry_json);
         }

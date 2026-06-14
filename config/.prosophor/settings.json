@@ -9,7 +9,7 @@
         "api_key": "sk-sp-198786439e234d0abc2ffexxxxxxxx",
         "base_url": "https://coding.dashscope.aliyuncs.com/apps/anthropic/v1/messages",
         "timeout": 60,
-        "thinking": false,
+
         "models": [
            {
             "model": "qwen3.5-plus",
@@ -23,7 +23,7 @@
         "api_key": "sk-198786439e234d0abc2ffexxxxxxxx",
         "base_url": "https://api.deepseek.com/anthropic/v1/messages",
         "timeout": 60,
-        "thinking": false,
+
         "models": [
           {
             "model": "deepseek-v4-pro",
@@ -45,7 +45,7 @@
         "api_key": "",
         "base_url": "http://localhost:11434/api/chat",
         "timeout": 180,
-        "thinking": true,
+
         "models": [
           {
             "model": "qwen3:8b",
@@ -67,7 +67,7 @@
         "api_key": "sk-sp-MjA4LTIyMDcwMjA1MjEyLTE3Nzg5ODkzMDE2MDI=",
         "base_url": "https://api.scnet.cn/api/llm/v1/chat/completions",
         "timeout": 60,
-        "thinking": false,
+
         "models": [
           {
             "model": "MiniMax-M2.5",
@@ -81,7 +81,7 @@
         "api_key": "sk-be7c5ed396474c3fa6841214cfxxxx",
         "base_url": "https://api.deepseek.com/chat/completions",
         "timeout": 60,
-        "thinking": false,
+
         "models": [
           {
             "model": "deepseek-v4-pro",
@@ -103,14 +103,14 @@
         "api_key": "local",
         "base_url": "local",
         "timeout": 60,
-        "thinking": false,
+        "auto_start": true,
+
         "models": [
-           {
-            "model": "google_gemma-4-E4B-it-Q4_K_M.gguf",
+          {
+            "model": "google_gemma-4-E4B-it-Q4_K_M",
             "model_path": "/e/ai_ws/llama_cpp_model/google_gemma-4-E4B-it-Q4_K_M.gguf",
-            "gpu_enable": true,
+            "n_gpu_layers": -1,
             "threads": 2,
-            "auto_start": true,
             "context_window": 128000,
             "max_tokens": 8192,
             "temperature": 0.7,

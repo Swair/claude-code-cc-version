@@ -1,5 +1,100 @@
 # Changelog
 
+## [Unreleased] — 2026-06-14 组件体系独立 + Provider 配置重构 + 字体系统升级 + 面板全面完善
+
+本期重点：从 `panel_helpers` 中提取出独立的 `components/` 通用 UI 组件层（BorderedContainer/ItemList/SelectableItem/PanelKit），新增组件架构文档；Provider 配置重构（`thinking` 字段从 entry 级别下放到 role 级别，`gpu_enable`→`n_gpu_layers` 标准化）；字体系统全面升级（DroidSans 英文内嵌 + Emoji 字体加载 + FreeType 颜色渲染）；新增 skills_creator 角色；Workspace 路径配置；多个面板大幅重写（memory/providers/roles/skills/tts/config）。净变化 +16,964 行。
+
+### 组件体系独立 (components/)
+- **新增 `components/` 模块**：从 `panel_helpers` 提取为独立可复用 UI 控件层，新增 `CLAUDE.md` 架构文档
+- **BorderedContainer**（新增 `bordered_container.h/cc`）：通用带边框容器，支持圆角/直角、可选底色、自定义边框样式
+- **ItemList / SelectableItem**（新增 `item_list.h/cc`、`selectable_item.h/cc`）：可选中列表组件，Y 轴追踪 + InvisibleButton + 三态视觉（悬停/选中/点击），带分类头部
+- **PanelKit**（`panel_helpers.cc` → `panel_kit.cc` + 新增 `panel_kit.h`）：
+  - Card 核心体系：`Card(x,y,w,title,...)` 参数化配色，`ChannelsSplit` 正确图层顺序
+  - `WhiteCard`（白底+奶油边）、`FocusCard`（淡橙+暖橙，三态交互）、`StatCard`（左侧色条）
+  - `SplitPanel`：左右分栏坐标计算
+  - `ActionBar`：底部 Save/Cancel 按钮栏
+  - `PlaceholderPage`、`SectionScroll` 等辅助组件
+- **Sidebar 适配**：改用 `SelectableItem` 实现导航项渲染；`IsNavItemActive()` 函数化；侧边栏分组可折叠
+
+### Provider 配置重构
+- **Thinking 下放到 Role 级别**：所有 provider entry 移除 `thinking` 字段，改为角色 JSON 中 `llm.thinking` 控制（`true`/`false`）
+- **移除 entry→model thinking 传播**：`config.cc` 删除 `entry_thinking` → `model_config.thinking` 传播逻辑
+- **`gpu_enable` → `n_gpu_layers` 标准化**：配置文件和序列化统一使用 `n_gpu_layers`（`-1`=全部GPU, `0`=CPU），向后兼容 `gpu_enable` 布尔值
+- **llamacpp 新增参数**：`cpu_moe`（MoE 专家卸载到 CPU）、`no_mmap`（禁用内存映射加载）
+- **`auto_start` 提升到 entry 级别**：entry 级别控制 `auto_start`，首个模型继承 entry 值，后续模型默认为 false
+- **settings.json**：所有 provider 移除 `thinking` 字段；llamacpp 配置扁平化，模型名去掉 `.gguf` 后缀
+
+### 字体系统全面升级
+- **DroidSans 英文内嵌**（新增 `droid_sans_font.h`，15,843 行 TTF 数据）：作为基础英文字体，干净美观
+- **Emoji 字体加载**（`LoadSharedEmojiFont()`）：跨平台搜索 Segoe UI Emoji / Noto Color Emoji / Apple Color Emoji
+- **FreeType 颜色渲染**：引入 `imgui_freetype.h`，`ImGuiFreeTypeLoaderFlags_LoadColor | Bitmap` 加载彩色 emoji
+- **字体层级**：`DroidSans(英文基础) → CJK(中文合并) → Emoji(表情合并)`，三层堆叠正确渲染
+- **`SetWindowFontScale()`**：新增按窗口独立字体缩放 API
+- **移除 `AddFontDefault()` 回退**：不再 fallback 到 ImGui 默认字体
+
+### 新增 skills_creator 角色
+- **`roles/skills_creator.json`**：专门创建和编辑 SKILL.md 技能定义的 AI 助手角色
+- 配置 `deepseek-v4-flash` 模型，`thinking=true`，纯对话式技能设计
+
+### 角色配置更新
+- **多个角色启用 thinking**：architect、coder、reviewer、teacher 角色新增 `"thinking": true`
+- **coder TTS 语音关闭**：`"voice": "zh-CN-YunxiNeural"` → `"voice": "none"`，角色级 TTS 静音
+- TTS 全局配置始终包含 `"none"` 选项，支持按角色关闭语音
+
+### Workspace 路径配置
+- **`config.workspace_path`**：新增配置项，会话初始化时优先使用此路径作为工作目录
+- **`AgentSessionManager`**：`CreateSession()` / `SwitchRoleForSession()` 均读取 `workspace_path` 设置工作目录
+- `settings.json` 默认空字符串（使用当前目录）
+
+### 面板完善与重写
+- **MemoryView 重写**（`memory_view.cc` +256/-6 行）：新增 "Daily Memory" / "Role Memory" 双标签页，使用 ItemList + BorderedContainer 布局
+- **ProvidersView 重写**（`providers_view.cc` +163/-43 行）：新增 `ProviderEntryCard` 组件（BorderedContainer + 字段 + ModelCard），支持折叠展开、添加模型、模型卡片列表
+- **RolesView 重写**（`roles_view.cc` +202/-91 行）：使用新版 ItemList + Card 布局，内联编辑字段
+- **SkillsView 重写**（`skills_view.cc` +243/-92 行）：使用 ItemList + BorderedContainer + SplitPanel，左侧技能列表 + 右侧详情
+- **TTSView 增强**（`tts_view.cc` +84/-14 行）：使用 Card 组件重构，测试发音、ASR 心跳检测
+- **ConfigView 更新**（`config_view.cc` +91/-65 行）：适配新增配置字段
+- **ChatView**：移除表情按钮调试输出
+- **ModelCard / ProviderEntryCard**（新增 `model_card.h/cc`、`provider_entry_card.h/cc`）：可复用的模型/提供商卡片组件
+
+### PanelContainer 增强
+- **`scroll_region`**：新增可滚动内容区域支持
+- **`scroll_to_bottom`**：自动滚动到底部
+- **`AddChild()` / `ClearChildren()`**：多子窗口管理
+- 新增 `SplitLeft()` / `SplitRightExt(width, w2)` 分割变体
+
+### panel_helpers 重构
+- **移除旧 Section/Helper**：删除 `SectionForm`、`LabelRow`、`SectionCard`、`Spacing`、`CardBox` 等旧助手
+- **替换为 Card 体系**：所有面板统一使用 `WhiteCard` / `FocusCard` / `StatCard` / `SplitPanel` / `ActionBar`
+- **`SectionScroll`** 移除（由 `PanelContainer::scroll_region` 替代）
+
+### i18n 国际化更新
+- 新增键：`general_workspace_path`、`btn_send`、`sidebar_group_agents/capabilities/monitor/settings`、`tab_daily_memory/role_memory/skills`
+- `panel_no_data` 增加 📭 emoji
+- 中英文翻译同步更新
+
+### Voice Engine 增强
+- **播放完成回调**：新增 `on_finished_callback`，音频播放完成后通知
+- **空闲停止**：`VoiceChannel` 检测 `is_active` 状态，空闲时自动停止音频线程
+
+### Llamacpp Provider 增强
+- **多模型 `auto_start` 逻辑**：仅首个模型 `auto_start=true`，后续模型为 `false`
+- **配置读取增强**：`model_path` 可选（允许多模型在配置中有不同路径）
+
+### 其他改进
+- `command_registry.cc`：`ExtractAutoSwitchRole` 更新匹配逻辑
+- `agent_session.cc`：修复 `GetRoleId()` 返回空角色 ID 的问题
+- `virtual_sprite.cc`：WindowConfig 调整 SDL 窗口标志位
+- `window.cc`：移除 `#ifndef` 字体选择条件编译
+- `llamacpp_provider.cc`：修复 `model_path` 配置读取
+
+### 文件统计
+- 变更文件：70 个
+- 新增：+17,868 行
+- 删除：-904 行
+- 净变化：+16,964 行
+
+---
+
 ## [Unreleased] — 2026-06-12 电脑整理面板 + 角色配置重构 + 响应式侧边栏 + 桌宠延迟管理
 
 本期重点：新增"电脑整理"面板（磁盘扫描、大文件/临时文件/备份文件检测，可回收空间估算）；角色 JSON 配置统一重构（`display_name`→`role_name`，`personality_prompt`→`soul`，`spritesheet_path`→`spritesheet`）；Sidebar 从固定像素改为窗口比例响应式宽度；SprriteManager 新增延迟创建/销毁队列安全跨帧管理精灵生命周期；MediaCore 新增 `DestroyMediaWindow` 窗口销毁 API；Provider 面板 UI 重构（折叠模型卡片、统一字段布局、添加模型按钮）；InputPanel 自适应按钮大小与圆角优化。净变化 +845 行。

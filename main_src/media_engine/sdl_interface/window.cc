@@ -6,8 +6,10 @@
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlrenderer3.h"
+#include "misc/freetype/imgui_freetype.h"
 #include "log_wrapper.h"
 #include "media/media_core.h"
+#include "media/droid_sans_font.h"
 
 namespace media_engine {
 
@@ -29,19 +31,42 @@ void SetupImGui(ImGuiContext* ctx, SDL_Window* window, SDL_Renderer* renderer,
 
     ImGuiIO& io = ImGui::GetIO();
 
+    // Base: DroidSans for English (beautiful, clean)
+    {
+        ImFontConfig base_cfg;
+        base_cfg.FontDataOwnedByAtlas = false;
+        io.Fonts->AddFontFromMemoryTTF(
+            const_cast<uint8_t*>(s_droid_sans_ttf), s_droid_sans_ttf_size, 20.0f, &base_cfg);
+    }
+    // Merge: CJK font for Chinese characters (if available)
     if (cfg.use_shared_font) {
         auto& shared = MediaCore::Instance().GetSharedChineseFont();
         if (!shared.data.empty()) {
-            ImFontConfig font_cfg;
-            font_cfg.FontDataOwnedByAtlas = false;
+            ImFontConfig merge_cfg;
+            merge_cfg.MergeMode = true;
+            merge_cfg.FontDataOwnedByAtlas = false;
             io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(shared.data.data()),
-                static_cast<int>(shared.data.size()), 20.0f, &font_cfg,
+                static_cast<int>(shared.data.size()), 20.0f, &merge_cfg,
                 io.Fonts->GetGlyphRangesChineseFull());
-        } else {
-            io.Fonts->AddFontDefault();
         }
-    } else {
-        io.Fonts->AddFontDefault();
+        // Merge: Emoji font (Segoe UI Emoji etc.) for emoji characters
+        auto& emoji = MediaCore::Instance().GetSharedEmojiFont();
+        if (!emoji.data.empty()) {
+            ImFontConfig merge_cfg;
+            merge_cfg.MergeMode = true;
+            merge_cfg.FontDataOwnedByAtlas = false;
+            merge_cfg.FontLoaderFlags = ImGuiFreeTypeLoaderFlags_LoadColor
+                                      | ImGuiFreeTypeLoaderFlags_Bitmap;
+            static const ImWchar emoji_ranges[] = {
+                0x2000, 0x206F,  // General Punctuation (ZWJ)
+                0x2600, 0x27BF,  // Misc Symbols + Dingbats
+                0xFE00, 0xFE0F,  // Variation Selectors
+                0x1F000, 0x1FFFF, // SMP — most emoji
+                0
+            };
+            io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(emoji.data.data()),
+                static_cast<int>(emoji.data.size()), 20.0f, &merge_cfg, emoji_ranges);
+        }
     }
 
     if (!ImGui_ImplSDL3_InitForSDLRenderer(window, renderer)) {

@@ -82,7 +82,7 @@ struct LlamacppModelConfig {
     nlohmann::ordered_json ToJson() const;
     std::string model_path;         // Path to GGUF model file
     int port = 8080;                // Legacy: kept for config compatibility
-    bool  gpu_enable  = true;   // Offload all layers to GPU (false = CPU only)
+    int n_gpu_layers = -1;      // Layers to offload to GPU (-1 = all, 0 = CPU only, N = N layers)
     int threads = 0;                // CPU threads (0 = auto-detect)
     bool auto_start = true;         // Load model on startup
     int start_timeout_ms = 300000;  // Legacy: kept for config compatibility
@@ -107,6 +107,10 @@ struct LlamacppModelConfig {
     int  n_threads_batch = 0;      // Batch/prefix threads (0 = auto: threads * 4, min 32)
     bool offload_kqv     = true;   // Offload KQV matrices to GPU (false saves VRAM at speed cost)
     bool flash_attn      = true;   // Flash Attention (always enable on modern GPUs)
+
+    // MoE routing (Qwen 35B-A3B etc.)
+    bool cpu_moe = false; // Keep MoE expert weights on CPU to save VRAM
+    bool no_mmap = false; // Disable mmap (needed when cpu_moe=true for performance)
 
     // Sampling
     float min_p = 0.05f;  // Min-P threshold (0.0 = off, higher = more aggressive filtering)
@@ -243,6 +247,7 @@ struct ProsophorConfig {
     static constexpr float kFontScaleLarge  = 1.1f;
     static constexpr float kFontScaleSwitch = 0.95f; // 切换阈值 (< → small, ≥ → large)
     std::string sprite_assets_dir;   // sprite 资源基目录 ~/.prosophor/assets，按 {sprite_id}/ 组织
+    std::string workspace_path;      // 工作目录路径（用于 system prompt 和文件操作）
     float font_scale = kFontScaleLarge;      // 当前字体缩放倍率
 
     SecurityConfig security;

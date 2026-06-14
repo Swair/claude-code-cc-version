@@ -437,19 +437,40 @@ VirtualSprite (Singleton)
 | **Voice input** | Whisper ASR with push-to-talk and VAD (Silero) |
 | **SDL chat window** | Central chat panel with message history + input |
 
-### UI Components
+### UI Component Architecture (Three-Layer)
 
-| Component | Description |
-|-----------|-------------|
-| **VirtualSprite** | Top-level SDL application entry, central window |
-| **Sprite** | Per-character transparent window with animation |
-| **SpriteManager** | Multi-sprite lifecycle management |
-| **ChatWindow** | Central chat panel for the focused sprite |
-| **SpeechBubble** | Inline dialog bubble above sprites |
-| **Spritesheet** | Multi-frame sprite animation system |
-| **StatusBar** | Agent state → visual color mapping |
-| **ChatPanel** | Chat message history display |
-| **VoiceManager** | Voice I/O service (TTS + ASR) |
+```
+media_engine/       → 引擎原语：PanelContainer（页面壳）、DrawList（RoundRect/Text/Channels）、Child
+components/         → 可复用组件：Card（参数化背景+边框+标题+Field）、ItemList、BorderedContainer 等
+virtual_sprite/     → 应用视图：20+ 业务视图，仅编排组件，无手绘代码
+```
+
+### Components
+
+| Component | Layer | Description |
+|-----------|-------|-------------|
+| **PanelContainer** | media_engine | 页面壳：白底圆角 + OrangeDeep 标题 + 内容区坐标 |
+| **DrawList** | media_engine | 2D 绘图原语：RoundRect、Text、ChannelsSplit/Merge 等 |
+| **Card** | components | 通用卡片：背景+边框+标题+Field()+自适应/固定高度，ChannelsSplit 正确图层 |
+| **BorderedContainer** | components | 带边框 ScopedChild，可选底色/圆角/定位 |
+| **ItemList** | components | 可选中列表容器（Y 追踪 + SelectableItem） |
+| **SelectableItem** | components | 三态列表项（InvisibleButton + 选中/悬浮/中性） |
+| **SplitPanel** | components | 左右分栏坐标计算 |
+| **ActionBar** | components | 底部 Save/Cancel 按钮栏 |
+| **FocusCard** | components | OrangeLightest + OrangeWarm 三态卡片 |
+| **WhiteCard** | components | White + CreamBorder 简化卡片 |
+| **StatCard** | components | 白底 + 色条统计指标卡 |
+| **ModelCard** | panels | BorderedContainer + 4 字段（model/temperature/max_tokens/context_window） |
+| **ProviderEntryCard** | panels | BorderedContainer + 字段 + ModelCard × N |
+| **VirtualSprite** | app | Top-level SDL application entry |
+| **Sprite** | app | Per-character transparent window with animation |
+| **SpriteManager** | app | Multi-sprite lifecycle management |
+| **ChatWindow** | app | Central window + view router (20+ views) |
+| **SpeechBubble** | components | Inline dialog bubble above sprites |
+| **Spritesheet** | components | Multi-frame sprite animation system |
+| **ChatPanel** | components | Chat message history display |
+| **StatusBar** | components | Agent state → visual color mapping |
+| **VoiceManager** | app | Voice I/O service (TTS + ASR) |
 
 ### State-to-Visual Mapping
 
@@ -698,10 +719,10 @@ cd build && ctest --output-on-failure
 │   ├── ai_coding/              # Terminal TUI frontend (AiCoding)
 │   ├── common/                 # Utilities (file, string, time, logging, i18n, thread pool)
 │   ├── platform/               # Cross-platform abstraction (Win32/POSIX)
-│   ├── media_engine/           # SDL/ImGui rendering engine
+│   ├── media_engine/           # UI引擎层：PanelContainer（页面壳）、DrawList（2D绘图原语）、Child/ScopedChild（子窗口）
 │   ├── scene/                  # SDL scenes
-│   ├── virtual_sprite/         # Desktop pet SDL frontend (VirtualSprite, SpriteManager, Sprite)
-│   └── components/             # SDL UI components (ChatPanel, SpeechBubble, Spritesheet, VoiceManager)
+│   ├── virtual_sprite/         # 应用层：ChatWindow（主窗口+视图路由）、panels/（20+业务视图）
+│   └── components/             # 可复用 UI 组件层：Card, BorderedContainer, ItemList, SelectableItem, SplitPanel, ActionBar, FocusCard, FocusCard, ChatPanel, SpeechBubble, Spritesheet
 ├── tests/                      # GoogleTest-based tests
 │   ├── unittest/               # Stream handler tests, TTS, ASR tests
 │   └── benchmark/              # Performance benchmarks

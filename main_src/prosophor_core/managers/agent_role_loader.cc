@@ -84,6 +84,9 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
     if (auto it = j.find("llm"); it != j.end() && it->is_object()) llm = &*it;
     role.provider_prot = llm ? llm->value("protocal", "") : j.value("provider_prot", "");
     role.model = llm ? llm->value("model", std::string("")) : j.value("model", std::string(""));
+    // Role-level thinking: if explicitly set in role JSON, it takes priority over model config
+    if (llm && llm->contains("thinking"))
+        role.thinking = (*llm)["thinking"].get<bool>();
 
     // Support combined "provider:model" format in model field
     if (!role.model.empty()) {
@@ -147,7 +150,9 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
                 role.context_window = model_it->second.context_window;
                 role.model = model_it->second.model;
                 role.enable_streaming = model_it->second.enable_streaming;
-                role.thinking = model_it->second.thinking;
+                // Model config's thinking is a fallback; role JSON's thinking takes priority
+                if (!llm || !llm->contains("thinking"))
+                    role.thinking = model_it->second.thinking;
                 LOG_DEBUG("Role '{}' using model='{}' from provider '{}': temperature={}, max_tokens={}, context_window={}, enable_streaming={}",
                          role.id, model_it->second.model, provider_to_use,
                          role.temperature, role.max_tokens, role.context_window, role.enable_streaming);

@@ -175,7 +175,7 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
 
     // Measure exact message height for background rect
     float h_pad = 8.0f * fs;
-    float v_pad = 6.0f * fs;
+    float v_pad = 3.0f * fs;
     float label_h = hide_role_labels_ ? 0 : 20.0f * fs;
     float text_h = media_engine::Text::CalcWrappedHeight(content.c_str(), content_w - h_pad * 2.0f) + v_pad * 2.0f;
     float total_h = (index > 0 ? 4.0f * fs : 0) + label_h + text_h + 2.0f * fs;
@@ -223,16 +223,8 @@ void ChatPanel::RenderMessage(const std::string& role, const std::string& conten
         media_engine::Text::Colored(role_color, label.c_str());
         media_engine::Layout::Dummy(0, 2.0f * fs);
     }
-    // Use read-only multiline input for mouse-selectable text
-    std::vector<char> text_buf(content.begin(), content.end());
-    text_buf.push_back('\0');
-    float input_w = content_w;
-    std::string input_id = "##txt" + std::to_string(index);
-    media_engine::Style::PushColor(media_engine::Color::Slot::Text, text_color);
-    auto _fp = media_engine::ScopedStyleVar::FramePadding(h_pad, v_pad);
-    media_engine::ImGuiWidget::InputTextMultiline(
-        input_id.c_str(), text_buf.data(), text_buf.size(), input_w, text_h, true);
-    media_engine::Style::PopColor();
+    // Render wrapped text with proper word wrap
+    media_engine::Text::Wrapped(content.c_str(), content_w - h_pad * 2.0f, text_color);
     media_engine::Layout::Dummy(0, 2.0f * fs);
 }
 

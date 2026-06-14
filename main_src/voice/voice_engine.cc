@@ -9,6 +9,48 @@
 #include "common/thread_pool.h"
 #include "common/time_wrapper.h"
 
+#include <cstdint>
+
+namespace {
+
+/// Clean TTS text: strip emoji, trim whitespace, compress consecutive whitespace.
+std::string CleanTtsText(const std::string& text) {
+    std::string out;
+    out.reserve(text.size());
+    bool prev_was_space = true;  // true = next non-space starts a new "word"
+    for (size_t i = 0; i < text.size();) {
+        auto c = static_cast<unsigned char>(text[i]);
+        // ASCII whitespace
+        if (c <= 0x20 && (c == ' ' || c == '\n' || c == '\r' || c == '\t')) {
+            prev_was_space = true;
+            ++i;
+            continue;
+        }
+        uint32_t cp;
+        size_t len;
+        if (c < 0x80)       { cp = c;           len = 1; }
+        else if (c < 0xE0)  { cp = c & 0x1F;    len = 2; }
+        else if (c < 0xF0)  { cp = c & 0x0F;    len = 3; }
+        else                { cp = c & 0x07;    len = 4; }
+        for (size_t j = 1; j < len && i + j < text.size(); ++j)
+            cp = (cp << 6) | (static_cast<unsigned char>(text[i + j]) & 0x3F);
+        // Skip emoji (SMP U+1F000+) and variation selectors (U+FE00-U+FE0F)
+        if (cp >= 0x1F000 || (cp >= 0xFE00 && cp <= 0xFE0F)) {
+            i += len;
+            continue;
+        }
+        // Collapse consecutive whitespace -> single space
+        if (prev_was_space && !out.empty())
+            out += ' ';
+        out.append(text.data() + i, len);
+        prev_was_space = false;
+        i += len;
+    }
+    return out;
+}
+
+}  // anonymous namespace
+
 namespace prosophor {
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -35,12 +77,20 @@ VoiceEngine::~VoiceEngine() {
 std::string VoiceEngine::SanitizeTtsText(const std::string& text) {
     std::string result;
     result.reserve(text.size());
+    bool leading = true;        // still in leading whitespace
+    bool prev_space = false;    // last char written was a space
     for (size_t i = 0; i < text.size(); ++i) {
         unsigned char c = static_cast<unsigned char>(text[i]);
 
         // Skip 4-byte UTF-8 (emoji and decorative symbols)
         if ((c & 0xF0) == 0xF0) {
-            i += 3;  // skip remaining 3 bytes of this 4-byte char
+            i += 3;
+            continue;
+        }
+
+        // Compress whitespace: skip leading, collapse consecutive
+        if (c == ' ' || c == '\n' || c == '\r' || c == '\t') {
+            prev_space = true;
             continue;
         }
 
@@ -52,7 +102,13 @@ std::string VoiceEngine::SanitizeTtsText(const std::string& text) {
                 continue;
         }
         if (c == '_' && result.size() > 0 && result.back() == ' ') continue;
+
+        // Add a single space before this word if there was whitespace before it
+        if (prev_space && !leading)
+            result += ' ';
         result += static_cast<char>(c);
+        leading = false;
+        prev_space = false;
     }
     return result;
 }
@@ -240,14 +296,17 @@ bool VoiceEngine::IsCapturing() {
 void VoiceEngine::Speak(const std::string& text,
                          const std::string& backend,
                          const std::string& voice) {
+    if (voice == "none") return;  // skip TTS for roles that don't need it
+
     GetGlobalThreadPool().Submit([this, text, backend, voice]() {
-        LOG_INFO("[VoiceEngine::Speak] text='{}', backend='{}', voice='{}'", text, backend, voice);
+        auto clean = CleanTtsText(text);
+        LOG_INFO("[VoiceEngine::Speak] text='{}', clean='{}', backend='{}', voice='{}'", text, clean, backend, voice);
 
         std::vector<int16_t> pcm;
         {
             std::lock_guard<std::mutex> lock(speak_mutex_);
             tts_speaking_ = true;
-            auto result = Synthesize(text, backend, voice);
+            auto result = Synthesize(clean, backend, voice);
             if (result.success && !result.pcm.empty())
                 pcm = Resample24kTo16k(result.pcm);
             tts_speaking_ = false;

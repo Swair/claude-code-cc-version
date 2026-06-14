@@ -11,6 +11,7 @@
     "skills_white_list": ["*"],
     "tools_white_list": ["*"],
     "enable_streaming": true,
+    "thinking": false,
     "max_iterations": 30,
     "auto_confirm_tools": true
   },

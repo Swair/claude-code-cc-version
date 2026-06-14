@@ -8,7 +8,7 @@ namespace prosophor {
 void ChatWindow::RenderLogsView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto& L = I18n::Instance();
     float sm = Spacing();
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, L.Get("view_logs").c_str());
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("view_logs").c_str());
 
     float fy = f.a.y + 8.0f * sm;
     const char* levels[] = {L.Get("log_all").c_str(), L.Get("log_debug").c_str(), L.Get("log_info").c_str(),
@@ -36,12 +36,12 @@ void ChatWindow::RenderLogsView(int cont_x, int cont_y, int cont_w, int cont_h) 
 
     struct Entry { const char* t; const char* l; const char* m; media_engine::Color c; };
     Entry entries[] = {
-        {"12:00:01","INFO","Agent initialized",media_engine::Colors::Gray86},
-        {"12:00:02","INFO","Provider: anthropic ready",media_engine::Colors::Gray86},
-        {"12:00:05","WARN","Rate limit approaching",media_engine::Colors::Amber},
-        {"12:01:00","ERROR","Connection timeout (retry)",media_engine::Colors::RedBright},
-        {"12:01:05","INFO","Reconnected",media_engine::Colors::GreenSuccess},
-        {"12:02:30","INFO","Message processed (1.2s)",media_engine::Colors::Gray86},
+        {"12:00:01","\xe2\x84\xb9\xef\xb8\x8f INFO","Agent initialized",media_engine::Colors::Gray86},          // ℹ️
+        {"12:00:02","\xe2\x84\xb9\xef\xb8\x8f INFO","Provider ready",media_engine::Colors::Gray86},
+        {"12:00:05","\xe2\x9a\xa0\xef\xb8\x8f WARN","Rate limit approaching",media_engine::Colors::Amber},       // ⚠️
+        {"12:01:00","\xe2\x9d\x8c ERROR","Connection timeout",media_engine::Colors::RedBright},                   // ❌
+        {"12:01:05","\xe2\x84\xb9\xef\xb8\x8f INFO","Reconnected",media_engine::Colors::GreenSuccess},
+        {"12:02:30","\xe2\x84\xb9\xef\xb8\x8f INFO","Message processed",media_engine::Colors::Gray86},
     };
     for (auto& e : entries) { media_engine::Text::Fmt("%s  [%s]  %s", e.t, e.l, e.m); media_engine::Layout::Dummy(0, 2.0f * sm); }
 }

@@ -138,6 +138,7 @@ set(IMGUI_SOURCES
     ${IMGUI_DIR}/imgui_widgets.cpp
     ${IMGUI_DIR}/backends/imgui_impl_sdl3.cpp
     ${IMGUI_DIR}/backends/imgui_impl_sdlrenderer3.cpp
+    ${IMGUI_DIR}/misc/freetype/imgui_freetype.cpp
 )
 
 # 创建 ImGui 库
@@ -148,6 +149,12 @@ target_include_directories(imgui_lib PUBLIC
 )
 target_link_libraries(imgui_lib PUBLIC SDL3::SDL3 spdlog::spdlog)
 
+# FreeType for color emoji font rendering (reuse SDL_ttf's vendored FreeType)
+target_include_directories(imgui_lib PRIVATE
+    ${SDL3_ttf_SOURCE_DIR}/external/freetype/include)
+target_link_libraries(imgui_lib PRIVATE
+    SDL3_ttf::SDL3_ttf)
+
 # ImGui 组件封装库
 set(IMGUI_WIDGET_SOURCES
     ${CMAKE_CURRENT_LIST_DIR}/sdl_interface/imgui_widget.cc
@@ -157,6 +164,20 @@ target_include_directories(imgui_widget_lib PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}
 )
 target_link_libraries(imgui_widget_lib PUBLIC imgui_lib)
+
+############################################# Embedded Font #####################################
+
+# Generate DroidSans font header for English base font
+set(DROID_SANS_TTF "${CMAKE_SOURCE_DIR}/thirdparty_src/imgui-src/misc/fonts/DroidSans.ttf")
+set(FONT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/media/droid_sans_font.h")
+if(EXISTS ${DROID_SANS_TTF})
+    add_custom_command(
+        OUTPUT ${FONT_HEADER}
+        DEPENDS ${DROID_SANS_TTF}
+        COMMAND python3 -c "import sys; data=open('${DROID_SANS_TTF}','rb').read(); f=open('${FONT_HEADER}','w'); f.write('// Auto-generated from DroidSans.ttf\\n#pragma once\\n#include <cstdint>\\nstatic const uint8_t s_droid_sans_ttf[] = {\\n'); [f.write('  '+', '.join(f'0x{b:02x}' for b in data[i:i+12])+',\\n') for i in range(0,len(data),12)]; f.write('};\\nstatic const int s_droid_sans_ttf_size = {};\\n'.format(len(data))); print('Generated embedded font: {} bytes'.format(len(data)))"
+        COMMENT "Generating embedded DroidSans font header"
+    )
+endif()
 
 ############################################# media_engine #####################################
 

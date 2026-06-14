@@ -12,29 +12,49 @@ PanelContainer::PanelContainer(float cont_x, float cont_y, float cont_w, float c
     , border_(media_engine::ScopedStyleVar::FrameBorderSize(1.0f))
     , thin_scrollbar_(media_engine::ScopedStyleVar::ScrollbarSize(2.0f))
 {
-    auto x = static_cast<float>(cont_x);
-    auto y = static_cast<float>(cont_y);
-    auto w = static_cast<float>(cont_w);
+    TitleBar::Draw(cont_x, cont_y, cfg);
 
-    // 1. View header: title only
-    media_engine::DrawList::Text(x + cfg.title_x, y + cfg.title_y,
+    auto frame = Background::ComputeFrame(cont_x, cont_y, cont_w, cont_h, cfg);
+    Background::Draw(frame, cfg);
+
+    a = ContentArea::Compute(frame, cfg);
+}
+
+// TitleBar
+void PanelContainer::TitleBar::Draw(float cont_x, float cont_y, const Config& cfg) {
+    media_engine::DrawList::Text(
+        cont_x + cfg.title_x, cont_y + cfg.title_y,
         media_engine::Colors::OrangeDeep, cfg.title);
+}
 
-    // 2. Background panel (可换色/圆角或直角)
-    float panel_x = static_cast<float>(cont_x) + cfg.panel_pad_x;
-    float panel_y = static_cast<float>(cont_y) + cfg.panel_pad_y;
-    float panel_w = static_cast<float>(cont_w) - cfg.panel_extra_w;
-    float panel_h = static_cast<float>(cont_h) - cfg.panel_extra_h;
+// Background
+auto PanelContainer::Background::ComputeFrame(
+    float cont_x, float cont_y, float cont_w, float cont_h, const Config& cfg) -> Frame
+{
+    return {
+        cont_x + cfg.panel_pad_x,
+        cont_y + cfg.panel_pad_y,
+        cont_w - cfg.panel_extra_w,
+        cont_h - cfg.panel_extra_h
+    };
+}
 
-    media_engine::DrawList::RoundRect(panel_x, panel_y, panel_w, panel_h, cfg.radius, cfg.bg_color);
-    media_engine::DrawList::RoundRectOutline(panel_x, panel_y, panel_w, panel_h, cfg.radius,
+void PanelContainer::Background::Draw(const Frame& frame, const Config& cfg) {
+    media_engine::DrawList::RoundRect(
+        frame.x, frame.y, frame.w, frame.h, cfg.radius, cfg.bg_color);
+    media_engine::DrawList::RoundRectOutline(
+        frame.x, frame.y, frame.w, frame.h, cfg.radius,
         cfg.border_color, 1.0f);
+}
 
-    // 3. Content area (面板内部，自带内边距 + 右侧滚动条间距)
-    a.x = panel_x + cfg.inner_pad;
-    a.y = panel_y + cfg.inner_pad;
-    a.w = panel_w - cfg.inner_pad - cfg.scroll_w_extra;
-    a.h = panel_h - cfg.inner_pad * 2;
+// ContentArea
+Area PanelContainer::ContentArea::Compute(const PanelContainer::Background::Frame& frame, const Config& cfg) {
+    return {
+        frame.x + cfg.inner_pad,
+        frame.y + cfg.inner_pad,
+        frame.w - cfg.inner_pad - cfg.scroll_w_extra,
+        frame.h - cfg.inner_pad * 2
+    };
 }
 
 // 快捷构造 → 默认白底圆角

@@ -41,13 +41,13 @@ struct LayoutConfig {
     int   sidebar_group_label_h       = 36;    // 组标题高度（与导航项一致）
     float sb_icon_x                   = 8;     // 导航图标距左侧
     float sb_icon_w                   = 24;    // 图标占宽
-    float sb_icon_text_gap            = 4;     // 图标与文字间距
+    float sb_icon_text_gap            = 8;     // 图标与文字间距（emoji 比单字符宽）
     float sb_child_indent             = 12;    // 子项缩进
     float sb_group_child_gap          = 40;    // 组标题→首子项 y 进给
     float sb_group_tail_gap           = 8;     // 组尾额外间距
     float sb_text_h                   = 16;    // 文字高度（垂直居中用）
     float sb_sep_h                    = 5;     // 分隔线间距
-    float sb_footer_left_pad          = 14;    // 底部链接/按钮左侧留白
+    float sb_footer_left_pad          = 8;     // 底部链接/按钮左侧留白
     float sb_act_bar_w                = 3;     // 选中状态左侧橙色条宽度
 
     // ── TopBar 内部 ──
@@ -71,7 +71,7 @@ struct LayoutConfig {
     float panel_btn_right_gap     = 40.0f; // 按钮组距右侧边距
 
     // ════════════════════════════════════════════════════════════════════
-    // PanelFrame 布局常量 (ViewHeader + ContentArea + BeginScroll)
+    // PanelContainer 布局常量 (ViewHeader + ContentArea + BeginScroll)
     // ════════════════════════════════════════════════════════════════════
     float view_title_x            = 12.0f; // 标题距左
     float view_title_y            = 12.0f; // 标题距顶
@@ -86,7 +86,7 @@ struct LayoutConfig {
     float section_card_pad        = 8.0f;  // SectionCard 内缩
     float section_card_w_extra    = 16.0f; // SectionCard 宽缩减
     float section_card_right_margin = 24.0f; // SectionCard 右侧边距
-    float card_content_indent     = 16.0f; // SectionCard 内容区缩进 (icx = cx + 此值)
+    float card_content_indent     = 0.0f;  // SectionCard 内容区缩进 (icx = cx + 此值)
     float card_widget_offset      = 200.0f;// SectionCard 控件偏移标签 (iwx = icx + 此值)
     float section_title_gap       = 40.0f; // SectionCard 标题到内容行间距
     float split_list_item_h       = 30.0f; // 分割面板列表项高度

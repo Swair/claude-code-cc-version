@@ -2155,8 +2155,6 @@ CommandResult CommandRegistry::CmdRole(const CommandContext& ctx, const std::vec
 }
 
 CommandResult CommandRegistry::CmdModel(const CommandContext& ctx, const std::vector<std::string>& args) {
-    auto& router = LlmProviderRouter::GetInstance();
-
     if (args.empty()) {
         // Show current provider/model configuration
         std::ostringstream oss;
@@ -2240,10 +2238,11 @@ CommandResult CommandRegistry::CmdModel(const CommandContext& ctx, const std::ve
     std::string new_provider = args[0];
     std::string new_model = args.size() > 1 ? args[1] : "";
 
-    // Validate provider exists
-    auto provider = router.GetProviderByName(new_provider);
-    if (!provider) {
-        return CommandResult::Fail("Unknown provider: " + new_provider);
+    // Validate provider exists in config (not in router, which silently falls back to default)
+    const auto& cfg = ProsophorConfig::GetInstance();
+    if (cfg.llm_providers.find(new_provider) == cfg.llm_providers.end()) {
+        return CommandResult::Fail("Unknown provider: " + new_provider
+            + ". Available providers: " + [&](){ std::string s; for (auto& [n,_] : cfg.llm_providers) { if (!s.empty()) s+=", "; s+=n; } return s; }());
     }
 
     // Apply override to current session
@@ -2454,7 +2453,7 @@ CommandResult CommandRegistry::CmdSetup(const CommandContext&, const std::vector
     // 4. Write config
     LlamacppModelConfig lm;
     lm.model_path = selected_model;
-    lm.gpu_enable = gpu_enable;
+    lm.n_gpu_layers = gpu_enable ? -1 : 0;
     lm.threads = threads;
     lm.auto_start = true;
 

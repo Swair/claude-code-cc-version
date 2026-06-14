@@ -9,11 +9,11 @@ namespace prosophor {
 
 void ChatWindow::RenderSessionsView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto& L = I18n::Instance();
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, L.Get("view_sessions").c_str());
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("view_sessions").c_str());
     float sm = Spacing();
 
     {
-        auto _child = PanelFrame::BeginScroll(f.a, 0, 0);
+        auto _child = PanelContainer::BeginScroll(f.a, 0, 0);
 
         auto& sprites = SpriteManager::GetInstance().GetAll();
         if (sprites.empty()) { media_engine::Text::Colored(media_engine::Colors::Gray55, L.Get("panel_no_data").c_str()); return; }
@@ -25,10 +25,7 @@ void ChatWindow::RenderSessionsView(int cont_x, int cont_y, int cont_w, int cont
             float cx2, cy2;
             media_engine::Layout::GetCursorScreenPos(&cx2, &cy2);
             float card_h = 72.0f * sm;
-            media_engine::DrawList::RoundRect(cx2, cy2, card_w, card_h, 8.0f,
-                focused ? media_engine::Colors::OrangeLightest : media_engine::Colors::White);
-            if (focused) media_engine::DrawList::RoundRectOutline(cx2, cy2, card_w, card_h, 8.0f,
-                media_engine::Colors::OrangeWarm, 1.5f);
+            FocusCard(cx2, cy2, card_w, card_h, focused, false, 8.0f);
 
             float iy = cy2 + 10.0f * sm;
             iy = InfoRow(cx2 + 14.0f, iy, L.Get("sess_id").c_str(), s->GetSessionId().c_str(), 76.0f * sm);

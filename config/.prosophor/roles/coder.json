@@ -11,10 +11,11 @@
     "skills_white_list": ["cpp-debug", "rust-toolchain", "git-advanced"],
     "tools_white_list": ["*"],
     "enable_streaming": true,
+    "thinking": true,
     "max_iterations": 20,
     "auto_confirm_tools": true
   },
   "tts": {
-    "voice": "zh-CN-YunxiNeural"
+    "voice": "none"
   }
 }

@@ -11,6 +11,7 @@
     "skills_white_list": ["coding-tutorial", "concept-explainer", "learning-path"],
     "tools_white_list": ["*"],
     "enable_streaming": true,
+    "thinking": true,
     "max_iterations": 20,
     "auto_confirm_tools": false
   },

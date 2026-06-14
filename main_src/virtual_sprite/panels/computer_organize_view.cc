@@ -139,7 +139,7 @@ void DoScan(const fs::path& dir, int depth,
 void ChatWindow::RenderComputerOrganizeView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto& L = I18n::Instance();
     float sm = Spacing();
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, L.Get("view_computer_organize").c_str());
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("view_computer_organize").c_str());
 
     // Split: left tool panel, right chat
     auto split = PanelContainer::SplitRight(f.a, 320.0f);

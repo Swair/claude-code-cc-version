@@ -21,6 +21,7 @@
   "general_log_level": "日志级别",
   "general_enable_summary": "启用摘要",
   "general_sprite_assets_dir": "精灵资源目录",
+  "general_workspace_path": "工作目录",
   "roles_select_hint": "选择默认角色（每个角色一个精灵）：",
   "providers_readonly": "已配置的提供商（只读）：",
   "security_permission_level": "权限级别",
@@ -42,6 +43,7 @@
   "about_title": "关于智灵",
   "about_contact": "联系方式：",
   "btn_close": "关闭",
+  "btn_send": "发送",
 
   "ctx_chat": "对话",
   "ctx_show_main": "显示主窗口",
@@ -112,7 +114,14 @@
 
   "all_roles": "所有角色",
 
-  "panel_no_data": "暂无数据。",
+  "sidebar_group_agents": "智能体",
+  "sidebar_group_capabilities": "服务",
+  "sidebar_group_monitor": "监控",
+  "sidebar_group_settings": "设置",
+  "panel_no_data": "📭 暂无数据。",
+  "tab_daily_memory": "每日记忆",
+  "tab_role_memory": "角色记忆",
+  "tab_skills": "技能",
   "panel_coming_soon": "即将推出...",
 
   "sess_id": "会话 ID",

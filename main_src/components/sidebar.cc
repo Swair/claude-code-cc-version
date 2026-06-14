@@ -53,6 +53,8 @@ int Sidebar::GetWidth() const {
         int nav_top = static_cast<int>(static_cast<float>(L.sidebar_brand_height));
         int nav_h = static_cast<int>(static_cast<float>(win_h) - static_cast<float>(nav_top)
                       - static_cast<float>(L.sidebar_footer_height) * s);
+        // computed outside child scope for RenderFooter alignment
+        float label_x = L.sb_icon_x * s + (L.sb_icon_w + L.sb_icon_text_gap) * s;
         {
             media_engine::ImGuiWindow::SetNextPos(0.0f, static_cast<float>(nav_top));
             auto _thin_scroll = media_engine::ScopedStyleVar::ScrollbarSize(2.0f);
@@ -65,13 +67,11 @@ int Sidebar::GetWidth() const {
             float y = 0;
             float item_h = static_cast<float>(L.sidebar_nav_item_h) * s;
             float icon_x = L.sb_icon_x * s;
-            float icon_label_gap = (L.sb_icon_w + L.sb_icon_text_gap) * s;
-            float label_x = icon_x + icon_label_gap;
             float base_y = static_cast<float>(nav_top) - scroll_y;
             float indent_s = L.sb_child_indent * s;
 
             auto nav_item = [&](NavItem item, const char* icon, const char* label, float indent = 0) {
-                float item_icon_x = icon_x + indent;
+                float item_icon_x = collapsed_ ? icon_x : icon_x + indent;
                 float item_label_x = label_x + indent;
                 float sy = base_y + y;
                 float left = indent > 0 ? icon_x : 0;
@@ -119,9 +119,9 @@ int Sidebar::GetWidth() const {
                     float text_oy = (gh - L.sb_text_h) / 2.0f;
                     float gy = base_y + y + text_oy;
                     float toggle_x = icon_x;
-                    float label_x2 = toggle_x + icon_label_gap;
+                    float label_x2 = toggle_x + 20.0f * s;  // between nav icon gap (32*s) and text
                     bool expanded = IsGroupExpanded(group);
-                    const char* toggle = expanded ? "-" : "+";
+                    const char* toggle = expanded ? "\xe2\x96\xbe" : "\xe2\x96\xb8"; // ▾ / ▸
 
                     media_engine::Layout::SetCursorPos(toggle_x, y);
                     if (media_engine::ImGuiWidget::InvisibleButton(
@@ -141,51 +141,51 @@ int Sidebar::GetWidth() const {
             };
 
         // ── TOP BAR ── (always visible)
-        nav_item(NavItem::Chat,   ">", L18n.Get("nav_chat").c_str());
-        nav_item(NavItem::ActiveTriggers, "A", L18n.Get("nav_active_triggers").c_str());
-        nav_item(NavItem::Status, "@", L18n.Get("nav_status").c_str());
-        nav_item(NavItem::Sessions, "#", L18n.Get("nav_sessions").c_str());
+        nav_item(NavItem::Chat,   "\xf0\x9f\x92\xac", L18n.Get("nav_chat").c_str());      // 💬
+        nav_item(NavItem::ActiveTriggers, "\xf0\x9f\x94\x94", L18n.Get("nav_active_triggers").c_str());  // 🔔
+        nav_item(NavItem::Status, "\xf0\x9f\x93\x8a", L18n.Get("nav_status").c_str());    // 📊
+        nav_item(NavItem::Sessions, "\xf0\x9f\x93\x8b", L18n.Get("nav_sessions").c_str());  // 📋
 
         // ═══ 智能体 ═══
         collapse_group(SidebarGroup::Agents, L18n.Get("sidebar_group_agents").c_str());
         if (IsGroupExpanded(SidebarGroup::Agents)) {
-            nav_item(NavItem::PetStore, "P", L18n.Get("nav_petstore").c_str(), indent_s);
-            nav_item(NavItem::KnowledgeBase, "K", L18n.Get("nav_knowledge").c_str(), indent_s);
-            nav_item(NavItem::ComputerOrganize, "D", L18n.Get("nav_computer_organize").c_str(), indent_s);
+            nav_item(NavItem::PetStore, "\xf0\x9f\x90\xb1", L18n.Get("nav_petstore").c_str(), indent_s);     // 🐱
+            nav_item(NavItem::KnowledgeBase, "\xf0\x9f\x93\x9a", L18n.Get("nav_knowledge").c_str(), indent_s); // 📚
+            nav_item(NavItem::ComputerOrganize, "\xf0\x9f\x92\xbe", L18n.Get("nav_computer_organize").c_str(), indent_s); // 💾
         }
 
         // ═══ 服务 ═══
         collapse_group(SidebarGroup::Capabilities, L18n.Get("sidebar_group_capabilities").c_str());
         if (IsGroupExpanded(SidebarGroup::Capabilities)) {
-            nav_item(NavItem::Skills,     "S", L18n.Get("nav_skills").c_str(), indent_s);
-            nav_item(NavItem::Mcp,        "C", L18n.Get("nav_mcp").c_str(), indent_s);
-            nav_item(NavItem::Memory,     "M", L18n.Get("nav_memory").c_str(), indent_s);
-            nav_item(NavItem::Scheduler,  "%", L18n.Get("nav_scheduler").c_str(), indent_s);
+            nav_item(NavItem::Skills,     "\xf0\x9f\x9b\xa0", L18n.Get("nav_skills").c_str(), indent_s);      // 🛠
+            nav_item(NavItem::Mcp,        "\xf0\x9f\x94\x8c", L18n.Get("nav_mcp").c_str(), indent_s);        // 🔌
+            nav_item(NavItem::Memory,     "\xf0\x9f\xa7\xa0", L18n.Get("nav_memory").c_str(), indent_s);      // 🧠
+            nav_item(NavItem::Scheduler,  "\xe2\x8f\xb0", L18n.Get("nav_scheduler").c_str(), indent_s);       // ⏰
         }
 
         // ═══ 监控 ═══
         collapse_group(SidebarGroup::Monitor, L18n.Get("sidebar_group_monitor").c_str());
         if (IsGroupExpanded(SidebarGroup::Monitor)) {
-            nav_item(NavItem::Usage,     "$", L18n.Get("nav_usage").c_str(), indent_s);
-            nav_item(NavItem::Security,  "!", L18n.Get("nav_security").c_str(), indent_s);
-            nav_item(NavItem::Logs,      "L", L18n.Get("nav_logs").c_str(), indent_s);
+            nav_item(NavItem::Usage,     "\xf0\x9f\x93\x88", L18n.Get("nav_usage").c_str(), indent_s);        // 📈
+            nav_item(NavItem::Security,  "\xf0\x9f\x9b\xa1", L18n.Get("nav_security").c_str(), indent_s);     // 🛡
+            nav_item(NavItem::Logs,      "\xf0\x9f\x93\x9d", L18n.Get("nav_logs").c_str(), indent_s);         // 📝
         }
 
         // ═══ 设置 ═══
         collapse_group(SidebarGroup::Settings, L18n.Get("sidebar_group_settings").c_str());
         if (IsGroupExpanded(SidebarGroup::Settings)) {
-            nav_item(NavItem::Config,     "*", L18n.Get("nav_config").c_str(), indent_s);
-            nav_item(NavItem::Roles,      "@", L18n.Get("nav_roles").c_str(), indent_s);
-            nav_item(NavItem::Providers,  "&", L18n.Get("nav_providers").c_str(), indent_s);
-            nav_item(NavItem::LocalModels,"#", L18n.Get("nav_local_models").c_str(), indent_s);
-            nav_item(NavItem::Tts,        "~", L18n.Get("nav_tts").c_str(), indent_s);
+            nav_item(NavItem::Config,     "\xe2\x9a\x99", L18n.Get("nav_config").c_str(), indent_s);          // ⚙
+            nav_item(NavItem::Roles,      "\xf0\x9f\x91\xa4", L18n.Get("nav_roles").c_str(), indent_s);       // 👤
+            nav_item(NavItem::Providers,  "\xf0\x9f\x97\x84", L18n.Get("nav_providers").c_str(), indent_s);    // 🗄
+            nav_item(NavItem::LocalModels,"\xf0\x9f\x93\xa6", L18n.Get("nav_local_models").c_str(), indent_s); // 📦
+            nav_item(NavItem::Tts,        "\xf0\x9f\x97\xa3", L18n.Get("nav_tts").c_str(), indent_s);          // 🗣
         }
 
         // About
-        nav_item(NavItem::About, "?", L18n.Get("nav_about").c_str());
+        nav_item(NavItem::About, "\xe2\x9d\x93", L18n.Get("nav_about").c_str());            // ❓
     }
     // 子窗口在此关闭
-    RenderFooter(win_h);
+    RenderFooter(win_h, label_x);
 }
 
 void Sidebar::RenderBrand() {
@@ -237,7 +237,7 @@ void Sidebar::RenderBrand() {
     }
 }
 
-void Sidebar::RenderFooter(int win_h) {
+void Sidebar::RenderFooter(int win_h, float label_x) {
     auto L = LayoutConfig{};
     int sb_w = GetWidth();
     float fw = static_cast<float>(sb_w);
@@ -257,26 +257,27 @@ void Sidebar::RenderFooter(int win_h) {
         float link_h = 18.0f;
         float yo = sep_y + 12.0f;
 
-        // * Star 链接 (GitHub, 可点击)
+        // ⭐ Star 链接 (GitHub, 可点击)
         float ly = yo;
-        media_engine::DrawList::Text(lx, ly, media_engine::Colors::Orange, "*");
-        media_engine::DrawList::Text(lx + 14.0f, ly, media_engine::Colors::Gray55, "GitHub Star");
+        media_engine::DrawList::Text(lx, ly, media_engine::Colors::Orange, "\xe2\xad\x90");
+        media_engine::DrawList::Text(label_x, ly, media_engine::Colors::Gray55, "GitHub Star");
         media_engine::Layout::SetCursorPos(lx, ly);
         if (media_engine::ImGuiWidget::InvisibleButton("link_github", fw - lx * 2, link_h)) {
             Platform::OpenWithDefault("https://github.com/Swair");
         }
 
-        // 官方网站
+        // 🌐 官方网站
         ly = yo + 22.0f;
-        media_engine::DrawList::Text(lx, ly, media_engine::Colors::Gray55, "aicodingbox.com");
+        media_engine::DrawList::Text(lx, ly, media_engine::Colors::Gray55, "\xf0\x9f\x8c\x90");
+        media_engine::DrawList::Text(label_x, ly, media_engine::Colors::Gray55, "aicodingbox.com");
         media_engine::Layout::SetCursorPos(lx, ly);
         if (media_engine::ImGuiWidget::InvisibleButton("link_web", fw - lx * 2, link_h)) {
             Platform::OpenWithDefault("http://aicodingbox.com");
         }
 
-        // 版本号 + 语言切换 + 折叠按钮 (底部)
+        // 📦 版本号 + 语言切换 + 折叠按钮 (底部)
         ly = yo + 46.0f;
-        std::string ver = "v" PROSOPHOR_VERSION;
+        std::string ver = "\xf0\x9f\x93\xa6 v" PROSOPHOR_VERSION;
         media_engine::DrawList::Text(lx, ly, media_engine::Colors::Gray55, ver.c_str());
         float btn_y = yo + 44.0f;
         bool is_zh = i18n.GetLanguage() == "zh-CN";
@@ -292,7 +293,7 @@ void Sidebar::RenderFooter(int win_h) {
         // 折叠时只保留切换按钮
         float btn_y = fy + (footer_h - btn_size) / 2.0f;
         if (media_engine::ImGuiWidget::IconButton("sidebar_toggle",
-                ">", fw - btn_size - 6.0f, btn_y, btn_size,
+                "\xe2\x96\xb6", fw - btn_size - 6.0f, btn_y, btn_size,  // ▶
                 media_engine::Colors::CreamBorder,
                 media_engine::Colors::Gray55, 3.0f)) {
             collapsed_ = !collapsed_;

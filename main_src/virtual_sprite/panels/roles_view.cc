@@ -1,5 +1,6 @@
 #include "virtual_sprite/chat_window.h"
 #include "virtual_sprite/panels/panel_helpers.h"
+#include "components/item_list.h"
 #include "virtual_sprite/layout_config.h"
 #include "virtual_sprite/sprite_manager.h"
 #include "config/config.h"
@@ -73,7 +74,7 @@ void ScanRoles() {
 void ChatWindow::RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto Lc = LayoutConfig{};
     auto& L = I18n::Instance();
-    PanelFrame pf(cont_x, cont_y, cont_w, cont_h, L.Get("view_roles").c_str());
+    PanelContainer pf(cont_x, cont_y, cont_w, cont_h, L.Get("view_roles").c_str());
 
     auto& config = ProsophorConfig::GetInstance();
     float s = Spacing();
@@ -81,15 +82,9 @@ void ChatWindow::RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h)
 
     float btn_h = 30.0f, gap = 12.0f;
     int vc = (int)v_cstrs.size();
-    auto Lc2 = Lc;
-    Lc2.split_list_item_h = 30.0f * s;
-    Lc2.split_list_text_y = 7.0f * s;
-    Lc2.split_list_item_gap = 2.0f * s;
-    Lc2.split_list_text_x = 12.0f * s;
-
     float left_w = Lc.panel_left_list_w;
 
-    auto sv = SplitView(pf.a, left_w, btn_h, gap);
+    auto sv = SplitPanel(pf.a, left_w, btn_h, gap);
 
     if (s_sel >= (int)all_ids.size()) s_sel = 0;
 
@@ -99,37 +94,15 @@ void ChatWindow::RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h)
         auto _l = media_engine::ScopedChild("rl_list", sv.left_w, sv.inner_h, 0,
             media_engine::ImGuiWindowFlags_AlwaysVerticalScrollbar);
 
-        float cy = sv.left_y;
-        for (size_t i = 0; i < all_ids.size(); ++i) {
-            bool act = ((int)i == s_sel);
-            float bh = Lc2.split_list_item_h;
-            float iw = sv.left_w - 4.0f;
-            bool ck = (checked[i] != 0);
-            float ck_w = 20.0f * s;
-            media_engine::Layout::SetCursorScreenPos(sv.left_x, cy);
-            if (media_engine::ImGuiWidget::InvisibleButton(
-                    ("rl_" + all_ids[i]).c_str(), sv.left_w - ck_w, bh))
-                s_sel = (int)i;
-            bool hov = media_engine::ImGuiWidget::IsItemHovered();
-            constexpr float kPad = 4.0f;
-            if (act) {
-                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, iw - kPad, bh, 4.0f,
-                    media_engine::Colors::OrangeLightest);
-                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, 3.0f, bh, 4.0f,
-                    media_engine::Colors::Orange);
-            } else if (hov) {
-                media_engine::DrawList::RoundRect(sv.left_x + kPad, cy, iw - kPad, bh, 4.0f,
-                    media_engine::Colors::OrangePale);
+        {
+            ItemList list(sv.left_x, sv.left_y, sv.left_w, s);
+            for (size_t i = 0; i < all_ids.size(); ++i) {
+                bool ck = (checked[i] != 0);
+                if (list.Item(("rl_" + all_ids[i]).c_str(),
+                        all_ids[i].c_str(), (int)i == s_sel, &ck))
+                    s_sel = (int)i;
+                checked[i] = ck ? 1 : 0;
             }
-            media_engine::DrawList::Text(sv.left_x + Lc2.split_list_text_x - Lc2.split_list_item_gap, cy + Lc2.split_list_text_y,
-                act ? media_engine::Colors::OrangeDeep
-                    : hov ? media_engine::Colors::Orange
-                    : media_engine::Colors::Gray40,
-                all_ids[i].c_str());
-            media_engine::Layout::SetCursorScreenPos(sv.left_x + sv.left_w - ck_w, cy + 5.0f * s);
-            media_engine::ImGuiWidget::Checkbox(("##rl_ck_" + all_ids[i]).c_str(), &ck);
-            checked[i] = ck ? 1 : 0;
-            cy += bh + Lc2.split_list_item_gap;
         }
     }
 
@@ -148,94 +121,85 @@ void ChatWindow::RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h)
 
         size_t i = (size_t)s_sel;
 
-        // ── SectionCard (matching Config style, dynamic height) ──
+        // ── SectionCard (auto-height via Card) ──
         float cx = sv.right_x;
         float cw = sv.right_w - Lc.section_card_right_margin + Lc.split_right_child_wextra;
-        float wx = cx + 200.0f;
 
         float cX, cY;
         media_engine::Layout::GetCursorScreenPos(&cX, &cY);
-        float scx = cx + Lc.section_card_pad;
-        float scw = cw - Lc.section_card_w_extra;
-        media_engine::DrawList::RoundRect(scx, cY, scw, sv.inner_h, Lc.panel_radius,
-            media_engine::Colors::Beige);
-        media_engine::DrawList::Text(cx + Lc.label_row_pad, cY + 10.0f * s,
-            media_engine::Colors::OrangeDeep, all_ids[i].c_str());
+        {
+            Card role_card(cx, cY, cw, all_ids[i].c_str(), s);
 
-        float iy = cY + 40.0f * s;
+            // role_name
+            dnames[i].resize(256);
+            role_card.Field("role_name", [&](){
+                media_engine::ImGuiWidget::InputText(("##rn_" + all_ids[i]).c_str(), dnames[i].data(), dnames[i].size()); });
+            dnames[i].resize(std::strlen(dnames[i].data()));
 
-        // role_name
-        dnames[i].resize(256);
-        iy = PanelHelper::LabelRow(cx, iy, "role_name", wx,
-            [&](){ media_engine::ImGuiWidget::InputText(("##rn_" + all_ids[i]).c_str(), dnames[i].data(), dnames[i].size()); }, s);
-        dnames[i].resize(std::strlen(dnames[i].data()));
+            // spritesheet
+            spritesheets[i].resize(256);
+            role_card.Field("spritesheet", [&](){
+                media_engine::ImGuiWidget::InputText(("##sp_" + all_ids[i]).c_str(), spritesheets[i].data(), spritesheets[i].size()); });
+            spritesheets[i].resize(std::strlen(spritesheets[i].data()));
 
-        // spritesheet
-        spritesheets[i].resize(256);
-        iy = PanelHelper::LabelRow(cx, iy, "spritesheet", wx,
-            [&](){ media_engine::ImGuiWidget::InputText(("##sp_" + all_ids[i]).c_str(), spritesheets[i].data(), spritesheets[i].size()); }, s);
-        spritesheets[i].resize(std::strlen(spritesheets[i].data()));
+            float mid_x = role_card.ContentX() + Lc.label_row_pad;
+            float iw = (cx + cw) - mid_x - 24.0f;
 
-        // description
-        descrs[i].resize(1024);
-        media_engine::Layout::SetCursorScreenPos(cx + Lc.label_row_pad, iy);
-        media_engine::Text::Colored(media_engine::Colors::Gray55, "description");
-        iy += 22.0f * s;
-        media_engine::Layout::SetCursorScreenPos(cx + Lc.label_row_pad, iy);
-        media_engine::ImGuiWidget::InputTextMultiline(("##desc_" + all_ids[i]).c_str(), descrs[i].data(), descrs[i].size(), scw - Lc.label_row_pad - 16.0f, 50.0f * s, false);
-        descrs[i].resize(std::strlen(descrs[i].data()));
-        iy += 60.0f * s;
+            // description
+            descrs[i].resize(1024);
+            media_engine::Layout::SetCursorScreenPos(mid_x, role_card.Y());
+            media_engine::Text::Colored(media_engine::Colors::Gray55, "description");
+            role_card.Advance(22.0f * s);
+            media_engine::Layout::SetCursorScreenPos(mid_x, role_card.Y());
+            media_engine::ImGuiWidget::InputTextMultiline(("##desc_" + all_ids[i]).c_str(), descrs[i].data(), descrs[i].size(), iw, 50.0f * s, false);
+            descrs[i].resize(std::strlen(descrs[i].data()));
+            role_card.Advance(60.0f * s);
 
-        // soul
-        prompts[i].resize(4096);
-        media_engine::Layout::SetCursorScreenPos(cx + Lc.label_row_pad, iy);
-        media_engine::Text::Colored(media_engine::Colors::Gray55, "soul");
-        iy += 22.0f * s;
-        media_engine::Layout::SetCursorScreenPos(cx + Lc.label_row_pad, iy);
-        media_engine::ImGuiWidget::InputTextMultiline(("##prompt_" + all_ids[i]).c_str(), prompts[i].data(), prompts[i].size(), scw - Lc.label_row_pad - 16.0f, 70.0f * s, false);
-        prompts[i].resize(std::strlen(prompts[i].data()));
-        iy += 80.0f * s;
+            // soul
+            prompts[i].resize(4096);
+            media_engine::Layout::SetCursorScreenPos(mid_x, role_card.Y());
+            media_engine::Text::Colored(media_engine::Colors::Gray55, "soul");
+            role_card.Advance(22.0f * s);
+            media_engine::Layout::SetCursorScreenPos(mid_x, role_card.Y());
+            media_engine::ImGuiWidget::InputTextMultiline(("##prompt_" + all_ids[i]).c_str(), prompts[i].data(), prompts[i].size(), iw, 70.0f * s, false);
+            prompts[i].resize(std::strlen(prompts[i].data()));
+            role_card.Advance(80.0f * s);
 
-        // auto_confirm_tools
-        bool ac = (auto_confirms[i] != 0);
-        iy = PanelHelper::LabelRow(cx, iy, "auto_confirm_tools", wx,
-            [&](){ media_engine::ImGuiWidget::Checkbox(("##autoconf_" + all_ids[i]).c_str(), &ac); }, s);
-        auto_confirms[i] = ac ? 1 : 0;
+            // auto_confirm_tools
+            bool ac = (auto_confirms[i] != 0);
+            role_card.Field("auto_confirm_tools", [&](){
+                media_engine::ImGuiWidget::Checkbox(("##autoconf_" + all_ids[i]).c_str(), &ac); });
+            auto_confirms[i] = ac ? 1 : 0;
 
-        // enable_streaming
-        bool es = (enable_streams[i] != 0);
-        iy = PanelHelper::LabelRow(cx, iy, "enable_streaming", wx,
-            [&](){ media_engine::ImGuiWidget::Checkbox(("##es_" + all_ids[i]).c_str(), &es); }, s);
-        enable_streams[i] = es ? 1 : 0;
+            // enable_streaming
+            bool es = (enable_streams[i] != 0);
+            role_card.Field("enable_streaming", [&](){
+                media_engine::ImGuiWidget::Checkbox(("##es_" + all_ids[i]).c_str(), &es); });
+            enable_streams[i] = es ? 1 : 0;
 
-        // max_iterations
-        iy = PanelHelper::LabelRow(cx, iy, "max_iterations", wx, [&,i](){
-            char buf[16];
-            snprintf(buf, sizeof(buf), "%d", max_iters[i]);
-            media_engine::ImGuiWidget::InputText(("##mi_" + all_ids[i]).c_str(), buf, sizeof(buf));
-            int v = atoi(buf);
-            if (v > 0) max_iters[i] = v;
-        }, s);
+            // max_iterations
+            role_card.Field("max_iterations", [&,i](){
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%d", max_iters[i]);
+                media_engine::ImGuiWidget::InputText(("##mi_" + all_ids[i]).c_str(), buf, sizeof(buf));
+                int v = atoi(buf);
+                if (v > 0) max_iters[i] = v;
+            });
 
-        // model
-        iy = PanelHelper::LabelRow(cx, iy, "model", wx, [&](){
-            float cw_half = ((cx + cw) - wx) * 0.5f;
-            auto _w = media_engine::ScopedItemWidth(cw_half);
-            media_engine::ImGuiWidget::Combo(("##mdl_" + all_ids[i]).c_str(), &model_idx[i], m_cstrs.data(), (int)m_cstrs.size()); }, s);
-
-        // tts voice
-        if (vc > 0) {
-            iy = PanelHelper::LabelRow(cx, iy, "voice", wx, [&](){
-                float cw_half = ((cx + cw) - wx) * 0.5f;
+            // model
+            role_card.Field("model", [&](){
+                float cw_half = ((cx + cw) - role_card.WidgetX()) * 0.5f;
                 auto _w = media_engine::ScopedItemWidth(cw_half);
-                media_engine::ImGuiWidget::Combo(("##voi_" + all_ids[i]).c_str(), &voice_idx[i], v_cstrs.data(), vc); }, s);
-        }
+                media_engine::ImGuiWidget::Combo(("##mdl_" + all_ids[i]).c_str(), &model_idx[i], m_cstrs.data(), (int)m_cstrs.size()); });
 
-        float cEX, cEY;
-        media_engine::Layout::GetCursorScreenPos(&cEX, &cEY);
-        float cH = cEY - cY + 4.0f;
-        media_engine::DrawList::RoundRectOutline(scx, cY, scw, cH, Lc.panel_radius,
-            media_engine::Colors::CreamBorder, 1.0f);
+            // tts voice
+            if (vc > 0) {
+                role_card.Field("voice", [&](){
+                    float cw_half = ((cx + cw) - role_card.WidgetX()) * 0.5f;
+                    auto _w = media_engine::ScopedItemWidth(cw_half);
+                    media_engine::ImGuiWidget::Combo(("##voi_" + all_ids[i]).c_str(), &voice_idx[i], v_cstrs.data(), vc); });
+            }
+        }
     }
 
 buttons:

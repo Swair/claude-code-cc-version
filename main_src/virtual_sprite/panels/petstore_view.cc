@@ -9,7 +9,7 @@ namespace prosophor {
 void ChatWindow::RenderPetStoreView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto& L = I18n::Instance();
     float sm = Spacing();
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, L.Get("view_petstore").c_str());
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("view_petstore").c_str());
     media_engine::DrawList::Text(f.a.x + 14.0f, f.a.y + 10.0f, media_engine::Colors::OrangeDeep, "Petdex");
 
     float iy = f.a.y + 40.0f * sm;

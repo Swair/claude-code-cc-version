@@ -8,7 +8,7 @@ namespace prosophor {
 void ChatWindow::RenderUsageView(int cont_x, int cont_y, int cont_w, int cont_h) {
     auto& L = I18n::Instance();
     float sm = Spacing();
-    PanelFrame f(cont_x, cont_y, cont_w, cont_h, L.Get("view_usage").c_str());
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("view_usage").c_str());
 
     float cx = f.a.x + 8.0f, cy = f.a.y + 8.0f, gap = 12.0f * sm, ch = 60.0f * sm;
     float cw = (f.a.w - 28.0f - gap * 2) / 3.0f;
@@ -20,9 +20,7 @@ void ChatWindow::RenderUsageView(int cont_x, int cont_y, int cont_w, int cont_h)
 
     cy += ch + 20.0f * sm;
     float tw = f.a.w - 24.0f, th = f.a.y + f.a.h - cy - 8.0f;
-    media_engine::DrawList::RoundRect(cx, cy, tw, th, 6.0f, media_engine::Colors::White);
-    media_engine::DrawList::RoundRectOutline(cx, cy, tw, th, 6.0f, media_engine::Colors::CreamBorder, 1.0f);
-
+    WhiteCard(cx, cy, tw, th);
     media_engine::DrawList::Text(cx + 14.0f, cy + 10.0f, media_engine::Colors::OrangeDeep, L.Get("usage_session").c_str());
     media_engine::DrawList::Text(cx + 80.0f, cy + 10.0f, media_engine::Colors::Gray55, L.Get("usage_overall").c_str());
     float ty = cy + 34.0f * sm;

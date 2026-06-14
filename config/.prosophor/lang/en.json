@@ -21,6 +21,7 @@
   "general_log_level": "Log Level",
   "general_enable_summary": "Enable Summary",
   "general_sprite_assets_dir": "Sprite Assets Dir",
+  "general_workspace_path": "Workspace Dir",
   "roles_select_hint": "Select default roles (one sprite per role):",
   "providers_readonly": "Configured providers (read-only):",
   "security_permission_level": "Permission Level",
@@ -42,6 +43,7 @@
   "about_title": "About Prosophor",
   "about_contact": "Contact:",
   "btn_close": "Close",
+  "btn_send": "Send",
 
   "ctx_chat": "Chat",
   "ctx_show_main": "Show Main Window",
@@ -116,7 +118,14 @@
 
   "all_roles": "All Roles",
 
-  "panel_no_data": "No data available.",
+  "sidebar_group_agents": "Agents",
+  "sidebar_group_capabilities": "Services",
+  "sidebar_group_monitor": "Monitor",
+  "sidebar_group_settings": "Settings",
+  "tab_daily_memory": "Daily Memory",
+  "tab_role_memory": "Role Memory",
+  "tab_skills": "Skills",
+  "panel_no_data": "📭 No data available.",
   "panel_coming_soon": "Coming soon...",
 
   "sess_id": "Session ID",
