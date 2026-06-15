@@ -1,7 +1,7 @@
 build
 build_win
 .claude
-tools
+tool
 tests
 
 thirdparty_src/
