@@ -7,3 +7,7 @@ tests
 thirdparty_src/
 dist/releases/
 
+# Editor / IDE
+.vscode/
+.clangd
+
