@@ -23,6 +23,9 @@
 namespace fs = std::filesystem;
 namespace prosophor {
 
+// ── Windows-only: Computer Organize view uses Win32 API ──
+#ifdef _WIN32
+
 namespace {
 
 struct DiskInfo {
@@ -290,5 +293,12 @@ void ChatWindow::RenderComputerOrganizeView(int cont_x, int cont_y, int cont_w, 
         RenderChatContent();
     }
 }
+
+#endif // _WIN32
+
+// Stub for non-Windows: the view is Windows-only
+#ifndef _WIN32
+void ChatWindow::RenderComputerOrganizeView(int, int, int, int) {}
+#endif
 
 } // namespace prosophor

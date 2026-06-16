@@ -135,6 +135,7 @@ if(PROSOPHOR_SDL_UI)
 
     target_compile_definitions(prosophor PRIVATE
         PROSOPHOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
+        IMGUI_USE_WCHAR32
     )
 
     target_link_libraries(prosophor PRIVATE

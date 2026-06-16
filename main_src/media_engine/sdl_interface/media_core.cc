@@ -184,10 +184,16 @@ void MediaCore::LoadSharedChineseFont() {
         "C:/Windows/Fonts/simsun.ttc",
         "C:/Windows/Fonts/simsunb.ttf",
         // Linux — common CJK fonts
+        // Fedora (DroidSansFallback is a regular TTF, preferred over VF TTC)
+        "/usr/share/fonts/google-droid-sans-fonts/DroidSansFallbackFull.ttf",
+        "/usr/share/fonts/google-noto-sans-cjk-vf-fonts/NotoSansCJK-VF.ttc",
+        // Debian/Ubuntu (truetype)
         "/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf",
         "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+        // Debian/Ubuntu (opentype)
         "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
         "/usr/share/fonts/noto-cjk/NotoSansCJKsc-Regular.otf",
+        // Arch Linux
         "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",
         "/usr/share/fonts/wqy-microhei/wqy-microhei.ttc",
         "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
@@ -215,6 +221,7 @@ void MediaCore::LoadSharedEmojiFont() {
     // Emoji 字体：Windows → Linux → macOS
     const char* emoji_paths[] = {
         "C:/Windows/Fonts/seguiemj.ttf",                      // Windows Segoe UI Emoji
+        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf", // Fedora
         "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",  // Linux Noto Color Emoji
         "/usr/share/fonts/noto/NotoColorEmoji.ttf",           // Linux (alt path)
         "/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf",
