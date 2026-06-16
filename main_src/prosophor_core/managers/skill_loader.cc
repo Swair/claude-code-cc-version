@@ -472,15 +472,15 @@ nlohmann::json SkillLoader::ParseYamlFrontmatter(
     while (std::getline(stream, line)) {
         if (line.find_first_not_of(" \t\r\n") == std::string::npos) continue;
 
-        int indent = 0;
-        for (char c : line) {
-            if (c == ' ')
-                ++indent;
-            else if (c == '\t')
-                indent += 2;
-            else
-                break;
-        }
+        // int indent = 0;
+        // for (char c : line) {
+            // if (c == ' ')
+                // ++indent;
+            // else if (c == '\t')
+                // indent += 2;
+            // else
+                // break;
+        // }
 
         std::string trimmed = line.substr(line.find_first_not_of(" \t"));
         while (!trimmed.empty() &&
