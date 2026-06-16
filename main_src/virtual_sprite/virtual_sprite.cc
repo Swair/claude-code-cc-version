@@ -120,7 +120,7 @@ void VirtualSprite::GlobalInit() {
 
     // Route session state changes to the matching sprite
     AgentEngine::GetInstance().SetOutputCallback(
-        [this](const std::string& session_id, const std::string& /*role_id*/,
+        [](const std::string& session_id, const std::string& /*role_id*/,
                AgentRuntimeState state, const std::string& state_msg,
                const std::optional<MessageSchema>& /*reply*/) {
             if (auto* s = SpriteManager::GetInstance().FindBySessionId(session_id)) {

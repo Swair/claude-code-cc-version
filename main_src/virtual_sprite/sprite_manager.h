@@ -40,7 +40,7 @@ public:
     bool RemoveSpriteByRoleId(const std::string& role_id);
     void QueueCreateSprite(const std::string& role_id);
 
-    /// Process pending create/remove — call once per frame before rendering.
+    /// Process pending create/remove -- call once per frame before rendering.
     void ProcessPendingOps();
 
     /// Remove all sprites.

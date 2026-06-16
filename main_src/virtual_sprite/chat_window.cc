@@ -62,7 +62,7 @@ bool ChatWindow::Create(int width, int height) {
 
     sidebar_.SetRenderWindow(win);
 
-    sidebar_.SetOnNav([this](NavItem item) {
+    sidebar_.SetOnNav([](NavItem item) {
         if (item == NavItem::ComputerOrganize) {
             std::string sid = SpriteManager::GetInstance().GetFocusedSession();
             if (!sid.empty()) {
@@ -71,7 +71,7 @@ bool ChatWindow::Create(int width, int height) {
         }
     });
 
-    media_engine::MediaCore::Instance().RegRenderHandler(win, [win, this]() {
+    media_engine::MediaCore::Instance().RegRenderHandler(win, [this]() {
         auto _app = media_engine::ScopedColors(
             media_engine::Color::Slot::WindowBg, media_engine::Colors::MilkyWhite)
             .Then(media_engine::Color::Slot::Text, media_engine::Colors::Gray40)

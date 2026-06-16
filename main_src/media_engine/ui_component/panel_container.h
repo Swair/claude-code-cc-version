@@ -82,8 +82,8 @@ struct PanelContainer {
                    const char* title, float bottom_btn_h = 0);
     ~PanelContainer();
 
-    PanelContainer(PanelContainer&&) = default;
-    PanelContainer& operator=(PanelContainer&&) = default;
+    PanelContainer(PanelContainer&&) = delete;
+    PanelContainer& operator=(PanelContainer&&) = delete;
 
     /// 将内容区水平分割为 main + side（如 Chat 的右侧角色面板）
     struct Split { Area main; Area side; };

@@ -6,7 +6,7 @@
 namespace prosophor {
 
 ItemList::ItemList(float x, float y, float width, float sm)
-    : x_(x), y_(y), width_(width), current_y_(y), sm_(sm)
+    : x_(x), width_(width), current_y_(y), sm_(sm)
 {
     auto Lc = LayoutConfig{};
     item_h_ = Lc.split_list_item_h * sm;

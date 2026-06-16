@@ -22,7 +22,7 @@ public:
     float NextY() const { return current_y_; }
 
 private:
-    float x_, y_, width_;
+    float x_, width_;
     float current_y_;
     float item_h_;
     float gap_;
