@@ -232,6 +232,13 @@ void RoleConfigManager::HotReload(const std::string& role_id) {
             }
             if (rj.contains("llm") && rj["llm"].is_object()) {
                 role->auto_confirm_tools = rj["llm"].value("auto_confirm_tools", role->auto_confirm_tools);
+                role->enable_tools = rj["llm"].value("enable_tools", role->enable_tools);
+                session->SetUseTools(role->enable_tools);
+                role->thinking = rj["llm"].value("thinking", role->thinking);
+                role->thinking_budget_tokens = rj["llm"].value("thinking_budget_tokens", role->thinking_budget_tokens);
+                role->reasoning_effort = rj["llm"].value("reasoning_effort", role->reasoning_effort);
+                role->enable_streaming = rj["llm"].value("enable_streaming", role->enable_streaming);
+                role->max_iterations = rj["llm"].value("max_iterations", role->max_iterations);
             }
         } catch (...) {}
     }

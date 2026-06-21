@@ -12,11 +12,17 @@
 
 #include "providers/llm/llm_provider.h"
 #include "config/config.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshadow"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#include "llama.h"
+#include "common/chat.h"
+#pragma GCC diagnostic pop
+
+struct common_chat_tool;
 
 namespace prosophor {
 
-/// In-process LLM provider using llama.cpp C API directly.
-/// Owns model, context, and sampler — no external server needed.
 class LlamacppProvider : public LLMProvider {
 public:
     explicit LlamacppProvider(const LlamacppModelConfig& cfg);
@@ -28,7 +34,6 @@ public:
     bool IsLoading() const;
     std::string GetLoadError() const;
 
-    // LLMProvider interface
     std::string GetProviderName() const override { return "llamacpp"; }
     std::vector<std::string> GetSupportedModels() const override;
     std::string Serialize(const ChatRequest& request) const override;
@@ -38,10 +43,12 @@ public:
 
     ChatResponse Chat(const ChatRequest& request);
 
+    /// Parse call:name{...} format from tool_text and add to response.
+    void ParseToolCalls(ChatResponse& response, const std::string& tool_text);
+
+public:
+    LlamacppModelConfig cfg_;   // test-accessible (ProcessTokenFrame tests need marker config)
 private:
-    struct Impl;
-    std::unique_ptr<Impl> impl_;
-    LlamacppModelConfig cfg_;
 
     std::atomic<bool> loaded_{false};
     std::atomic<bool> loading_{false};
@@ -49,9 +56,55 @@ private:
     mutable std::mutex model_mutex_;
     std::future<void> load_future_;
 
+public:
+    // Test-accessible: thinking marker state (normally set by Load())
+    bool        thinking_enabled_ = false;
+    std::string thinking_start_;
+    std::string thinking_end_;
+
+private:
+    llama_model*        model_   = nullptr;
+    llama_context*      ctx_     = nullptr;
+    llama_sampler*      sampler_ = nullptr;
+    const llama_vocab*  vocab_   = nullptr;
+
+    common_chat_templates_ptr chat_tmpls_;
+
+    void Release();
+
     HeaderList CreateHeaders(const ChatRequest& request) const override;
     void PrintRequestLog(const ChatRequest& request) const override;
-    std::string BuildPrompt(const ChatRequest& request) const;
+    common_chat_params BuildChatParams(const ChatRequest& request) const;
+    void BuildSystemPrompt(std::vector<common_chat_msg>& out,
+                           const std::vector<SystemSchema>& system) const;
+    void BuildMessagePrompt(std::vector<common_chat_msg>& out,
+                            const std::vector<MessageSchema>& messages) const;
+    void BuildToolsPrompt(std::vector<common_chat_tool>& out,
+                          const std::vector<ToolsSchema>& tools) const;
+    std::string BuildFallbackPrompt(
+        const std::vector<common_chat_msg>& messages) const;
+    bool TokenizePrompt(const std::string& prompt, int max_tokens,
+                        std::vector<llama_token>& out_tokens,
+                        int& out_n_tokens, std::string& error_msg) const;
+    bool PrefillPrompt(std::vector<llama_token>& prompt_tokens,
+                       int n_prompt, ChatResponse& response);
+    ChatResponse GenerateReply(
+        const ChatRequest& request,
+        std::function<void(StreamEvent, std::string)>& callback,
+        int n_prompt);
+
+public:
+    /// Process a token frame: detect markers, emit stream events,
+    /// and emit normal text directly based on thinking/content mode.
+    /// Also handles streaming tool call detection.
+    /// Returns true if a marker was found (caller should continue);
+    /// false if caller should perform normal decode.
+    bool ProcessTokenFrame(
+        const std::string& raw,
+        bool& thinking, bool& in_tool_call, bool& response_done,
+        std::string& tool_call_buffer,
+        ChatResponse& response,
+        std::function<void(StreamEvent, std::string)>& callback);
 };
 
 }  // namespace prosophor

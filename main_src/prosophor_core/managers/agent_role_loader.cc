@@ -87,6 +87,10 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
     // Role-level thinking: if explicitly set in role JSON, it takes priority over model config
     if (llm && llm->contains("thinking"))
         role.thinking = (*llm)["thinking"].get<bool>();
+    if (llm && llm->contains("thinking_budget_tokens"))
+        role.thinking_budget_tokens = (*llm)["thinking_budget_tokens"].get<int>();
+    if (llm && llm->contains("reasoning_effort"))
+        role.reasoning_effort = (*llm)["reasoning_effort"].get<std::string>();
 
     // Support combined "provider:model" format in model field
     if (!role.model.empty()) {
@@ -153,9 +157,14 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
                 // Model config's thinking is a fallback; role JSON's thinking takes priority
                 if (!llm || !llm->contains("thinking"))
                     role.thinking = model_it->second.thinking;
-                LOG_DEBUG("Role '{}' using model='{}' from provider '{}': temperature={}, max_tokens={}, context_window={}, enable_streaming={}",
+                if (!llm || !llm->contains("thinking_budget_tokens"))
+                    role.thinking_budget_tokens = model_it->second.thinking_budget_tokens;
+                if (!llm || !llm->contains("reasoning_effort"))
+                    role.reasoning_effort = model_it->second.reasoning_effort;
+                LOG_DEBUG("Role '{}' using model='{}' from provider '{}': temperature={}, max_tokens={}, context_window={}, enable_streaming={}, thinking={}, thinking_budget_tokens={}, reasoning_effort={}",
                          role.id, model_it->second.model, provider_to_use,
-                         role.temperature, role.max_tokens, role.context_window, role.enable_streaming);
+                         role.temperature, role.max_tokens, role.context_window, role.enable_streaming,
+                         role.thinking, role.thinking_budget_tokens, role.reasoning_effort);
             } else {
                 LOG_WARN("Role {}: no models configured in provider '{}', using hardcoded defaults", role.id, provider_to_use);
             }
@@ -266,6 +275,7 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
     }
 
     role.max_iterations = llm_config->value("max_iterations", 15);
+    role.enable_tools = llm_config->value("enable_tools", true);
     role.auto_confirm_tools = llm_config->value("auto_confirm_tools", false);
     role.enable_streaming = llm_config->value("enable_streaming", true);
     role.enable_summary = llm_config->value("enable_summary", true);
@@ -280,6 +290,11 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
     if (!tools_explicitly_configured && role.tools.empty()) {
         auto& tool_registry = ToolRegistry::GetInstance();
         role.tools = tool_registry.GetToolSchemas();
+    }
+
+    // 如果禁用了工具，清空工具列表
+    if (!role.enable_tools) {
+        role.tools.clear();
     }
 
     // 初始化默认对话策略

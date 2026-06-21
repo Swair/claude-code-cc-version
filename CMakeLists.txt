@@ -156,9 +156,9 @@ else()
     )
 endif()
 FetchContent_MakeAvailable(nlohmann_json)
-# Required dependencies
-find_package(CURL REQUIRED)
+
 find_package(OpenSSL REQUIRED)
+find_package(CURL REQUIRED)
 find_package(OpenMP)
 
 add_subdirectory(main_src)
@@ -184,7 +184,7 @@ if(WIN32 AND MINGW)
     # Use compiler's directory to find MinGW DLLs (more reliable than MINGW_PREFIX env var)
     get_filename_component(MINGW_BIN_DIR ${CMAKE_CXX_COMPILER} DIRECTORY)
 
-    # All runtime DLLs (prosophor direct deps + libcurl transitive deps)
+    # Runtime DLLs
     install(FILES
         "${MINGW_BIN_DIR}/libcurl-4.dll"
         "${MINGW_BIN_DIR}/libgcc_s_seh-1.dll"

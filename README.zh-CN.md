@@ -13,7 +13,6 @@
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue?logo=cplusplus&logoColor=white)](https://en.cppreference.com/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)]()
-<img width="1604" height="847" alt="07195d907b1b3bc15a9be862d5304260" src="https://github.com/user-attachments/assets/dd2062f2-1bb3-4ff5-83c0-e12b0a229cc9" />
 
 </div>
 
@@ -407,6 +406,13 @@ MCP 客户端可以连接服务器（stdio、SSE 或 WebSocket）、发现工具
 
 当使用 `PROSOPHOR_SDL_UI=ON` 构建时，Prosophor 启动为 **桌面精灵** 应用程序，基于 SDL3 构建。
 
+<div align="center">
+
+![SDL 桌面精灵](docs/images/show.png)
+**SDL 桌面精灵 — 透明精灵窗口、语音气泡和角色动画**
+
+</div>
+
 ### 架构
 
 ```
@@ -458,6 +464,53 @@ Agent 状态观察器将运行时状态映射到视觉属性：`THINKING` 触发
 ---
 
 ## 上下文压缩与记忆
+
+### FixedBuffer — 环形缓冲区模式
+
+引擎中广泛使用的核心工具——固定容量、无锁的循环缓冲区。`FixedBuffer<T, kCapacity>` 始终保留最近的 `kCapacity` 项，满时覆盖最旧的项——适用于滑动窗口上下文、最近消息历史、音频采样缓冲区和日志滚动。
+
+**三种运行状态**：
+
+<div align="center">
+
+| 填充中（未满） | 已满（稳态） | 覆盖（回绕） |
+|:---:|:---:|:---:|
+| ![环形缓冲区 Case 1](docs/images/ringbuf_case_1.png) | ![环形缓冲区 Case 2](docs/images/ringbuf_case_2.png) | ![环形缓冲区 Case 3](docs/images/ringbuf_case_3.png) |
+
+</div>
+
+实现代码来自 `main_src/common/list_buffer.h`：
+
+```cpp
+template<typename T, int kCapacity>
+class FixedBuffer {
+public:
+    void Push(const T& item) {
+        data_[head_] = item;
+        head_ = (head_ + 1) % kCapacity;
+        if (count_ < kCapacity) count_++;
+    }
+
+    std::vector<T> ReadAll() const {
+        std::vector<T> out;
+        if (count_ == 0) return out;
+        out.reserve(count_);
+        int start = (head_ - count_ + kCapacity) % kCapacity;
+        for (int i = 0; i < count_; i++)
+            out.push_back(data_[(start + i) % kCapacity]);
+        return out;
+    }
+
+private:
+    T data_[kCapacity];
+    int head_ = 0;    // 下一个写入位置
+    int count_ = 0;   // 已存储元素个数
+};
+```
+
+- **Case 1（`count_ < kCapacity`）**：缓冲区未满——`Push()` 写入 `head_` 位置，递增 `head_` 和 `count_`，不覆盖已有数据。
+- **Case 2（`count_ == kCapacity`）**：缓冲区已满——后续 `Push()` 从数组开头（索引 0）开始覆盖旧数据。
+- **Case 3（`head_` 回绕）**：到达数组末尾后，`head_` 通过模运算回绕到 0，`ReadAll()` 按插入顺序重建所有元素。
 
 ### DialogStrategy
 

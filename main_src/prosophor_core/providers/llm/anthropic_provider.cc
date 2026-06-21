@@ -21,13 +21,15 @@ namespace prosophor {
 static void ApplyThinkingParams(nlohmann::json& payload_json,
      const ChatRequest& request) {
     if (request.thinking) {
+        int budget = request.thinking_budget_tokens;
+        if (budget <= 0 || budget >= request.max_tokens) {
+            budget = request.max_tokens / 2;
+            if (budget < 1) budget = 1;
+        }
         payload_json["thinking"] = nlohmann::json::object();
         payload_json["thinking"]["type"] = "enabled";
-        payload_json["thinking"]["budget_tokens"] = 4096;
+        payload_json["thinking"]["budget_tokens"] = budget;
         payload_json["temperature"] = 1;
-        if (request.max_tokens <= 4096) {
-            payload_json["max_tokens"] = 4096 + 4096;
-        }
     }
     else {
         // Ensure thinking is disabled if not requested
@@ -238,7 +240,7 @@ std::string AnthropicProvider::Serialize(const ChatRequest& request) const {
 
     ApplyThinkingParams(payload_json, request);
 
-    LOG_DEBUG("Request body:\n {}", payload_json.dump(4));
+    // LOG_DEBUG("Request body:\n {}", payload_json.dump(4));
 
     return payload_json.dump();
 }
@@ -302,7 +304,6 @@ ChatResponse AnthropicProvider::Deserialize(const std::string& json_str) const {
         for (const auto& block : response_json["content"]) {
             std::string block_type = block.value("type", "");
             if (block_type == "thinking") {
-                result.has_thinking = true;
                 result.AddThinking(block.value("thinking", ""));
                 std::string sig = block.value("signature", "");
                 if (!sig.empty()) {
@@ -344,7 +345,7 @@ void AnthropicProvider::PrintRequestLog(const ChatRequest& request) const {
     LOG_DEBUG("System blocks: {}", request.system.size());
     LOG_DEBUG("Tools count: {}", request.tools.size());
     LOG_DEBUG("Streaming: {}", request.stream);
-    LOG_DEBUG("Thinking: {}", request.thinking);
+    LOG_DEBUG("Thinking: {}, budget_tokens: {}", request.thinking, request.thinking_budget_tokens);
     LOG_DEBUG("Headers:");
     LOG_DEBUG("  Content-Type: application/json");
     LOG_DEBUG("  x-api-key: {}", request.api_key.substr(0, 8) + "...");

@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cctype>
 #include <csignal>
+#include <clocale>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -101,10 +102,6 @@ std::string Platform::ReadLine() {
 #endif
 }
 
-std::string Platform::HomeDir() {
-    return GetHomeDir();
-}
-
 std::wstring Platform::Utf8ToWide(const std::string& utf8_str) {
 #ifdef _WIN32
     int wide_len = MultiByteToWideChar(CP_UTF8, 0, utf8_str.c_str(), -1, nullptr, 0);
@@ -122,6 +119,11 @@ void Platform::SetConsoleUtf8() {
 #ifdef _WIN32
     SetConsoleOutputCP(CP_UTF8);
     SetConsoleCP(CP_UTF8);
+
+    // Tell the C/C++ runtime to use UTF-8, so that std::cout and friends
+    // pass UTF-8 bytes through without GBK conversion (critical in msys2/mingw).
+    // "en_US.UTF-8" works on msys2; ".UTF8" works on MSVC/CoreApp.
+    setlocale(LC_ALL, "en_US.UTF-8");
 
     // Enable ANSI/VT escape sequence processing (Windows 10+)
     HANDLE h_out = GetStdHandle(STD_OUTPUT_HANDLE);

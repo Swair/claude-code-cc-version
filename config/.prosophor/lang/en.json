@@ -48,6 +48,8 @@
   "ctx_chat": "Chat",
   "ctx_show_main": "Show Main Window",
   "ctx_settings": "Settings",
+  "ctx_enable_tools": "Enable Tools",
+  "ctx_disable_tools": "Disable Tools",
   "ctx_quit": "Quit",
 
   "nav_prev": "Prev",

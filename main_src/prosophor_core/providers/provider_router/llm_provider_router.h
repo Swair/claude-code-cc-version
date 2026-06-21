@@ -11,7 +11,9 @@
 #include "providers/llm/anthropic_provider.h"
 #include "providers/llm/openai_provider.h"
 #include "providers/llm/ollama_provider.h"
+#ifdef PROSOPHOR_HAS_LOCAL_MODEL
 #include "providers/llm/llamacpp_provider.h"
+#endif
 #include "config/config.h"
 
 namespace prosophor {

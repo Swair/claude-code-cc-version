@@ -555,7 +555,11 @@ std::vector<SystemSchema> AgentSessionManager::BuildSystemPrompt(const AgentSess
         }
     }
 
-    // 4. 对话摘要指令
+    // 4. 行为指令
+    prompt << "\n## 行为指令\n\n"
+           << "执行完一步后立刻进入下一步，不要重复确认。\n";
+
+    // 5. 对话摘要指令
     if (session.GetRole() && session.GetRole()->enable_summary) {
         prompt << "\n每次对话结束时，请在回复末尾添加 [摘要] 标签，然后是对本轮及历史对话的摘要。\n"
                << "摘要按贝尔曼衰减方式生成：\n"

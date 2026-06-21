@@ -48,6 +48,8 @@
   "ctx_chat": "对话",
   "ctx_show_main": "显示主窗口",
   "ctx_settings": "设置",
+  "ctx_enable_tools": "启用工具",
+  "ctx_disable_tools": "禁用工具",
   "ctx_quit": "退出",
 
   "nav_prev": "上一个",

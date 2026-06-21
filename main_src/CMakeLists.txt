@@ -28,6 +28,10 @@ else()
 endif()
 list(APPEND CORE_SOURCES_ALL ${PLATFORM_SOURCES})
 
+if(NOT PROSOPHOR_BUILD_LLAMA)
+    list(FILTER CORE_SOURCES_ALL EXCLUDE REGEX "llamacpp_provider\\.cc$")
+endif()
+
 add_library(prosophor_core STATIC ${CORE_SOURCES_ALL})
 
 target_include_directories(prosophor_core

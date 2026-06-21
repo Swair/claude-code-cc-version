@@ -96,7 +96,6 @@ struct OpenAIStreamHandler : public SseStreamHandler {
             std::string rc = rc_it->get<std::string>();
             if (!rc.empty()) {
                 TransitionPhase(StreamPhase::kThinking);
-                accumulated_response.has_thinking = true;
                 accumulated_response.content_thinking += rc;
                 stream_callback(StreamEvent::kThinkingDelta, std::move(rc));
             }

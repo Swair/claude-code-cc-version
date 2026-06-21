@@ -5,25 +5,17 @@
 #include "common/log_wrapper.h"
 #include "common/thread_pool.h"
 #include "common/time_wrapper.h"
-
-#ifdef PROSOPHOR_HAS_LOCAL_MODEL
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshadow"
-#pragma GCC diagnostic ignored "-Wunused-function"
-#include "llama.h"
 #include "common/reasoning-budget.h"
 #include "common/chat-auto-parser.h"
-#include "common/chat.h"
-#include "ggml-backend.h"
 #pragma GCC diagnostic pop
 
 // Redirect llama.cpp log output to spdlog so it doesn't flood the TUI terminal.
-// Called once before any llama API.
 static void llama_log_to_spdlog(ggml_log_level level,
                                  const char*    text,
                                  void*          /*user_data*/) {
     if (!text || text[0] == '\0') return;
-    // Strip trailing newline for cleaner spdlog output
     std::string msg(text);
     if (!msg.empty() && msg.back() == '\n') msg.pop_back();
     if (msg.empty()) return;
@@ -34,7 +26,6 @@ static void llama_log_to_spdlog(ggml_log_level level,
         default:                   LOG_DEBUG("[llama] {}", msg); break;
     }
 }
-#endif
 
 #include <algorithm>
 #include <chrono>
@@ -43,65 +34,29 @@ static void llama_log_to_spdlog(ggml_log_level level,
 
 namespace prosophor {
 
-// PIMPL to keep llama.h C types out of the public header.
-struct LlamacppProvider::Impl {
-#ifdef PROSOPHOR_HAS_LOCAL_MODEL
-    llama_model*        model   = nullptr;
-    llama_context*      ctx     = nullptr;
-    llama_sampler*      sampler = nullptr;
-    const llama_vocab*  vocab   = nullptr;   // owned by model, do not free
-
-    // Thinking/reasoning markers detected from chat template
-    std::string reason_start;
-    std::string reason_end;
-    bool        has_reasoning_markers = false;
-    bool        thinking_enabled      = false;
-
-    // Compiled chat template for proper prompt rendering with thinking support
-    common_chat_templates_ptr chat_tmpls;
-
-    ~Impl() { Release(); }
-
-    void Release() {
-        if (sampler) { llama_sampler_free(sampler); sampler = nullptr; }
-        if (ctx)     { llama_free(ctx);              ctx     = nullptr; }
-        if (model)   { llama_model_free(model);      model   = nullptr; }
-        vocab = nullptr;
-    }
-#endif
-};
-
-// Convert KV cache type string to ggml_type enum.
-// Config accepts "f16" (2 bytes), "q8_0" (1 byte), "q4_0" (0.5 byte, default).
-#ifdef PROSOPHOR_HAS_LOCAL_MODEL
 static ggml_type kv_cache_type_from_string(const std::string& s) {
     if (s == "q8_0") return GGML_TYPE_Q8_0;
     if (s == "f16")  return GGML_TYPE_F16;
     return GGML_TYPE_Q4_0;
 }
-#endif
 
 LlamacppProvider::LlamacppProvider(const LlamacppModelConfig& cfg)
-    : impl_(std::make_unique<Impl>()), cfg_(cfg) {}
+    : cfg_(cfg) {}
 
 LlamacppProvider::~LlamacppProvider() {
     if (load_future_.valid()) {
         load_future_.wait();
     }
+    Release();
 }
 
 bool LlamacppProvider::Load() {
-#ifndef PROSOPHOR_HAS_LOCAL_MODEL
-    LOG_ERROR("[local] Built without PROSOPHOR_BUILD_LLAMA");
-    return false;
-#else
     bool expected = false;
     if (!loading_.compare_exchange_strong(expected, true)) {
         LOG_WARN("[local] Load already in progress");
         return false;
     }
 
-    // If already loaded, just return
     if (loaded_) {
         loading_ = false;
         return true;
@@ -126,7 +81,7 @@ bool LlamacppProvider::Load() {
             mparams.n_gpu_layers = cfg_.n_gpu_layers;
 
             // Route MoE expert weights to CPU to save VRAM (needed for large MoE models
-            // like Qwen 35B-A3B on 8GB GPUs; no effect on dense models like Gemma).
+            // like Qwen 35B-A3B on 8GB GPUs; no effect on dense models).
             llama_model_tensor_buft_override moe_overrides[2] = {};
             if (cfg_.cpu_moe) {
                 moe_overrides[0] = llm_ffn_exps_cpu_override();
@@ -139,14 +94,14 @@ bool LlamacppProvider::Load() {
             }
 
             std::lock_guard<std::mutex> lock(model_mutex_);
-            impl_->model = llama_model_load_from_file(path.c_str(), mparams);
-            if (!impl_->model) {
+            model_ = llama_model_load_from_file(path.c_str(), mparams);
+            if (!model_) {
                 LOG_ERROR("[local] Failed to load: {}", path);
                 load_error_msg_ = "Failed to load model: " + path;
                 loading_ = false;
                 return;
             }
-            impl_->vocab = llama_model_get_vocab(impl_->model);
+            vocab_ = llama_model_get_vocab(model_);
 
             llama_context_params cparams = llama_context_default_params();
             cparams.n_ctx           = static_cast<uint32_t>(cfg_.context_window);
@@ -162,62 +117,66 @@ bool LlamacppProvider::Load() {
             cparams.flash_attn_type = cfg_.flash_attn
                                       ? LLAMA_FLASH_ATTN_TYPE_ENABLED
                                       : LLAMA_FLASH_ATTN_TYPE_DISABLED;
-            impl_->ctx = llama_init_from_model(impl_->model, cparams);
-            if (!impl_->ctx) {
+            ctx_ = llama_init_from_model(model_, cparams);
+            if (!ctx_) {
                 LOG_ERROR("[local] Failed to create context");
                 load_error_msg_ = "Failed to create context";
-                impl_->Release();
+                Release();
                 loading_ = false;
                 return;
             }
 
             llama_sampler_chain_params sparams = llama_sampler_chain_default_params();
-            impl_->sampler = llama_sampler_chain_init(sparams);
+            sampler_ = llama_sampler_chain_init(sparams);
             if (cfg_.min_p > 0.0f) {
-                llama_sampler_chain_add(impl_->sampler, llama_sampler_init_min_p(cfg_.min_p, 1));
+                llama_sampler_chain_add(sampler_, llama_sampler_init_min_p(cfg_.min_p, 1));
             }
-            llama_sampler_chain_add(impl_->sampler, llama_sampler_init_temp(cfg_.temperature));
-            llama_sampler_chain_add(impl_->sampler,
+            llama_sampler_chain_add(sampler_, llama_sampler_init_temp(cfg_.temperature));
+            llama_sampler_chain_add(sampler_,
                 cfg_.seed >= 0
                     ? llama_sampler_init_dist(static_cast<uint32_t>(cfg_.seed))
                     : llama_sampler_init_dist(LLAMA_DEFAULT_SEED));
 
-            // Initialize the full chat template for proper prompt rendering (supports thinking).
-            impl_->chat_tmpls = common_chat_templates_init(impl_->model, "");
-            if (impl_->chat_tmpls) {
+            // Initialize chat template for proper prompt rendering
+            chat_tmpls_ = common_chat_templates_init(model_, "");
+            if (chat_tmpls_) {
                 LOG_DEBUG("[local] Chat template initialized");
             }
 
             // Detect thinking/reasoning markers from the model's chat template.
-            if (cfg_.thinking) {
-                try {
-                    const char* tmpl_str = llama_model_chat_template(impl_->model, nullptr);
-                    if (tmpl_str && tmpl_str[0]) {
-                        char buf[64];
-                        int n;
-                        n = llama_token_to_piece(impl_->vocab, llama_vocab_bos(impl_->vocab),
-                                                 buf, (int32_t)sizeof(buf), 0, true);
-                        std::string bos(n > 0 ? std::string(buf, (size_t)n) : "");
-                        n = llama_token_to_piece(impl_->vocab, llama_vocab_eos(impl_->vocab),
-                                                 buf, (int32_t)sizeof(buf), 0, true);
-                        std::string eos(n > 0 ? std::string(buf, (size_t)n) : "");
+            // Falls back to configured reason_start/reason_end if auto-detection fails.
+            try {
+                const char* tmpl_str = llama_model_chat_template(model_, nullptr);
+                if (tmpl_str && tmpl_str[0]) {
+                    char buf[64];
+                    int n;
+                    n = llama_token_to_piece(vocab_, llama_vocab_bos(vocab_),
+                                             buf, (int32_t)sizeof(buf), 0, true);
+                    std::string bos(n > 0 ? std::string(buf, (size_t)n) : "");
+                    n = llama_token_to_piece(vocab_, llama_vocab_eos(vocab_),
+                                             buf, (int32_t)sizeof(buf), 0, true);
+                    std::string eos(n > 0 ? std::string(buf, (size_t)n) : "");
 
-                        common_chat_template chat_tmpl(tmpl_str, bos, eos);
-                        autoparser::analyze_reasoning reasoning(chat_tmpl, /*supports_tools=*/false);
+                    common_chat_template chat_tmpl(tmpl_str, bos, eos);
+                    autoparser::analyze_reasoning reasoning(chat_tmpl, /*supports_tools=*/false);
 
-                        impl_->has_reasoning_markers = (reasoning.mode != autoparser::reasoning_mode::NONE);
-                        impl_->reason_start          = reasoning.start;
-                        impl_->reason_end            = reasoning.end;
-                        impl_->thinking_enabled      = true;
-
-                        LOG_INFO("[local] Reasoning markers: mode={} start='{}' end='{}'",
-                                 static_cast<int>(reasoning.mode),
-                                 reasoning.start, reasoning.end);
+                    if (reasoning.mode != autoparser::reasoning_mode::NONE) {
+                        thinking_start_ = reasoning.start;
+                        thinking_end_   = reasoning.end;
                     }
-                } catch (const std::exception& e) {
-                    LOG_WARN("[local] Reasoning marker detection failed: {}", e.what());
                 }
+            } catch (const std::exception& e) {
+                LOG_WARN("[local] Reasoning marker detection failed: {}", e.what());
             }
+
+            // Configured markers override auto-detection
+            if (!cfg_.thinking_start.empty()) { thinking_start_ = cfg_.thinking_start; }
+            if (!cfg_.thinking_end.empty())   { thinking_end_   = cfg_.thinking_end;   }
+
+            thinking_enabled_ = !thinking_start_.empty();
+
+            LOG_INFO("[local] Reasoning markers: start='{}' end='{}'",
+                     thinking_start_, thinking_end_);
 
             loaded_ = true;
             loading_ = false;
@@ -231,101 +190,492 @@ bool LlamacppProvider::Load() {
     });
 
     return true;
-#endif
 }
 
 void LlamacppProvider::Unload() {
     if (load_future_.valid()) {
         load_future_.wait();
     }
-#ifdef PROSOPHOR_HAS_LOCAL_MODEL
     {
         std::lock_guard<std::mutex> lock(model_mutex_);
-        impl_->Release();
+        Release();
     }
     loaded_ = false;
     loading_ = false;
     load_error_msg_.clear();
     LOG_INFO("[local] Model unloaded");
-#endif
+}
+
+void LlamacppProvider::Release() {
+    if (sampler_) { llama_sampler_free(sampler_); sampler_ = nullptr; }
+    if (ctx_)     { llama_free(ctx_);              ctx_     = nullptr; }
+    if (model_)   { llama_model_free(model_);      model_   = nullptr; }
+    vocab_ = nullptr;
 }
 
 bool LlamacppProvider::IsLoaded() const { return loaded_; }
-
 bool LlamacppProvider::IsLoading() const { return loading_; }
-
 std::string LlamacppProvider::GetLoadError() const { return load_error_msg_; }
 
-std::string LlamacppProvider::BuildPrompt(const ChatRequest& request) const {
-#ifndef PROSOPHOR_HAS_LOCAL_MODEL
-    return {};
-#else
-    if (!impl_->model) return {};
+common_chat_params LlamacppProvider::BuildChatParams(const ChatRequest& request) const {
+    common_chat_params result;
+    if (!model_) return result;
 
-    // Prefer compiled chat template (supports thinking via enable_thinking)
-    if (impl_->chat_tmpls) {
+    common_chat_templates_inputs inputs;
+    inputs.add_generation_prompt = true;
+    inputs.enable_thinking       = request.thinking;
+    inputs.use_jinja             = true;
+    inputs.add_bos               = false;
+
+    BuildSystemPrompt(inputs.messages, request.system);
+    BuildMessagePrompt(inputs.messages, request.messages);
+    if (!request.tools.empty()) {
+        BuildToolsPrompt(inputs.tools, request.tools);
+        inputs.tool_choice = request.tool_choice_auto
+            ? COMMON_CHAT_TOOL_CHOICE_AUTO
+            : COMMON_CHAT_TOOL_CHOICE_REQUIRED;
+    }
+
+    if (chat_tmpls_) {
         try {
-            common_chat_templates_inputs inputs;
-            inputs.add_generation_prompt = true;
-            inputs.enable_thinking       = cfg_.thinking;
-            inputs.use_jinja             = true;
-            inputs.add_bos               = false;
-
-            std::vector<common_chat_msg> msgs;
-            for (const auto& s : request.system) {
-                if (s.text.empty()) { continue; }
-                common_chat_msg m;
-                m.role    = "system";
-                m.content = s.text;
-                msgs.push_back(std::move(m));
-            }
-            for (const auto& m : request.messages) {
-                std::string text = m.text();
-                if (text.empty()) { continue; }
-                common_chat_msg cm;
-                cm.role    = m.role;
-                cm.content = std::move(text);
-                msgs.push_back(std::move(cm));
-            }
-            inputs.messages = std::move(msgs);
-
-            auto result = common_chat_templates_apply(impl_->chat_tmpls.get(), inputs);
-            if (!result.prompt.empty()) {
-                LOG_DEBUG("[local] Built prompt via common_chat_templates_apply ({} bytes, thinking={})",
-                         result.prompt.size(), result.supports_thinking);
-                return result.prompt;
-            }
+            result = common_chat_templates_apply(chat_tmpls_.get(), inputs);
         } catch (const std::exception& e) {
             LOG_WARN("[local] common_chat_templates_apply failed: {}", e.what());
         }
     }
 
-    // Fallback: use raw llama_chat_apply_template (no thinking support)
-    struct MsgStore { std::string role; std::string content; };
-    std::vector<MsgStore>          store;
+    if (result.prompt.empty()) {
+        result.prompt = BuildFallbackPrompt(inputs.messages);
+    }
+
+
+    return result;
+}
+
+// ── TokenizePrompt ────────────────────────────────────────────────────
+
+bool LlamacppProvider::TokenizePrompt(const std::string& prompt, int max_tokens,
+                                       std::vector<llama_token>& out_tokens,
+                                       int& out_n_tokens, std::string& error_msg) const {
+    const int n_vocab_tokens = llama_vocab_n_tokens(vocab_);
+    out_tokens.resize(std::max(static_cast<int>(prompt.size()), n_vocab_tokens));
+    int n_prompt = llama_tokenize(
+        vocab_,
+        prompt.c_str(), static_cast<int32_t>(prompt.size()),
+        out_tokens.data(), static_cast<int32_t>(out_tokens.size()),
+        /*add_special=*/true,
+        /*parse_special=*/true);
+    if (n_prompt < 0) {
+        error_msg = "Tokenize failed";
+        return false;
+    }
+    out_tokens.resize(static_cast<size_t>(n_prompt));
+    out_n_tokens = n_prompt;
+
+    uint32_t n_ctx_max = llama_n_ctx(ctx_);
+    uint32_t n_reserve = static_cast<uint32_t>(max_tokens > 0 ? max_tokens : cfg_.max_tokens);
+    if (static_cast<uint32_t>(n_prompt) + n_reserve > n_ctx_max) {
+        int allowed = static_cast<int>(n_ctx_max - n_reserve);
+        if (allowed > 0) {
+            int trim = n_prompt - allowed;
+            LOG_WARN("[local] Prompt {} tokens exceeds available context ({}), trimming {} tokens from head",
+                     n_prompt, n_ctx_max - n_reserve, trim);
+            out_tokens.erase(out_tokens.begin(),
+                             out_tokens.begin() + std::min(trim, n_prompt - 1));
+            out_n_tokens = static_cast<int>(out_tokens.size());
+        } else {
+            error_msg = "Prompt exceeds context window even with zero reserve";
+            return false;
+        }
+    }
+    return true;
+}
+
+void LlamacppProvider::PrintRequestLog(const ChatRequest& request) const {
+    LOG_DEBUG("=== [local] Request ===");
+    LOG_DEBUG("Model: {}", cfg_.model_path);
+    LOG_DEBUG("Max tokens: {}", request.max_tokens);
+    LOG_DEBUG("Temperature: {}", request.temperature);
+    LOG_DEBUG("Thinking: {}, budget_tokens: {}", request.thinking, request.thinking_budget_tokens);
+    LOG_DEBUG("Reasoning effort: {}", request.reasoning_effort);
+    LOG_DEBUG("Messages count: {}", request.messages.size());
+    LOG_DEBUG("System blocks: {}", request.system.size());
+    LOG_DEBUG("Tools count: {}", request.tools.size());
+    LOG_DEBUG("Streaming: {}", request.stream);
+    LOG_DEBUG("Context window: {}  n_gpu_layers: {}", cfg_.context_window, cfg_.n_gpu_layers);
+    LOG_DEBUG("n_batch: {}  threads: {}", cfg_.n_batch, cfg_.threads);
+}
+
+HeaderList LlamacppProvider::CreateHeaders(const ChatRequest&) const { return {}; }
+
+std::string LlamacppProvider::Serialize(const ChatRequest&) const {
+    LOG_DEBUG("[local] Serialize called (stub)");
+    return {};
+}
+
+ChatResponse LlamacppProvider::Deserialize(const std::string&) const {
+    LOG_DEBUG("[local] Deserialize called (stub)");
+    return {};
+}
+
+bool LlamacppProvider::PrefillPrompt(
+    std::vector<llama_token>& prompt_tokens,
+    int n_prompt, ChatResponse& response)
+{
+    uint32_t batch_max = llama_n_batch(ctx_);
+    LOG_DEBUG("[local] Prefill: {} tokens (n_batch={})", n_prompt, batch_max);
+
+    int32_t batch_sz = static_cast<int32_t>(batch_max);
+    for (int32_t i = 0; i < n_prompt; i += batch_sz) {
+        int32_t n_tokens = std::min(batch_sz, n_prompt - i);
+        llama_batch batch = llama_batch_get_one(prompt_tokens.data() + i, n_tokens);
+        if (llama_decode(ctx_, batch) != 0) {
+            response.error_msg = "llama_decode (prefill) failed";
+            return false;
+        }
+    }
+    return true;
+}
+
+// ── GenerateReply ─────────────────────────────────────────────────────
+//
+// Token-by-token generation loop with:
+//  - Pending buffer to handle thinking markers that span BPE subword boundaries
+//  - <end_of_turn>/<start_of_turn> detection for Gemma-style models
+//  - Thinking/content separation via markers from chat template
+
+ChatResponse LlamacppProvider::GenerateReply(
+    const ChatRequest& request,
+    std::function<void(StreamEvent, std::string)>& callback,
+    int n_prompt)
+{
+    const int max_new = request.max_tokens > 0 ? request.max_tokens : cfg_.max_tokens;
+    ChatResponse response;
+
+    bool  in_thinking   = false;
+    bool  in_tool_call  = false;
+    bool  response_done = false;
+    int   n_generated   = 0;
+    std::string tool_call_buffer;
+
+    callback(StreamEvent::kContentStart, {});
+
+    char  token_frame[256];
+
+    auto NextToken = [&](llama_token& out_token, std::string& out_text) -> bool {
+        out_token = llama_sampler_sample(sampler_, ctx_, -1);
+        if (llama_vocab_is_eog(vocab_, out_token)) {
+            LOG_DEBUG("[local] EOG token {} hit, stopping (n_generated={})", out_token, n_generated);
+            return false;
+        }
+        int n = llama_token_to_piece(vocab_, out_token, token_frame,
+                                     static_cast<int32_t>(sizeof(token_frame)),
+                                     /*lstrip=*/0, /*special=*/true);
+        out_text.assign(token_frame, static_cast<size_t>(n > 0 ? n : 0));
+        return true;
+    };
+
+    auto UpdateKvCache = [&](llama_token t) -> bool {
+        llama_batch batch = llama_batch_get_one(&t, 1);
+        if (llama_decode(ctx_, batch) != 0) { return false; }
+        ++n_generated;
+        return true;
+    };
+
+    LOG_DEBUG("[local] Starting generation loop with max_new={} tokens", max_new);
+    while (n_generated < max_new) {
+        llama_token token;
+        std::string token_frame_str;
+        if (!NextToken(token, token_frame_str)) break;
+
+        if (!token_frame_str.empty()) {
+            // LOG_INFO("n_generated={}, token_frame_str={}", n_generated, token_frame_str);
+            if (ProcessTokenFrame(token_frame_str,
+                                  in_thinking, in_tool_call, response_done,
+                                  tool_call_buffer, response, callback) && response_done) {
+                    break;
+            }
+        }
+
+        if (!UpdateKvCache(token)) { break; }
+    }
+
+    // Finalize
+    if (!response_done) {
+        if (in_thinking) { callback(StreamEvent::kThinkingEnd, {}); }
+        else if (in_tool_call) { callback(StreamEvent::kToolEnd, {}); }
+        else          { callback(StreamEvent::kContentEnd, {}); }
+    }
+
+    // Parse tool calls from buffered text
+    if (!tool_call_buffer.empty()) {
+        LOG_INFO("[local] Finalizing tool call from buffer: '{}'", tool_call_buffer);
+        ParseToolCalls(response, tool_call_buffer);
+    }
+
+    response.usage.prompt_tokens     = n_prompt;
+    response.usage.completion_tokens = n_generated;
+    response.usage.total_tokens      = n_prompt + n_generated;
+
+    response.stop_reason = (n_generated >= max_new) ? "max_tokens" : "stop";
+    if (!response.tool_calls.empty()) {
+        response.stop_reason = "tool_calls";
+    }
+
+    LOG_DEBUG("[local] Done: {} tokens generated", n_generated);
+    return response;
+}
+
+// ── Stream ──────────────────────────────────────────────────
+
+bool LlamacppProvider::ProcessTokenFrame(
+    const std::string& raw,
+    bool& in_thinking, bool& in_tool_call, bool& response_done,
+    std::string& tool_call_buffer,
+    ChatResponse& response,
+    std::function<void(StreamEvent, std::string)>& callback)
+{
+    // --- end_of_turn / start_of_turn ---
+    if (!cfg_.end_of_turn.empty() && raw.find(cfg_.end_of_turn) != std::string::npos) {
+        if (!in_tool_call) { callback(StreamEvent::kContentEnd, {}); }
+        response_done = true;
+        return true;
+    }
+    if (!cfg_.start_of_turn.empty() && raw.find(cfg_.start_of_turn) != std::string::npos) {
+        if (!in_tool_call) { callback(StreamEvent::kContentStart, {}); }
+        response_done = true;
+        return true;
+    }
+
+    // --- tool call end marker ---
+    if (in_tool_call && !cfg_.tool_call_end.empty() &&
+        raw.find(cfg_.tool_call_end) != std::string::npos) {
+        in_tool_call = false;
+        callback(StreamEvent::kToolEnd, {});
+        LOG_INFO("[local] Exiting tool use mode");
+        return true;
+    }
+
+    // --- tool call start marker ---
+    if (!in_tool_call && !cfg_.tool_call_start.empty() &&
+        raw.find(cfg_.tool_call_start) != std::string::npos) {
+        in_tool_call = true;
+        tool_call_buffer.clear();
+        // Emit ContentEnd if there was content before tool call
+        if (!response.content_text.empty() || !response.content_thinking.empty()) {
+            callback(StreamEvent::kContentEnd, {});
+        }
+        callback(StreamEvent::kToolStart, {});
+        LOG_INFO("[local] Entering tool use mode");
+        return true;
+    }
+
+    // --- buffering tool call content ---
+    if (in_tool_call) {
+        tool_call_buffer += raw;
+        callback(StreamEvent::kToolDelta, {});
+        // LOG_INFO("[local] Buffering tool_call_buffer: '{}'", raw);
+        return true;
+    }
+
+    // --- thinking start marker ---
+    if (thinking_enabled_ && !in_thinking && !thinking_start_.empty() &&
+        raw.find(thinking_start_) != std::string::npos) {
+        if (!response.content_text.empty() || !response.content_thinking.empty()) {
+            callback(StreamEvent::kContentEnd, {});
+        }
+        callback(StreamEvent::kThinkingStart, {});
+        in_thinking = true;
+        LOG_DEBUG("[local] Entering thinking mode");
+        return true;
+    }
+
+    // --- thinking end marker ---
+    if (thinking_enabled_ && in_thinking && !thinking_end_.empty() &&
+        raw.find(thinking_end_) != std::string::npos) {
+        callback(StreamEvent::kThinkingEnd, {});
+        callback(StreamEvent::kContentStart, {});
+        in_thinking = false;
+        LOG_DEBUG("[local] Exiting thinking mode");
+        return true;
+    }
+
+    // Normal text: emit directly based on current mode
+    LOG_DEBUG("[local] Generated token frame: '{}'", raw);
+    if (!raw.empty()) {
+        if (in_thinking) {
+            response.AppendThinking(raw);
+            callback(StreamEvent::kThinkingDelta, raw);
+        } else {
+            response.AppendText(raw);
+            callback(StreamEvent::kContentDelta, raw);
+        }
+    }
+    return false;
+}
+
+// ── ChatStream ─────────────────────────────────────────────────────────
+//
+// Build prompt, tokenize, prefill, then generate tokens.
+// Prompt is built via common_chat_templates_apply with thinking support.
+// Thinking markers are extracted from the template result.
+
+ChatResponse LlamacppProvider::ChatStream(
+    const ChatRequest& request,
+    std::function<void(StreamEvent, std::string)> callback) {
+
+    ChatResponse response;
+
+    if (!loaded_) {
+        response.error_msg = "Model not loaded";
+        return response;
+    }
+
+    // Step 1: Build prompt via compiled chat template
+    auto chat_params = BuildChatParams(request);
+    std::string prompt = chat_params.prompt;
+
+    if (prompt.empty()) {
+        response.error_msg = "Empty prompt";
+        return response;
+    }
+    PrintRequestLog(request);
+
+    LOG_DEBUG("[local] Prompt[0:400]={}", prompt.substr(0, 400));
+
+    // Step 2: Tokenize
+    std::vector<llama_token> prompt_tokens;
+    int n_prompt = 0;
+    if (!TokenizePrompt(prompt, request.max_tokens, prompt_tokens, n_prompt, response.error_msg)) {
+        return response;
+    }
+
+    // Step 3: Prefill KV cache
+    llama_memory_clear(llama_get_memory(ctx_), /*data=*/true);
+    auto t_prefill = SteadyClock::Now();
+    if (!PrefillPrompt(prompt_tokens, n_prompt, response))
+        return response;
+    LOG_DEBUG("[local] Prefill done in {} ms", SteadyClock::ElapsedMillis(t_prefill));
+
+    // Step 4: Generate
+    return GenerateReply(request, callback, n_prompt);
+}
+
+ChatResponse LlamacppProvider::Chat(const ChatRequest& request) {
+    return ChatStream(request, [](StreamEvent, std::string) {});
+}
+
+// ── BuildSystemPrompt ────────────────────────────────────────────────
+
+void LlamacppProvider::BuildSystemPrompt(
+    std::vector<common_chat_msg>& out,
+    const std::vector<SystemSchema>& system) const {
+    for (const auto& s : system) {
+        if (s.text.empty()) { continue; }
+        common_chat_msg m;
+        m.role    = "system";
+        m.content = s.text;
+        out.push_back(std::move(m));
+    }
+}
+
+// ── BuildMessagePrompt ──────────────────────────────────────────────
+
+void LlamacppProvider::BuildMessagePrompt(
+    std::vector<common_chat_msg>& out,
+    const std::vector<MessageSchema>& messages) const {
+    for (const auto& m : messages) {
+        common_chat_msg cm;
+        cm.role = m.role;
+        bool has_structured = false;
+        for (const auto& b : m.content) {
+            if (b.type == "text" || b.type == "thinking") {
+                cm.content += b.text;
+            } else if (b.type == "tool_use") {
+                common_chat_tool_call tc;
+                tc.name      = b.name;
+                tc.arguments = b.input.dump();
+                tc.id        = b.tool_use_id;
+                cm.tool_calls.push_back(std::move(tc));
+                has_structured = true;
+            } else if (b.type == "tool_result") {
+                cm.tool_call_id = b.tool_use_id;
+                cm.content      = b.content;
+                cm.role         = "tool";
+                has_structured = true;
+            }
+        }
+        if (!cm.empty() || has_structured) {
+            out.push_back(std::move(cm));
+        }
+    }
+}
+
+// ── BuildToolsPrompt ─────────────────────────────────────────────────
+
+void LlamacppProvider::BuildToolsPrompt(
+    std::vector<common_chat_tool>& out,
+    const std::vector<ToolsSchema>& tools) const {
+    for (const auto& t : tools) {
+        common_chat_tool ct;
+        ct.name        = t.name;
+        ct.description = t.description;
+        ct.parameters  = t.input_schema.dump();
+        out.push_back(std::move(ct));
+    }
+}
+
+// ── BuildFallbackPrompt ─────────────────────────────────────────────
+
+std::string LlamacppProvider::BuildFallbackPrompt(
+    const std::vector<common_chat_msg>& messages) const {
+    struct RenderedMsg { std::string role; std::string content; };
+    auto render = [](const common_chat_msg& cm) -> RenderedMsg {
+        if (!cm.tool_calls.empty()) {
+            std::string content;
+            for (const auto& tc : cm.tool_calls) {
+                if (!content.empty()) content += "\n";
+                content += "<|tool_call>call:" + tc.name + "{";
+                auto args = nlohmann::json::parse(tc.arguments);
+                bool first = true;
+                for (auto& [key, val] : args.items()) {
+                    if (!first) content += ",";
+                    first = false;
+                    // Numbers and booleans don't need <|"|> quotes
+                    if (val.is_number() || val.is_boolean()) {
+                        content += key + ":" + val.dump();
+                    } else {
+                        content += key + ":<|\"|>" + val.dump() + "<|\"|>";
+                    }
+                }
+                content += "}<tool_call|>";
+            }
+            return {"assistant", std::move(content)};
+        }
+        if (!cm.tool_call_id.empty()) {
+            return {"tool", "<|tool_result|>" + cm.content + "<tool_result|>"};
+        }
+        return {cm.role, cm.content};
+    };
+
+    std::vector<RenderedMsg> rendered;
     std::vector<llama_chat_message> msgs;
-
-    std::string sys_text;
-    for (const auto& s : request.system) sys_text += s.text + "\n";
-    if (!sys_text.empty()) {
-        store.push_back({"system", std::move(sys_text)});
+    rendered.reserve(messages.size());
+    msgs.reserve(messages.size());
+    for (const auto& cm : messages) {
+        auto r = render(cm);
+        if (r.content.empty()) { continue; }
+        rendered.push_back(std::move(r));
+        msgs.push_back({rendered.back().role.c_str(),
+                        rendered.back().content.c_str()});
     }
 
-    for (const auto& m : request.messages) {
-        std::string text = m.text();
-        if (!text.empty()) store.push_back({m.role, std::move(text)});
-    }
-
-    msgs.reserve(store.size());
-    for (const auto& s : store)
-        msgs.push_back({s.role.c_str(), s.content.c_str()});
-
-    const char* tmpl = llama_model_chat_template(impl_->model, /*name=*/nullptr);
+    const char* tmpl = llama_model_chat_template(model_, /*name=*/nullptr);
     if (!tmpl) {
         std::string path_lower = cfg_.model_path;
         std::transform(path_lower.begin(), path_lower.end(), path_lower.begin(), ::tolower);
         if (path_lower.find("gemma") != std::string::npos) {
-            tmpl = llama_model_chat_template(impl_->model, "gemma");
+            tmpl = llama_model_chat_template(model_, "gemma");
         }
     }
 
@@ -347,371 +697,118 @@ std::string LlamacppProvider::BuildPrompt(const ChatRequest& request) const {
         }
     }
 
+    std::string result;
     if (n < 0) {
         std::string path_lower = cfg_.model_path;
         std::transform(path_lower.begin(), path_lower.end(), path_lower.begin(), ::tolower);
 
         if (path_lower.find("gemma") != std::string::npos) {
-            std::string gemma;
-            for (const auto& s : store) {
-                auto role = (s.role == "assistant") ? "model" : s.role;
-                gemma += "<start_of_turn>" + role + "\n" + s.content + "<end_of_turn>\n";
+            for (const auto& r : rendered) {
+                auto role = (r.role == "assistant") ? "model" : r.role;
+                result += "<start_of_turn>" + role + "\n" + r.content + "<end_of_turn>\n";
             }
-            gemma += "<start_of_turn>model\n";
-            return gemma;
+            result += "<start_of_turn>model\n";
         }
 
-        LOG_WARN("[local] llama_chat_apply_template failed, using raw concat");
-        std::string fallback;
-        for (const auto& s : store)
-            fallback += "<|" + s.role + "|>\n" + s.content + "\n";
-        return fallback + "<|assistant|>\n";
+        if (result.empty()) {
+            LOG_WARN("[local] llama_chat_apply_template failed, using raw concat");
+            for (const auto& r : rendered)
+                result += "<|" + r.role + "|>\n" + r.content + "\n";
+            result += "<|assistant|>\n";
+        }
+    } else {
+        result = std::string(buf.data(), static_cast<size_t>(n));
     }
-
-    return std::string(buf.data(), static_cast<size_t>(n));
-#endif
+    return result;
 }
 
-void LlamacppProvider::PrintRequestLog(const ChatRequest& request) const {
-    LOG_DEBUG("[local] Chat  model={}  max_tokens={}", cfg_.model_path, request.max_tokens);
-}
+// ── ParseToolCalls ────────────────────────────────────────────────────
 
-HeaderList LlamacppProvider::CreateHeaders(const ChatRequest&) const {
-    return {};
-}
+void LlamacppProvider::ParseToolCalls(ChatResponse& response, const std::string& tool_text) {
+    // tool_text format: "call:name{key1:val1,key2:val2}" or "name{...}"
+    if (tool_text.empty()) return;
 
-std::string LlamacppProvider::Serialize(const ChatRequest& request) const {
-    return BuildPrompt(request);
-}
+    const std::string kQuote = "<|\"|>";
 
-ChatResponse LlamacppProvider::Deserialize(const std::string&) const {
-    ChatResponse r;
-    r.error_msg = "LlamacppProvider: Deserialize not supported (in-process)";
-    return r;
-}
+    std::string::size_type pos = 0;
+    while (pos < tool_text.size()) {
+        auto args_begin = tool_text.find('{', pos);
+        if (args_begin == std::string::npos) break;
 
-ChatResponse LlamacppProvider::ChatStream(
-    const ChatRequest& request,
-    std::function<void(StreamEvent, std::string)> callback) {
+        std::string header = tool_text.substr(pos, args_begin - pos);
+        auto colon = header.rfind(':');
+        std::string name = (colon != std::string::npos)
+                           ? header.substr(colon + 1) : header;
+        name.erase(0, name.find_first_not_of(" \t\r\n"));
+        name.erase(name.find_last_not_of(" \t\r\n") + 1);
+        if (name.empty()) { pos = args_begin + 1; continue; }
 
-    ChatResponse response;
-
-#ifndef PROSOPHOR_HAS_LOCAL_MODEL
-    response.error_msg = "Built without PROSOPHOR_BUILD_LLAMA";
-    return response;
-#else
-    if (!loaded_) {
-        response.error_msg = "Model not loaded";
-        return response;
-    }
-
-    std::string prompt;
-
-    // Build prompt via compiled chat template (supports thinking + PEG parser).
-    // We do this here rather than in BuildPrompt() so we can also extract the
-    // PEG parser and thinking markers from the result.
-    if (impl_->chat_tmpls) {
-        try {
-            common_chat_templates_inputs inputs;
-            inputs.add_generation_prompt = true;
-            inputs.enable_thinking       = cfg_.thinking;
-            inputs.use_jinja             = true;
-            inputs.add_bos               = false;
-
-            std::vector<common_chat_msg> msgs;
-            for (const auto& s : request.system) {
-                if (s.text.empty()) { continue; }
-                common_chat_msg m;
-                m.role = "system"; m.content = s.text;
-                msgs.push_back(std::move(m));
-            }
-            for (const auto& m : request.messages) {
-                std::string text = m.text();
-                if (text.empty()) { continue; }
-                common_chat_msg cm;
-                cm.role = m.role; cm.content = std::move(text);
-                msgs.push_back(std::move(cm));
-            }
-            inputs.messages = std::move(msgs);
-
-            auto result = common_chat_templates_apply(impl_->chat_tmpls.get(), inputs);
-            prompt = result.prompt;
-
-            // Set thinking markers for output-based thinking/content separation
-            if (result.supports_thinking && !result.thinking_start_tag.empty()) {
-                impl_->has_reasoning_markers = true;
-                impl_->reason_start         = result.thinking_start_tag;
-                impl_->reason_end           = result.thinking_end_tag;
-                impl_->thinking_enabled     = true;
-                LOG_DEBUG("[local] Template thinking markers: start='{}' end='{}'",
-                         impl_->reason_start, impl_->reason_end);
-            }
-        } catch (const std::exception& e) {
-            LOG_WARN("[local] Template apply failed: {}", e.what());
+        // Find matching close brace
+        int brace_depth = 1;
+        auto args_end = args_begin + 1;
+        while (args_end < tool_text.size() && brace_depth > 0) {
+            if (tool_text[args_end] == '{') ++brace_depth;
+            else if (tool_text[args_end] == '}') --brace_depth;
+            ++args_end;
         }
-    }
+        if (brace_depth != 0) break;
+        --args_end;
 
-    // Fallback: use BuildPrompt (llama_chat_apply_template or manual Gemma format)
-    if (prompt.empty()) {
-        prompt = BuildPrompt(request);
-    }
-    if (prompt.empty()) {
-        response.error_msg = "Empty prompt";
-        return response;
-    }
-    PrintRequestLog(request);
+        std::string args_block = tool_text.substr(args_begin + 1, args_end - args_begin - 1);
+        if (args_block.empty()) { pos = args_end + 1; continue; }
 
-    // Tokenize
-    const int n_vocab_tokens = llama_vocab_n_tokens(impl_->vocab);
-    std::vector<llama_token> prompt_tokens(
-        std::max(static_cast<int>(prompt.size()), n_vocab_tokens));
-    int n_prompt = llama_tokenize(
-        impl_->vocab,
-        prompt.c_str(), static_cast<int32_t>(prompt.size()),
-        prompt_tokens.data(), static_cast<int32_t>(prompt_tokens.size()),
-        /*add_special=*/true,
-        /*parse_special=*/true);
-    if (n_prompt < 0) {
-        response.error_msg = "Tokenize failed";
-        return response;
-    }
-    prompt_tokens.resize(static_cast<size_t>(n_prompt));
+        // Parse key:value pairs (supports <|"|> quoted values)
+        nlohmann::json args = nlohmann::json::object();
+        std::string::size_type ap = 0;
+        while (ap < args_block.size()) {
+            while (ap < args_block.size() &&
+                   (args_block[ap] == ' ' || args_block[ap] == ','))
+                ++ap;
+            if (ap >= args_block.size()) break;
 
-    // Safety check: ensure prompt + max_tokens fits within context window
-    uint32_t n_ctx_max = llama_n_ctx(impl_->ctx);
-    uint32_t n_reserve = static_cast<uint32_t>(request.max_tokens > 0 ? request.max_tokens : cfg_.max_tokens);
-    if (static_cast<uint32_t>(n_prompt) + n_reserve > n_ctx_max) {
-        int allowed = static_cast<int>(n_ctx_max - n_reserve);
-        if (allowed > 0) {
-            int trim = n_prompt - allowed;
-            LOG_WARN("[local] Prompt {} tokens exceeds available context ({}), trimming {} tokens from head",
-                     n_prompt, n_ctx_max - n_reserve, trim);
-            prompt_tokens.erase(prompt_tokens.begin(),
-                                prompt_tokens.begin() + std::min(trim, n_prompt - 1));
-            n_prompt = static_cast<int>(prompt_tokens.size());
-        } else {
-            response.error_msg = "Prompt exceeds context window even with zero reserve";
-            return response;
-        }
-    }
+            auto key_end = args_block.find(':', ap);
+            auto qp = args_block.find(kQuote, ap);
+            if (key_end == std::string::npos) break;
+            if (qp != std::string::npos && qp < key_end)
+                key_end = qp;
 
-    // Clear KV cache from previous turn
-    llama_memory_clear(llama_get_memory(impl_->ctx), /*data=*/true);
+            std::string key = args_block.substr(ap, key_end - ap);
+            key.erase(0, key.find_first_not_of(" \t\r\n"));
+            key.erase(key.find_last_not_of(" \t\r\n") + 1);
+            ap = key_end + 1;
 
-    // Chunked prefill
-    uint32_t batch_max = llama_n_batch(impl_->ctx);
-    LOG_DEBUG("[local] Prefill: {} tokens (n_batch={})", n_prompt, batch_max);
-    LOG_DEBUG("[local] Prompt tail: ...{}", prompt.size() > 120 ? prompt.substr(prompt.size() - 120) : prompt);
-    auto t_prefill = SteadyClock::Now();
-    {
-        int32_t batch_sz = static_cast<int32_t>(batch_max);
-        for (int32_t i = 0; i < n_prompt; i += batch_sz) {
-            int32_t n_tokens = std::min(batch_sz, n_prompt - i);
-            llama_batch batch = llama_batch_get_one(prompt_tokens.data() + i, n_tokens);
-            if (llama_decode(impl_->ctx, batch) != 0) {
-                response.error_msg = "llama_decode (prefill) failed";
-                return response;
-            }
-        }
-    }
-    LOG_DEBUG("[local] Prefill done in {} ms", SteadyClock::ElapsedMillis(t_prefill));
-
-    // Token-by-token generation loop
-    const int max_new = request.max_tokens > 0 ? request.max_tokens : cfg_.max_tokens;
-    int   n_generated = 0;
-    char  piece_buf[256];
-    auto  t_gen_start = SteadyClock::Now();
-    ThrottleLog tlog;
-
-    // -- Streaming output via text-based marker detection --
-    // Markers (e.g. <|channel>thought / <channel|> for Gemma 4) are
-    // extracted from the chat template during prompt building above.
-    // The pending buffer with kPendingTail handles markers that span
-    // across BPE subword token boundaries.
-    bool  thinking       = false;
-    bool  has_thinking   = false;
-    bool  response_done  = false;
-    // After thinking ends, some models emit the end marker token again as
-    // the first content piece. Strip it once to prevent it from leaking.
-    bool  skip_end_marker_in_content = false;
-
-    auto emit_content  = [&](std::string&& t) {
-        response.content_text += t;
-        callback(StreamEvent::kContentDelta, std::move(t));
-    };
-    auto emit_thinking = [&](std::string&& t) {
-        response.AddThinking(t);
-        callback(StreamEvent::kThinkingDelta, std::move(t));
-    };
-
-    std::string   pending;
-    constexpr int kPendingTail = 64;
-
-    const std::string& kReasonStart = impl_->reason_start;
-    const std::string& kReasonEnd   = impl_->reason_end;
-    const bool use_thinking = impl_->has_reasoning_markers && impl_->thinking_enabled;
-
-    auto find_and_flush = [&](const std::string& marker, bool* is_marker) -> bool {
-        if (marker.empty()) { *is_marker = false; return false; }
-        auto pos = pending.find(marker);
-        if (pos == std::string::npos) { *is_marker = false; return false; }
-        *is_marker = true;
-        if (pos > 0) {
-            if (thinking) { emit_thinking(pending.substr(0, pos)); }
-            else          { emit_content(pending.substr(0, pos)); }
-        }
-        return true;
-    };
-
-    auto has_content = [&] { return !response.content_text.empty() || has_thinking; };
-
-    auto end_content = [&] {
-        if (thinking) { callback(StreamEvent::kThinkingEnd, {}); thinking = false; }
-        callback(StreamEvent::kContentEnd, {});
-    };
-
-    callback(StreamEvent::kContentStart, {});
-
-    while (n_generated < max_new) {
-        llama_token token = llama_sampler_sample(impl_->sampler, impl_->ctx, -1);
-        if (llama_vocab_is_eog(impl_->vocab, token)) { break; }
-
-        int n_piece = llama_token_to_piece(
-            impl_->vocab, token,
-            piece_buf, static_cast<int32_t>(sizeof(piece_buf)),
-            /*lstrip=*/0,
-            /*special=*/true);
-        if (n_piece <= 0) { continue; }
-
-        pending += std::string(piece_buf, static_cast<size_t>(n_piece));
-
-        // --- end_of_turn: model finished its response ---
-        {   bool found;
-            if (find_and_flush("<end_of_turn>", &found) && found) {
-                if (has_content()) { end_content(); }
-                else               { callback(StreamEvent::kContentEnd, {}); }
-                response_done = true;
-                break;
-            }
-        }
-
-        // --- start_of_turn: unexpected mid-response, treat as end ---
-        {   bool found;
-            if (find_and_flush("<start_of_turn>", &found) && found) {
-                if (has_content()) { end_content(); }
-                else               { callback(StreamEvent::kContentEnd, {}); }
-                response_done = true;
-                break;
-            }
-        }
-
-        // --- thinking start marker (detected from chat template) ---
-        if (use_thinking && !thinking && !kReasonStart.empty()) {
-            bool found;
-            if (find_and_flush(kReasonStart, &found) && found) {
-                if (has_content()) { callback(StreamEvent::kContentEnd, {}); }
-                callback(StreamEvent::kThinkingStart, {});
-                thinking = true;
-                has_thinking = true;
-                pending.clear();
+            auto vopen = args_block.find(kQuote, ap);
+            if (vopen == std::string::npos || vopen != ap) {
+                // Unquoted value — parse as raw JSON literal
+                auto vend = args_block.find_first_of(",}", ap);
+                if (vend == std::string::npos) vend = args_block.size();
+                std::string raw_val = args_block.substr(ap, vend - ap);
+                raw_val.erase(0, raw_val.find_first_not_of(" \t\r\n"));
+                raw_val.erase(raw_val.find_last_not_of(" \t\r\n") + 1);
+                try { args[key] = nlohmann::json::parse(raw_val); }
+                catch (...) { args[key] = std::move(raw_val); }
+                ap = vend;
                 continue;
             }
+            // Quoted value: <|"|>...<|"|>
+            ap = vopen + kQuote.size();
+            auto vclose = args_block.find(kQuote, ap);
+            if (vclose == std::string::npos) break;
+            args[key] = args_block.substr(ap, vclose - ap);
+            ap = vclose + kQuote.size();
         }
 
-        // --- thinking end marker (detected from chat template) ---
-        if (use_thinking && thinking && !kReasonEnd.empty()) {
-            bool found;
-            if (find_and_flush(kReasonEnd, &found) && found) {
-                callback(StreamEvent::kThinkingEnd, {});
-                callback(StreamEvent::kContentStart, {});
-                thinking = false;
-                skip_end_marker_in_content = true;
-                pending.clear();
-                // Do NOT continue — fall through to llama_decode so the
-                // end-marker token gets processed in the KV cache and
-                // the next sample produces real content, not a duplicate.
-            }
-        }
-
-        // After thinking ends, some models emit the end marker token
-        // again as the first content piece. Strip it once.
-        if (skip_end_marker_in_content && !thinking && !kReasonEnd.empty()) {
-            auto pos = pending.find(kReasonEnd);
-            if (pos == 0) {
-                pending = pending.substr(kReasonEnd.size());
-            }
-            skip_end_marker_in_content = false;
-        }
-
-        // Flush all except the last kPendingTail bytes
-        if (pending.size() > kPendingTail) {
-            auto safe = pending.substr(0, pending.size() - kPendingTail);
-            if (thinking) { emit_thinking(std::move(safe)); }
-            else          { emit_content(std::move(safe)); }
-            pending = pending.substr(pending.size() - kPendingTail);
-        }
-
-        llama_batch next = llama_batch_get_one(&token, 1);
-        if (llama_decode(impl_->ctx, next) != 0) {
-            LOG_WARN("[local] llama_decode failed at token {}", n_generated);
-            break;
-        }
-        ++n_generated;
-
-        if (tlog.Check(5000)) {
-            double elapsed = SteadyClock::ElapsedSeconds(t_gen_start);
-            LOG_DEBUG("[local] Generating... {} tokens  ({:.2f} t/s)",
-                     n_generated, n_generated / (elapsed > 0 ? elapsed : 1.0));
-        }
+        response.AddToolCall(name, name, std::move(args));
+        pos = args_end + 1;
     }
-
-    // Flush any text still in the safety buffer
-    if (!response_done && !pending.empty()) {
-        // Strip end marker one last time if skip flag is still set
-        if (skip_end_marker_in_content && !thinking && !kReasonEnd.empty()) {
-            auto pos = pending.find(kReasonEnd);
-            if (pos == 0) {
-                pending = pending.substr(kReasonEnd.size());
-            }
-        }
-        if (thinking) { emit_thinking(std::move(pending)); }
-        else          { emit_content(std::move(pending)); }
-        pending.clear();
-    }
-
-    if (!response_done) {
-        if (thinking) {
-            callback(StreamEvent::kThinkingEnd, {});
-        } else {
-            callback(StreamEvent::kContentEnd, {});
-        }
-    }
-    if (has_thinking) { response.has_thinking = true; }
-
-    auto total_ms = SteadyClock::ElapsedMillis(t_gen_start);
-    response.usage.prompt_tokens     = n_prompt;
-    response.usage.completion_tokens = n_generated;
-    response.usage.total_tokens      = n_prompt + n_generated;
-    response.stop_reason = (n_generated >= max_new) ? "max_tokens" : "stop";
-    LOG_DEBUG("[local] Done: {} tokens in {} ms ({:.2f} t/s)",
-             n_generated, total_ms,
-             n_generated / (total_ms > 0 ? total_ms / 1000.0 : 1.0));
-    return response;
-#endif
-}
-
-ChatResponse LlamacppProvider::Chat(const ChatRequest& request) {
-    return ChatStream(request, [](StreamEvent, std::string) {});
 }
 
 std::vector<std::string> LlamacppProvider::GetSupportedModels() const {
-#ifdef PROSOPHOR_HAS_LOCAL_MODEL
-    if (impl_->model) {
+    if (model_) {
         char buf[256] = {};
-        llama_model_desc(impl_->model, buf, sizeof(buf));
+        llama_model_desc(model_, buf, sizeof(buf));
         return {buf[0] ? std::string(buf) : cfg_.model_path};
     }
-#endif
     return {cfg_.model_path};
 }
 

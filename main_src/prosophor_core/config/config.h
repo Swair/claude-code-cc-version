@@ -54,6 +54,8 @@ struct ModelConfig {
     int max_tokens = 8192;
     int context_window = 128000;
     bool thinking = false;
+    int thinking_budget_tokens = 4096;
+    std::string reasoning_effort = "medium";
     bool use_tools = true;
     bool enable_streaming = true;  // Whether to use streaming for responses
 
@@ -93,7 +95,12 @@ struct LlamacppModelConfig {
     int   max_tokens = 2048; // Max generated tokens per response
     float temperature  = 0.7f;   // Sampling temperature (0.0 = greedy, 1.0 = creative)
     float top_p        = 0.95f;  // Nucleus sampling probability
-    bool  thinking     = false;  // Enable extended thinking/reasoning
+    std::string thinking_start;  // Thinking start marker (model-specific, e.g. <|channel|>)
+    std::string thinking_end;    // Thinking end marker (model-specific, e.g. <channel|>)
+    std::string tool_call_start = "<|tool_call>";   // Tool call open marker
+    std::string tool_call_end   = "<tool_call|>";   // Tool call close marker
+    std::string end_of_turn     = "<end_of_turn>";  // End-of-turn marker (Gemma-style)
+    std::string start_of_turn   = "<start_of_turn>";// Start-of-turn marker (Gemma-style)
 
     // KV cache quantization type: "f16", "q8_0", "q4_0" (default)
     // Maps to ggml_type: F16=2 bytes/value, Q8_0=1 byte, Q4_0=0.5 byte

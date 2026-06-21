@@ -3,6 +3,7 @@
 
 #include "network/websocket_client.h"
 
+#include <cstdlib>
 #include <cstring>
 #include <thread>
 #include <vector>
@@ -10,6 +11,28 @@
 #include "common/log_wrapper.h"
 
 namespace prosophor {
+
+// Apply proxy settings from environment variables (https_proxy, http_proxy, no_proxy)
+// This is needed because libcurl on Windows doesn't reliably read lowercase env vars.
+static void ApplyProxyFromEnv(CURL* curl) {
+    const char* proxy = nullptr;
+    // Try https_proxy first for wss:// URLs
+    (proxy = std::getenv("HTTPS_PROXY"))   ||
+    (proxy = std::getenv("https_proxy"))   ||
+    (proxy = std::getenv("HTTP_PROXY"))    ||
+    (proxy = std::getenv("http_proxy"));
+    if (proxy && proxy[0]) {
+        LOG_DEBUG("WebSocket: using proxy {}", proxy);
+        curl_easy_setopt(curl, CURLOPT_PROXY, proxy);
+        if (const char* no_proxy = std::getenv("NO_PROXY")) {
+            curl_easy_setopt(curl, CURLOPT_NOPROXY, no_proxy);
+        } else if (const char* no_proxy_lower = std::getenv("no_proxy")) {
+            curl_easy_setopt(curl, CURLOPT_NOPROXY, no_proxy_lower);
+        }
+    } else {
+        LOG_DEBUG("WebSocket: no proxy set, connecting directly");
+    }
+}
 
 WebSocketClient::WebSocketClient() = default;
 
@@ -52,6 +75,7 @@ bool WebSocketClient::Connect(const std::string& url, struct curl_slist* headers
     curl_easy_setopt(curl_, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYPEER, 0L);
     curl_easy_setopt(curl_, CURLOPT_SSL_VERIFYHOST, 0L);
+    ApplyProxyFromEnv(curl_);
     curl_easy_setopt(curl_, CURLOPT_TIMEOUT, 30L);
     curl_easy_setopt(curl_, CURLOPT_CONNECTTIMEOUT, 10L);
     curl_easy_setopt(curl_, CURLOPT_CONNECT_ONLY, 2L);

@@ -4,6 +4,9 @@
 #include "virtual_sprite/ui_renderer.h"
 #include "common/i18n.h"
 #include "media_engine/media_engine.h"
+#include "virtual_sprite/sprite.h"
+#include "virtual_sprite/sprite_manager.h"
+#include "managers/agent_session_manager.h"
 
 namespace prosophor {
 
@@ -43,6 +46,22 @@ void UIRenderer::RenderContextMenu(media_engine::Window* current_win) {
     }
     if (media_engine::Popup::MenuItem(L.Get("ctx_show_main").c_str())) {
         if (on_show_main_window_) on_show_main_window_();
+    }
+    // Tools toggle per-sprite
+    {
+        auto* sprite = SpriteManager::GetInstance().FindByWindow(current_win);
+        if (sprite) {
+            auto* session = AgentSessionManager::GetInstance().GetSession(sprite->GetSessionId());
+            if (session) {
+                bool tools_on = session->GetUseTools();
+                const char* tools_label = tools_on
+                    ? L.Get("ctx_disable_tools").c_str()
+                    : L.Get("ctx_enable_tools").c_str();
+                if (media_engine::Popup::MenuItem(tools_label)) {
+                    session->SetUseTools(!tools_on);
+                }
+            }
+        }
     }
     media_engine::ImGuiWidget::Separator();
     if (media_engine::Popup::MenuItem(L.Get("ctx_quit").c_str())) {

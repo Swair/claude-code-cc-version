@@ -122,7 +122,13 @@
             "offload_kqv": true,
             "flash_attn": true,
             "min_p": 0.05,
-            "seed": -1
+            "seed": -1,
+            "thinking_start": "<|channel>",
+            "thinking_end": "<channel|>",
+            "end_of_turn": "<end_of_turn>",
+            "start_of_turn": "<start_of_turn>",
+            "tool_call_start": "<|tool_call>",
+            "tool_call_end": "<tool_call|>"
           }
         ]
       }

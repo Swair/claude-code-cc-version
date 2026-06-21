@@ -20,8 +20,9 @@ namespace prosophor {
 namespace {
 
 static std::vector<std::string> all_ids, dnames, avail_models, descrs, prompts, spritesheets;
-static std::vector<int> checked, model_idx, voice_idx, auto_confirms, max_iters, enable_streams;
-static std::vector<const char*> m_cstrs, v_cstrs;
+static std::vector<int> checked, model_idx, voice_idx, auto_confirms, enable_tools_flags, max_iters, enable_streams;
+static std::vector<int> thinking_flags, thinking_budgets, re_idx;
+static std::vector<const char*> m_cstrs, v_cstrs, re_cstrs;
 static bool scan = true;
 static int s_sel = 0;
 
@@ -36,7 +37,11 @@ void ScanRoles() {
     descrs.resize(all_ids.size()); prompts.resize(all_ids.size());
     spritesheets.resize(all_ids.size()); max_iters.assign(all_ids.size(), 0);
     auto_confirms.assign(all_ids.size(), 0);
+    enable_tools_flags.assign(all_ids.size(), 1);
     enable_streams.assign(all_ids.size(), 1);
+    thinking_flags.assign(all_ids.size(), 0);
+    thinking_budgets.assign(all_ids.size(), 4096);
+    re_idx.assign(all_ids.size(), 1); // default "medium"
     for (size_t i = 0; i < all_ids.size(); ++i) {
         if (std::find(config.default_role.begin(), config.default_role.end(), all_ids[i]) != config.default_role.end()) checked[i] = 1;
         std::string fp = (ProsophorConfig::BaseDir() / "roles" / (all_ids[i] + ".json")).string();
@@ -47,8 +52,13 @@ void ScanRoles() {
             prompts[i] = rj.value("soul", "");
             if (rj.contains("llm") && rj["llm"].is_object()) {
                 max_iters[i] = rj["llm"].value("max_iterations", 15);
+                enable_tools_flags[i] = rj["llm"].value("enable_tools", true) ? 1 : 0;
                 auto_confirms[i] = rj["llm"].value("auto_confirm_tools", false) ? 1 : 0;
                 enable_streams[i] = rj["llm"].value("enable_streaming", true) ? 1 : 0;
+                thinking_flags[i] = rj["llm"].value("thinking", false) ? 1 : 0;
+                thinking_budgets[i] = rj["llm"].value("thinking_budget_tokens", 4096);
+                std::string re = rj["llm"].value("reasoning_effort", "medium");
+                re_idx[i] = (re == "low") ? 0 : (re == "high") ? 2 : 1;
             }
         } catch(...) { dnames[i] = all_ids[i]; } else dnames[i] = all_ids[i];
     }
@@ -56,6 +66,7 @@ void ScanRoles() {
     for (auto& [pn, pv] : config.llm_providers) for (auto& [mn, mc] : pv.model_configs) { std::string d = "[" + pn + "] " + mc.model; if (std::find(avail_models.begin(), avail_models.end(), d) == avail_models.end()) avail_models.push_back(d); }
     m_cstrs.clear(); for (auto& m : avail_models) m_cstrs.push_back(m.c_str());
     v_cstrs.clear(); for (auto& v : config.tts.voice_list) v_cstrs.push_back(v.c_str());
+    re_cstrs = {"low", "medium", "high"};
     model_idx.assign(all_ids.size(), 0); voice_idx.assign(all_ids.size(), 0);
     for (size_t i = 0; i < all_ids.size(); ++i) {
         std::string fp = (ProsophorConfig::BaseDir() / "roles" / (all_ids[i] + ".json")).string();
@@ -171,11 +182,36 @@ void ChatWindow::RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h)
                 media_engine::ImGuiWidget::Checkbox(("##autoconf_" + all_ids[i]).c_str(), &ac); });
             auto_confirms[i] = ac ? 1 : 0;
 
+            // enable_tools
+            bool et = (enable_tools_flags[i] != 0);
+            role_card.Field("enable_tools", [&](){
+                media_engine::ImGuiWidget::Checkbox(("##et_" + all_ids[i]).c_str(), &et); });
+            enable_tools_flags[i] = et ? 1 : 0;
+
             // enable_streaming
             bool es = (enable_streams[i] != 0);
             role_card.Field("enable_streaming", [&](){
                 media_engine::ImGuiWidget::Checkbox(("##es_" + all_ids[i]).c_str(), &es); });
             enable_streams[i] = es ? 1 : 0;
+
+            // thinking
+            bool tf = (thinking_flags[i] != 0);
+            role_card.Field("thinking", [&](){
+                media_engine::ImGuiWidget::Checkbox(("##thk_" + all_ids[i]).c_str(), &tf); });
+            thinking_flags[i] = tf ? 1 : 0;
+
+            // thinking_budget_tokens
+            role_card.Field("thinking_budget_tokens", [&,i](){
+                char buf[16];
+                snprintf(buf, sizeof(buf), "%d", thinking_budgets[i]);
+                media_engine::ImGuiWidget::InputText(("##tbt_" + all_ids[i]).c_str(), buf, sizeof(buf));
+                int v = atoi(buf);
+                if (v > 0) thinking_budgets[i] = v;
+            });
+
+            // reasoning_effort
+            role_card.Field("reasoning_effort", [&](){
+                media_engine::ImGuiWidget::Combo(("##re_" + all_ids[i]).c_str(), &re_idx[i], re_cstrs.data(), (int)re_cstrs.size()); });
 
             // max_iterations
             role_card.Field("max_iterations", [&,i](){
@@ -226,8 +262,13 @@ buttons:
             RoleConfigManager::SaveField(all_ids[i], "description", descrs[i]);
             RoleConfigManager::SaveField(all_ids[i], "soul", prompts[i]);
             RoleConfigManager::SaveFieldInt(all_ids[i], "llm.max_iterations", max_iters[i]);
+            RoleConfigManager::SaveFieldBool(all_ids[i], "llm.enable_tools", enable_tools_flags[i] != 0);
             RoleConfigManager::SaveFieldBool(all_ids[i], "llm.auto_confirm_tools", auto_confirms[i] != 0);
             RoleConfigManager::SaveFieldBool(all_ids[i], "llm.enable_streaming", enable_streams[i] != 0);
+            RoleConfigManager::SaveFieldBool(all_ids[i], "llm.thinking", thinking_flags[i] != 0);
+            RoleConfigManager::SaveFieldInt(all_ids[i], "llm.thinking_budget_tokens", thinking_budgets[i]);
+            static const char* re_vals[] = {"low", "medium", "high"};
+            RoleConfigManager::SaveField(all_ids[i], "llm.reasoning_effort", re_vals[re_idx[i]]);
         }
         // Queue sprite create/remove — executed in next update tick (safe)
         auto& old_roles = config.default_role;

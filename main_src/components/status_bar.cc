@@ -42,6 +42,9 @@ void StatusBar::Render(const media_engine::RenderContext& ctx) {
     switch (state_) {
         case AgentRuntimeState::IDLE: icon = "○"; break;
         case AgentRuntimeState::BEGINNING: icon = "◐"; break;
+        case AgentRuntimeState::STREAM_TOOL_START:
+        case AgentRuntimeState::STREAM_TOOL:
+        case AgentRuntimeState::STREAM_TOOL_END:
         case AgentRuntimeState::EXECUTING_TOOL: icon = "⚙"; break;
         case AgentRuntimeState::WAITING_PERMISSION: icon = "⏳"; break;
         case AgentRuntimeState::STATE_ERROR: icon = "⚠"; break;

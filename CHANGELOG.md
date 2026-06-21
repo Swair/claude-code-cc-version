@@ -1,5 +1,69 @@
 # Changelog
 
+## [Unreleased] — 2026-06-21 llamacpp 重构 + Provider 体系增强 + README 文档完善
+
+本期重点：llamacpp Provider 大规模重构——移除 PIMPL 模式、`PROSOPHOR_HAS_LOCAL_MODEL` 条件编译下沉、使用 `common_chat_templates_apply` 渲染 prompt；全 Provider 体系新增 `thinking_budget_tokens` / `reasoning_effort`；新增 Tool Call 流式事件；会话系统新增 `enable_tools` 控制；README 文档全面升级新增环形缓冲区图解与 SDL 演示图。净变化 ~1,120 行，4 张新图片。
+
+### llamacpp Provider 重构（~+850/-500 行）
+- **去 PIMPL 模式**：`Impl` 结构体展开为 `LlamacppProvider` 直接成员（`model_`/`ctx_`/`sampler_`/`vocab_`/`chat_tmpls_`），便于单元测试
+- **`PROSOPHOR_HAS_LOCAL_MODEL` 下沉**：provider 源码中移除条件编译宏，CMake 层在 `NOT PROSOPHOR_BUILD_LLAMA` 时从源列表过滤 `llamacpp_provider.cc`，router 层 `#ifdef` 保护
+- **Chat Template Prompt 渲染**：新增 `BuildChatParams()` 使用 `common_chat_templates_apply()` 渲染 prompt，支持 Jinja 模板、thinking 标记、tool choice
+- **结构化 Prompt 构建**：拆分为 `BuildSystemPrompt()` / `BuildMessagePrompt()` / `BuildToolsPrompt()` / `BuildFallbackPrompt()` 四个方法
+- **Thinking 标记自动检测**：从模型 chat template 自动解析 `reason_start`/`reason_end`，配置化 fallback（`thinking_start`/`thinking_end`）
+- **Tool Call 标记**：新增 `tool_call_start`/`tool_call_end`/`end_of_turn`/`start_of_turn` 配置字段，`ProcessTokenFrame()` 检测标记并发出流事件，`ParseToolCalls()` 解析 `call:name{...}` 格式
+- **方法拆分**：`TokenizePrompt()` / `PrefillPrompt()` / `GenerateReply()` / `Release()` 独立方法
+- **`thinking` 布尔值 → 字符串标记**：`LlamacppModelConfig` 中 `thinking` 替换为 `thinking_start`/`thinking_end` 等字符串
+
+### Provider 体系通用增强
+- **`ChatRequest` 新字段**：`thinking_budget_tokens`（默认 4096）、`reasoning_effort`（默认 "medium"）
+- **`ChatResponse` 重构**：移除 `has_thinking` 字段，使用 `!content_thinking.empty()` 判断；`AddThinking()`/`AddText()` 改为覆写赋值，新增 `AppendThinking()`/`AppendText()`
+- **`StreamEvent` 新增**：`kToolStart` / `kToolDelta` / `kToolEnd` 三个流式工具调用事件
+- **Anthropic Provider**：thinking budget 动态计算（`max_tokens / 2`），移除 hardcoded 4096
+- **OpenAI Provider**：移除硬编码 `ThinkingToReasoningEffort()`，使用配置的 `reasoning_effort`
+- **所有 Provider**：`PrintRequestLog()` 增加详细日志（max_tokens / temperature / messages / tools / thinking 等）；LLM 基类 `ExecuteStream()` / `Chat()` 新增 request body debug 日志
+- **Stream Handler**：所有 handler 移除 `has_thinking = true` 赋值
+
+### 配置文件升级
+- **`ModelConfig`**：新增 `thinking_budget_tokens` / `reasoning_effort`
+- **`LlamacppModelConfig`**：`thinking` 布尔替换为 `thinking_start` / `thinking_end` / `tool_call_start` / `tool_call_end` / `end_of_turn` / `start_of_turn` 字符串标记
+- **`config.cc`**：序列化/反序列化支持所有新字段
+- **`settings.json`**：llamacpp 模型配置新增六个标记字段
+
+### 角色与会话系统
+- **`AgentRole`**：新增 `thinking_budget_tokens` / `reasoning_effort` / `enable_tools` 字段
+- **`AgentRoleLoader`**：解析新字段；`enable_tools=false` 时自动清空工具列表
+- **`AgentSession`**：`use_tools_` 从角色 `enable_tools` 初始化；`ApplyProviderOverride` 不再覆盖 thinking 字段
+- **`AgentCore::BuildRequest`**：传递 `thinking_budget_tokens` / `reasoning_effort`
+- **`AgentCore::Loop`**：处理 `kToolStart` / `kToolDelta` / `kToolEnd` 流事件
+- **`AgentSessionManager::BuildSystemPrompt`**：新增行为指令"执行完一步后立刻进入下一步，不要重复确认"
+- **`RoleConfigManager::HotReload`**：支持 `enable_tools` / `thinking` / `enable_streaming` / `max_iterations` 等字段热重载
+
+### 角色 JSON 批量更新
+- 所有 13 个角色新增 `thinking_budget_tokens`（4096）/ `reasoning_effort`（"medium"）/ `enable_tools`（true）
+- architect / coder / reviewer / teacher 等角色启用 `thinking: true`
+- coder 角色 `soul` 重写为更详细的编码专家描述
+
+### UI / 面板
+- **`roles_view.cc`**：新增 thinking / thinking_budget_tokens / reasoning_effort / enable_tools 编辑字段
+- **`sprite.cc`**：`STREAM_TOOL_START` / `STREAM_TOOL` / `STREAM_TOOL_END` 映射到 SPRINT 动作
+- **`status_bar.cc`**：tool 流状态显示 ⚙ 图标
+- **`ui_renderer.cc`**：精灵右键菜单新增"启用工具"/"禁用工具"切换（`session->SetUseTools()`）
+- **语言文件**：en / zh-CN 新增 `ctx_enable_tools` / `ctx_disable_tools`
+
+### README 文档升级
+- **新增 FixedBuffer 环形缓冲区文档**：三种运行状态（填充中/已满/回绕）配示意图 `ringbuf_case_1/2/3.png`，同步展示核心源码与逐 case 行为说明
+- **新增 SDL 桌面精灵展示图**：`show.png` 配图置于 SDL Desktop Pet UI 章节
+- **清理过期图片引用**：移除已删除的 `demo.png`、`win_demo.png` 引用
+- **中文版同步更新**：替换外部 GitHub 图片链接为本地图片，内容与英文版保持一致
+
+### 平台 / 其他
+- **`platform.cc`**：`setlocale(LC_ALL, "en_US.UTF-8")` 修复 msys2/mingw UTF-8 输出
+- **`platform.h`**：移除未使用的 `HomeDir()` 声明
+- **`websocket_client.cc`**：`ApplyProxyFromEnv()` 读取 HTTPS_PROXY / HTTP_PROXY / NO_PROXY 环境变量，解决 Windows libcurl 小写环境变量读取问题
+- **`i18n.cc`**：语言文件路径改为从 `$HOME/.prosophor/lang/` 加载，支持用户自定义翻译
+- **`CMakeLists.txt`**：OpenSSL 在 CURL 之前 `find_package`；llamacpp 条件编译过滤
+- **`ai_coding.cc`**：CLI 终端 tool 流状态彩色指示（绿/灰/红点）
+
 ## [Unreleased] — 2026-06-14 组件体系独立 + Provider 配置重构 + 字体系统升级 + 面板全面完善
 
 本期重点：从 `panel_helpers` 中提取出独立的 `components/` 通用 UI 组件层（BorderedContainer/ItemList/SelectableItem/PanelKit），新增组件架构文档；Provider 配置重构（`thinking` 字段从 entry 级别下放到 role 级别，`gpu_enable`→`n_gpu_layers` 标准化）；字体系统全面升级（DroidSans 英文内嵌 + Emoji 字体加载 + FreeType 颜色渲染）；新增 skills_creator 角色；Workspace 路径配置；多个面板大幅重写（memory/providers/roles/skills/tts/config）。净变化 +16,964 行。

@@ -16,11 +16,6 @@ namespace prosophor {
 
 // Internal helper functions for OpenAI serialization
 
-// Maps thinking level to budget tokens (OpenAI uses reasoning_effort style)
-static std::string ThinkingToReasoningEffort(bool /*thinking*/) {
-    return "medium";
-}
-
 OpenAIProvider::OpenAIProvider() {
     LOG_DEBUG("OpenAIProvider initialized");
 }
@@ -94,9 +89,8 @@ std::string OpenAIProvider::Serialize(const ChatRequest& request) const {
     if (request.thinking) {
         payload_json["thinking"] = nlohmann::json::object();
         payload_json["thinking"]["type"] = "enabled";
-        std::string effort = ThinkingToReasoningEffort(request.thinking);
-        if (!effort.empty()) {
-            payload_json["reasoning_effort"] = effort;
+        if (!request.reasoning_effort.empty()) {
+            payload_json["reasoning_effort"] = request.reasoning_effort;
         }
     }
     else {
@@ -241,8 +235,6 @@ ChatResponse OpenAIProvider::Deserialize(const std::string& json_str) const {
                                 result.content_text += "\n";
                             }
                             result.content_text += block.value("text", "");
-                        } else if (btype == "thinking") {
-                            result.has_thinking = true;
                         }
                     }
                 }
@@ -250,7 +242,6 @@ ChatResponse OpenAIProvider::Deserialize(const std::string& json_str) const {
 
             // Parse reasoning_content (DeepSeek, Qwen, etc.) — only when thinking is enabled
             if (msg.contains("reasoning_content") && !msg["reasoning_content"].is_null()) {
-                result.has_thinking = true;
                 std::string rc = msg["reasoning_content"].get<std::string>();
                 if (!rc.empty()) {
                     result.AddThinking(rc);
@@ -313,6 +304,14 @@ void OpenAIProvider::PrintRequestLog(const ChatRequest& request) const {
     LOG_DEBUG("=== Sending request to OpenAI-compatible API ===");
     LOG_DEBUG("URL: {}", request.base_url);
     LOG_DEBUG("Model: {}", request.model);
+    LOG_DEBUG("Max tokens: {}", request.max_tokens);
+    LOG_DEBUG("Temperature: {}", request.temperature);
+    LOG_DEBUG("Messages count: {}", request.messages.size());
+    LOG_DEBUG("System blocks: {}", request.system.size());
+    LOG_DEBUG("Tools count: {}", request.tools.size());
+    LOG_DEBUG("Streaming: {}", request.stream);
+    LOG_DEBUG("Thinking: {}, budget_tokens: {}", request.thinking, request.thinking_budget_tokens);
+    LOG_DEBUG("Reasoning effort: {}", request.reasoning_effort);
     LOG_DEBUG("Headers:");
     LOG_DEBUG("  Content-Type: application/json");
     LOG_DEBUG("  Authorization: Bearer {}", request.api_key.substr(0, 8) + "...");

@@ -18,6 +18,7 @@ HttpResponse LLMProvider::ExecuteStream(const ChatRequest& request,
     HttpRequest stream_req;
     stream_req.url = request.base_url;
     stream_req.body = Serialize(request);
+    LOG_DEBUG("Request body:\n {}", stream_req.body);
     stream_req.timeout_seconds = request.timeout > 0 ? request.timeout : 60;
     stream_req.low_speed_limit = 1;
     stream_req.low_speed_time = 120;
@@ -40,6 +41,7 @@ ChatResponse LLMProvider::Chat(const ChatRequest& request) {
     PrintRequestLog(request);
 
     http_request.body = Serialize(request);
+    LOG_DEBUG("Request body:\n {}", http_request.body);
 
     HttpResponse http_response = HttpClient::Instance().Post(http_request);
 

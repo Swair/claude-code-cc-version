@@ -407,6 +407,13 @@ The MCP client can connect to servers (stdio, SSE, or WebSocket), discover tools
 
 When built with `PROSOPHOR_SDL_UI=ON`, Prosophor launches as a **desktop pet** application powered by SDL3.
 
+<div align="center">
+
+![SDL Desktop Pet](docs/images/show.png)
+**SDL desktop pet — transparent sprite window with speech bubble and character animation**
+
+</div>
+
 ### Architecture
 
 ```
@@ -479,6 +486,53 @@ The agent state observer maps runtime states to visual properties: `THINKING` tr
 ---
 
 ## Context Compression & Memory
+
+### FixedBuffer — Ring Buffer Pattern
+
+A core utility used extensively across the engine for fixed-capacity, lock-free circular buffering. The `FixedBuffer<T, kCapacity>` always retains the most recent `kCapacity` items, overwriting the oldest when full — ideal for sliding-window contexts, recent message history, audio sample buffers, and log rolling.
+
+**Three operational states**:
+
+<div align="center">
+
+| Filling (below capacity) | Full (steady-state) | Overwrite (wrap-around) |
+|:---:|:---:|:---:|
+| ![Ring Buffer Case 1](docs/images/ringbuf_case_1.png) | ![Ring Buffer Case 2](docs/images/ringbuf_case_2.png) | ![Ring Buffer Case 3](docs/images/ringbuf_case_3.png) |
+
+</div>
+
+The implementation from `main_src/common/list_buffer.h`:
+
+```cpp
+template<typename T, int kCapacity>
+class FixedBuffer {
+public:
+    void Push(const T& item) {
+        data_[head_] = item;
+        head_ = (head_ + 1) % kCapacity;
+        if (count_ < kCapacity) count_++;
+    }
+
+    std::vector<T> ReadAll() const {
+        std::vector<T> out;
+        if (count_ == 0) return out;
+        out.reserve(count_);
+        int start = (head_ - count_ + kCapacity) % kCapacity;
+        for (int i = 0; i < count_; i++)
+            out.push_back(data_[(start + i) % kCapacity]);
+        return out;
+    }
+
+private:
+    T data_[kCapacity];
+    int head_ = 0;    // next write position
+    int count_ = 0;   // number of items stored
+};
+```
+
+- **Case 1 (`count_ < kCapacity`)**: Buffer still filling — `Push()` writes at `head_`, increments `head_` and `count_`, no data overwritten yet.
+- **Case 2 (`count_ == kCapacity`)**: Buffer full — subsequent `Push()` starts overwriting from the beginning (index 0).
+- **Case 3 (`head_` wraps around)**: After reaching the end of the array, `head_` wraps to 0 via modular arithmetic, and `ReadAll()` reconstructs items in insertion order.
 
 ### DialogStrategy
 

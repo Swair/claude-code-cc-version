@@ -43,6 +43,8 @@ struct ChatRequest {
     bool tool_choice_auto = true;
     bool stream = false;
     bool thinking = false;
+    int thinking_budget_tokens = 4096;
+    std::string reasoning_effort = "medium";
 
     // Agent-specific base_url from config (set by BuildRequest from agent config)
     std::string base_url;
@@ -99,6 +101,9 @@ enum class StreamEvent {
     kContentStart,
     kContentDelta,
     kContentEnd,
+    kToolStart,
+    kToolDelta,
+    kToolEnd,
 };
 
 /// Response from chat completion API
@@ -107,16 +112,21 @@ struct ChatResponse {
     std::string thinking_signature;  // API-required signature for thinking blocks
     std::string content_text;
     std::vector<ToolUseSchema> tool_calls;
-    bool has_thinking = false;       // true if response contained a thinking block
     std::string stop_reason;
     std::string error_msg;  // Non-empty means the API returned an error
     TokenUsageSchema usage;
 
     // Convenience methods
     void AddThinking(std::string text) {
-        content_thinking += std::move(text);
+        content_thinking = std::move(text);
     }
     void AddText(std::string text) {
+        content_text = std::move(text);
+    }
+    void AppendThinking(std::string text) {
+        content_thinking += std::move(text);
+    }
+    void AppendText(std::string text) {
         content_text += std::move(text);
     }
 

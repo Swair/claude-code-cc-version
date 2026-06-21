@@ -591,6 +591,9 @@ SpritesheetAction Sprite::GetEffectiveAction() const {
         case AgentRuntimeState::STREAM_THINKING:
         case AgentRuntimeState::STREAM_THINKING_END:
             return SpritesheetAction::REVIEW;
+        case AgentRuntimeState::STREAM_TOOL_START:
+        case AgentRuntimeState::STREAM_TOOL:
+        case AgentRuntimeState::STREAM_TOOL_END:
         case AgentRuntimeState::EXECUTING_TOOL:
         case AgentRuntimeState::TOOL_USE:
             return SpritesheetAction::SPRINT;

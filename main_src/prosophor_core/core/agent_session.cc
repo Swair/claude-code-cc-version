@@ -49,7 +49,7 @@ AgentSession::AgentSession(const std::string& sid,
 
     if (r) {
         provider_ = LlmProviderRouter::GetInstance().GetProviderByName(r->provider_prot);
-        use_tools_ = true;
+        use_tools_ = r->enable_tools;
         working_directory_.clear();
         messages_.clear();
         system_prompt_.clear();
@@ -314,7 +314,7 @@ void AgentSession::ApplyProviderOverride(const std::string& provider_name,
         }
         role_->temperature = matched->temperature;
         role_->max_tokens = matched->max_tokens;
-        role_->thinking = matched->thinking;
+        // Don't override thinking from model config — role JSON is the source of truth
         LOG_DEBUG("Applied provider override: provider={}, model={}, base_url={}",
                  provider_name, matched->model, base_url_);
     } else {
