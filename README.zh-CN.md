@@ -469,6 +469,8 @@ Agent 状态观察器将运行时状态映射到视觉属性：`THINKING` 触发
 
 引擎中广泛使用的核心工具——固定容量、无锁的循环缓冲区。`FixedBuffer<T, kCapacity>` 始终保留最近的 `kCapacity` 项，满时覆盖最旧的项——适用于滑动窗口上下文、最近消息历史、音频采样缓冲区和日志滚动。
 
+> **实机演示**：下面的代码和图表都是**真实**的——它们来自 **Gemma 4** 模型通过本地 `LlamaCppProvider` **进程内**推理（无 HTTP 服务器，原生 C++）生成的输出。整个示例由本地 llamacpp 调用 `google_gemma-4-E4B-it-Q4_K_M` 模型生成，同时展示了环形缓冲区工具和 Prosophor 的本地优先、进程内 GGUF 推理能力。
+
 **三种运行状态**：
 
 <div align="center">
