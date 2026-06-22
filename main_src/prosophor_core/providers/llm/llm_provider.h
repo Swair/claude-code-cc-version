@@ -165,7 +165,6 @@ class LLMProvider {
                                 const char* provider_name) const {
         Handler handler(std::move(cb));
         PrintRequestLog(request);
-        LOG_DEBUG("{} {}", request.base_url, request.model);
         auto resp = ExecuteStream(request, &handler);
         if (!handler.error_msg.empty()) {
             handler.accumulated_response.error_msg = handler.error_msg;
