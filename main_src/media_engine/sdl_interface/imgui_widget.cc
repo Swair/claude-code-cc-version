@@ -343,7 +343,7 @@ bool ScrollWindow::IsScrolledToBottom() const {
 // ============================================================================
 
 void ImGuiWindow::SetNextPos(float x, float y) {
-    ImGui::SetNextWindowPos(ImVec2(x, y));
+    ImGui::SetNextWindowPos(ImVec2(x, y), ImGuiCond_Always);
 }
 
 void ImGuiWindow::SetNextSize(float w, float h) {
@@ -783,6 +783,10 @@ bool Popup::MenuItem(const char* label, bool selected, bool enabled) {
 
 void Popup::End() {
     ImGui::EndPopup();
+}
+
+void Popup::CloseCurrentPopup() {
+    ImGui::CloseCurrentPopup();
 }
 
 bool TabBar::BeginBar(const char* name) {

@@ -19,7 +19,7 @@ static constexpr int kTotalRows = static_cast<int>(SpritesheetAction::COUNT);
 static std::string FindSpriteFile(const std::string& base_dir,
                                    const std::string& slug,
                                    const std::string& ext) {
-    std::string direct = base_dir + "/" + slug + ext;
+    std::string direct = prosophor::JoinPath(base_dir, slug + ext);
     if (prosophor::FileExists(direct)) return direct;
     return prosophor::FindFileInDirs(base_dir, slug + ext);
 }

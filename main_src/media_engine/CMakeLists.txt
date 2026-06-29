@@ -205,6 +205,7 @@ PRIVATE
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
+    nlohmann_json::nlohmann_json
     imgui_widget_lib
     SDL3_image::SDL3_image
     SDL3_mixer::SDL3_mixer

@@ -13,7 +13,7 @@
 #include "common/time_wrapper.h"
 #include "common/file_utils.h"
 #include "managers/permission_manager.h"
-#include "core/memory_consolidation_service.h"
+#include "core/memory_manager.h"
 #include "providers/provider_router/llm_provider_router.h"
 
 namespace prosophor {
@@ -122,12 +122,16 @@ std::string AgentSessionManager::CreateSession(const std::string& role_id,
     // Per-session output callback: set after map insert (see below)
 
     // Inject memory consolidation service (singleton instance)
-    session.SetConsolidationService(&MemoryConsolidationService::GetInstance());
 
     // 初始化 Session History 目录
     auto base_dir = prosophor::ProsophorConfig::BaseDir();
     session.SetSessionHistoryDir((base_dir / "sessions" / session_id / "history").string());
     std::filesystem::create_directories(session.GetSessionHistoryDir());
+
+    // 初始化 Session 持久化日志目录（按角色分）
+    auto log_dir = base_dir / "sessions" / role_id;
+    session.SetSessionLogDir(log_dir.string());
+    std::filesystem::create_directories(log_dir);
 
     // 初始化工作目录（优先使用配置的 workspace_path）
     {
@@ -365,28 +369,12 @@ void AgentSessionManager::CloseSession(const std::string& session_id) {
         {   // session_mutex: 确保与 Loop 路径不并发读写 session 状态
             auto session_lock = session.ScopedLock();
 
-            auto* consolidation_service = session.GetConsolidationService();
+            // 先将未写入的对话刷入持久化日志
+            session.FlushToDisk();
 
-            if (consolidation_service) {
-                auto llm_callback = [&session](const std::string& prompt) -> std::string {
-                    ChatRequest req;
-                    if (session.GetRole()) {
-                        req.model = session.GetRole()->model;
-                        req.temperature = session.GetRole()->temperature;
-                        req.max_tokens = 4096;
-                    }
-                    if (!session.GetBaseUrl().empty()) {
-                        req.base_url = session.GetBaseUrl();
-                    }
-                    req.AddUserMessage(prompt);
-                    return session.GetProvider()->Chat(req).content_text;
-                };
-
-                auto result = consolidation_service->ConsolidateSessionExit(session, llm_callback);
-
-                if (!result.summary.empty()) {
-                    LOG_DEBUG("Session exit consolidation completed for {}: {} decisions saved",
-                             session_id, result.decisions.size());
+            if (auto* role = session.GetRole()) {
+                if (role->memory_strategy) {
+                    role->memory_strategy->TryExitConsolidation(session);
                 }
             }
 
@@ -502,6 +490,16 @@ void AgentSessionManager::SwitchRoleForSession(const std::string& session_id,
     LOG_INFO("Switched session {} to role: {}", session_id, new_role_id);
     LOG_INFO("  Role Memory (from new role): {}", session.GetRole()->memory_dir);
     LOG_INFO("  Session History (unchanged): {}", session.GetSessionHistoryDir());
+}
+
+void AgentSessionManager::RebuildSystemPromptForRole(const std::string& role_id) {
+    auto sessions = GetSessionsByRole(role_id);
+    for (auto* session : sessions) {
+        if (!session) continue;
+        auto lock = session->ScopedLock();
+        session->SetSystemPrompt(BuildSystemPrompt(*session));
+    }
+    LOG_DEBUG("Rebuilt system prompt for {} sessions of role {}", sessions.size(), role_id);
 }
 
 std::vector<SystemSchema> AgentSessionManager::BuildSystemPrompt(const AgentSession& session) {

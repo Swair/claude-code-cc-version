@@ -61,7 +61,7 @@ public:
     void Initialize(const nlohmann::json& config = nlohmann::json::object());
 
     /// Set permission mode
-    void SetMode(const std::string& mode);  // "auto", "default", "bypass"
+    void SetMode(const std::string& mode);  // "auto", "bypass", "ask"
 
     /// Get current mode
     const std::string& GetMode() const { return mode_; }

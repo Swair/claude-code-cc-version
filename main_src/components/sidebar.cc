@@ -70,7 +70,8 @@ int Sidebar::GetWidth() const {
             float base_y = static_cast<float>(nav_top) - scroll_y;
             float indent_s = L.sb_child_indent * s;
 
-            auto nav_item = [&](NavItem item, const char* icon, const char* label, float indent = 0) {
+            auto nav_item = [&](NavItem item, const char* fallback_icon, const char* label, float indent = 0) {
+                const char* icon = fallback_icon;
                 float item_icon_x = collapsed_ ? icon_x : icon_x + indent;
                 float item_label_x = label_x + indent;
                 float sy = base_y + y;
@@ -141,48 +142,46 @@ int Sidebar::GetWidth() const {
             };
 
         // ── TOP BAR ── (always visible)
-        nav_item(NavItem::Chat,   "\xf0\x9f\x92\xac", L18n.Get("nav_chat").c_str());      // 💬
-        nav_item(NavItem::ActiveTriggers, "\xf0\x9f\x94\x94", L18n.Get("nav_active_triggers").c_str());  // 🔔
-        nav_item(NavItem::Status, "\xf0\x9f\x93\x8a", L18n.Get("nav_status").c_str());    // 📊
-        nav_item(NavItem::Sessions, "\xf0\x9f\x93\x8b", L18n.Get("nav_sessions").c_str());  // 📋
+        nav_item(NavItem::Chat,   "\xf0\x9f\x92\xac", L18n.Get("nav_chat").c_str());
+        nav_item(NavItem::ActiveTriggers, "\xf0\x9f\x94\x94", L18n.Get("nav_active_triggers").c_str());
+        nav_item(NavItem::Status, "\xf0\x9f\x93\x8a", L18n.Get("nav_status").c_str());
+        nav_item(NavItem::Sessions, "\xf0\x9f\x93\x8b", L18n.Get("nav_sessions").c_str());
 
         // ═══ 智能体 ═══
         collapse_group(SidebarGroup::Agents, L18n.Get("sidebar_group_agents").c_str());
         if (IsGroupExpanded(SidebarGroup::Agents)) {
-            nav_item(NavItem::PetStore, "\xf0\x9f\x90\xb1", L18n.Get("nav_petstore").c_str(), indent_s);     // 🐱
-            nav_item(NavItem::KnowledgeBase, "\xf0\x9f\x93\x9a", L18n.Get("nav_knowledge").c_str(), indent_s); // 📚
-            nav_item(NavItem::ComputerOrganize, "\xf0\x9f\x92\xbe", L18n.Get("nav_computer_organize").c_str(), indent_s); // 💾
+            nav_item(NavItem::PetStore, "\xf0\x9f\x90\xb1", L18n.Get("nav_petstore").c_str(), indent_s);
+            nav_item(NavItem::KnowledgeBase, "\xf0\x9f\x93\x9a", L18n.Get("nav_knowledge").c_str(), indent_s);
+            nav_item(NavItem::ComputerOrganize, "\xf0\x9f\x92\xbe", L18n.Get("nav_computer_organize").c_str(), indent_s);
         }
 
         // ═══ 服务 ═══
         collapse_group(SidebarGroup::Capabilities, L18n.Get("sidebar_group_capabilities").c_str());
         if (IsGroupExpanded(SidebarGroup::Capabilities)) {
-            nav_item(NavItem::Skills,     "\xf0\x9f\x9b\xa0", L18n.Get("nav_skills").c_str(), indent_s);      // 🛠
-            nav_item(NavItem::Mcp,        "\xf0\x9f\x94\x8c", L18n.Get("nav_mcp").c_str(), indent_s);        // 🔌
-            nav_item(NavItem::Memory,     "\xf0\x9f\xa7\xa0", L18n.Get("nav_memory").c_str(), indent_s);      // 🧠
-            nav_item(NavItem::Scheduler,  "\xe2\x8f\xb0", L18n.Get("nav_scheduler").c_str(), indent_s);       // ⏰
+            nav_item(NavItem::Skills,     "\xf0\x9f\x9b\xa0", L18n.Get("nav_skills").c_str(), indent_s);
+            nav_item(NavItem::Mcp,        "\xf0\x9f\x94\x8c", L18n.Get("nav_mcp").c_str(), indent_s);
         }
 
         // ═══ 监控 ═══
         collapse_group(SidebarGroup::Monitor, L18n.Get("sidebar_group_monitor").c_str());
         if (IsGroupExpanded(SidebarGroup::Monitor)) {
-            nav_item(NavItem::Usage,     "\xf0\x9f\x93\x88", L18n.Get("nav_usage").c_str(), indent_s);        // 📈
-            nav_item(NavItem::Security,  "\xf0\x9f\x9b\xa1", L18n.Get("nav_security").c_str(), indent_s);     // 🛡
-            nav_item(NavItem::Logs,      "\xf0\x9f\x93\x9d", L18n.Get("nav_logs").c_str(), indent_s);         // 📝
+            nav_item(NavItem::Usage,     "\xf0\x9f\x93\x88", L18n.Get("nav_usage").c_str(), indent_s);
+            nav_item(NavItem::Security,  "\xf0\x9f\x9b\xa1", L18n.Get("nav_security").c_str(), indent_s);
+            nav_item(NavItem::Logs,      "\xf0\x9f\x93\x9d", L18n.Get("nav_logs").c_str(), indent_s);
         }
 
         // ═══ 设置 ═══
         collapse_group(SidebarGroup::Settings, L18n.Get("sidebar_group_settings").c_str());
         if (IsGroupExpanded(SidebarGroup::Settings)) {
-            nav_item(NavItem::Config,     "\xe2\x9a\x99", L18n.Get("nav_config").c_str(), indent_s);          // ⚙
-            nav_item(NavItem::Roles,      "\xf0\x9f\x91\xa4", L18n.Get("nav_roles").c_str(), indent_s);       // 👤
-            nav_item(NavItem::Providers,  "\xf0\x9f\x97\x84", L18n.Get("nav_providers").c_str(), indent_s);    // 🗄
-            nav_item(NavItem::LocalModels,"\xf0\x9f\x93\xa6", L18n.Get("nav_local_models").c_str(), indent_s); // 📦
-            nav_item(NavItem::Tts,        "\xf0\x9f\x97\xa3", L18n.Get("nav_tts").c_str(), indent_s);          // 🗣
+            nav_item(NavItem::Config,     "\xe2\x9a\x99", L18n.Get("nav_config").c_str(), indent_s);
+            nav_item(NavItem::Roles,      "\xf0\x9f\x91\xa4", L18n.Get("nav_roles").c_str(), indent_s);
+            nav_item(NavItem::Providers,  "\xf0\x9f\x97\x84", L18n.Get("nav_providers").c_str(), indent_s);
+            nav_item(NavItem::LocalModels,"\xf0\x9f\x93\xa6", L18n.Get("nav_local_models").c_str(), indent_s);
+            nav_item(NavItem::Tts,        "\xf0\x9f\x97\xa3", L18n.Get("nav_tts").c_str(), indent_s);
         }
 
         // About
-        nav_item(NavItem::About, "\xe2\x9d\x93", L18n.Get("nav_about").c_str());            // ❓
+        nav_item(NavItem::About, "\xe2\x9d\x93", L18n.Get("nav_about").c_str());
     }
     // 子窗口在此关闭
     RenderFooter(win_h, label_x);
@@ -196,7 +195,7 @@ void Sidebar::RenderBrand() {
 
     // 延迟加载 logo
     if (!logo_tex_ && render_window_) {
-        std::string icon_path = std::string(PROSOPHOR_SOURCE_DIR) + "/main_src/resources/preview.png";
+        std::string icon_path = (ProsophorConfig::BaseDir() / "resources" / "preview.png").string();
         logo_tex_ = std::make_unique<media_engine::Texture>(*render_window_, icon_path);
     }
 

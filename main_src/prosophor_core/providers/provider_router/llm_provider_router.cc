@@ -110,7 +110,7 @@ std::string LlmProviderRouter::GetProviderName(const std::string& /*role_id*/) {
 
 std::shared_ptr<LLMProvider> LlmProviderRouter::CreateProvider(
     const std::string& type,
-    const ProviderConfig& config) {
+    [[maybe_unused]] const ProviderConfig& config) {
 
     if (type == "anthropic") {
         return std::make_shared<AnthropicProvider>();

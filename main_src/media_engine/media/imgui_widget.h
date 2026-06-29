@@ -403,6 +403,7 @@ public:
     static bool BeginModal(const char* name, bool* open, int flags = 0);
     static bool MenuItem(const char* label, bool selected = false, bool enabled = true);
     static void End();
+    static void CloseCurrentPopup();
 };
 
 /// 标签栏

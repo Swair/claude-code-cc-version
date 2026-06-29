@@ -150,6 +150,10 @@ class MediaCore {
         static void SetupStyle(bool transparent_bg = false);
         static void SetGlobalFontScale(float scale);
         static void SetWindowFontScale(Window* window, float scale);
+        /// Apply ImGui color overrides from theme data
+        /// map: ImGuiCol enum name (e.g. "WindowBg") → RGBA float[4]
+        static void ApplyColorOverrides(
+            const std::unordered_map<std::string, std::vector<float>>& color_overrides);
 
     private:
         MediaCore() = default;

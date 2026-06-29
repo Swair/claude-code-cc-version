@@ -12,11 +12,8 @@ CMAKE ?= cmake
 MAKE ?= make
 NUM_JOB ?= 8
 
-# Set PATH for MSYS2/MinGW tools and NVIDIA utilities (nvidia-smi)
-export PATH := /c/Windows/System32:/e/devtool/msys64/mingw64/bin:$(PATH)
-
 PACKAGE_NAME ?= Prosophor
-PACKAGE_VERSION ?= 0.7.7
+PACKAGE_VERSION ?= 0.7.10
 # BUILD_TYPE ?= RelWithDebInfo
 BUILD_TYPE ?= Debug
 
@@ -61,6 +58,9 @@ run:
 # ==============================================================================
 # Windows 构建配置 (MSYS2/MinGW)
 # ==============================================================================
+
+# Set PATH for MSYS2/MinGW tools and NVIDIA utilities (nvidia-smi)
+export PATH := /c/Windows/System32:/e/devtool/msys64/mingw64/bin:$(PATH)
 
 BUILD_DIR_WIN ?= $(PROJECT_DIR)/build_win
 INSTALL_DIR_WIN ?= $(BUILD_DIR_WIN)/install
@@ -201,7 +201,7 @@ clean_win:
 
 # NSIS 安装包路径
 NSIS ?= /e/devtool/msys64/mingw64/bin/makensis.exe
-PACKAGE_DIR ?= $(PROJECT_DIR)/tools/packaging
+PACKAGE_DIR ?= $(PROJECT_DIR)/tool/packaging
 
 package: build_win_sdl
 	cp /e/devtool/msys64/mingw64/etc/ssl/certs/ca-bundle.crt $(INSTALL_DIR_WIN)/bin/
@@ -238,7 +238,7 @@ package_sdl_fast: build_win_sdl_fast
 CHANGELOG_NOTES ?= $(BUILD_DIR_WIN)/release_notes.md
 
 define do_deploy
-	python "$(PROJECT_DIR)/tools/extract_changelog.py" $(PACKAGE_VERSION) > "$(CHANGELOG_NOTES)" 2>/dev/null; \
+	python "$(PROJECT_DIR)/tool/extract_changelog.py" $(PACKAGE_VERSION) > "$(CHANGELOG_NOTES)" 2>/dev/null; \
 	if [ -s "$(CHANGELOG_NOTES)" ]; then \
 	  NOTES_OPT="--notes-file \"$(CHANGELOG_NOTES)\""; \
 	else \

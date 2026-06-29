@@ -70,6 +70,9 @@ public:
     std::vector<AgentSession*> GetSessionsByRole(const std::string& role_id);
     std::vector<const AgentSession*> GetSessionsByRole(const std::string& role_id) const;
 
+    /// 重建某角色的所有活跃会话的 system prompt（HotReload 后调用）
+    void RebuildSystemPromptForRole(const std::string& role_id);
+
     /// 获取活跃会话（最近 N 分钟）
     std::vector<AgentSession*> GetActiveSessions(int minutes = 30);
 

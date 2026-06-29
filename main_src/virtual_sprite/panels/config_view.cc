@@ -21,7 +21,6 @@ struct ConfigTab {
 
 static std::vector<ConfigTab> s_tabs = {
     {"general",  "tab_general"},
-    {"security", "tab_security"},
 };
 
 static int s_sel = 0;
@@ -123,17 +122,6 @@ void ChatWindow::RenderConfigView(int cont_x, int cont_y, int cont_w, int cont_h
             });
         }
 
-        if (s_tabs[s_sel].key == std::string("security")) {
-            Card sec(cx, iy, cw, L.Get("tab_security").c_str(), ls);
-            const char* pls[] = {"auto","allow","deny"};
-            int pl = 0; for (int i = 0; i < 3; ++i) { if (config.security.permission_level == pls[i]) { pl = i; break; } }
-            sec.Field(L.Get("security_permission_level").c_str(), [&](){
-                float cw_half = ((cx + cw) - sec.WidgetX()) * 0.5f;
-                auto _w = media_engine::ScopedItemWidth(cw_half);
-                if (media_engine::ImGuiWidget::Combo("##cfg_pl", &pl, pls, 3)) config.security.permission_level = pls[pl]; });
-            sec.Field(L.Get("security_allow_local_exec").c_str(),
-                [&](){ media_engine::ImGuiWidget::Checkbox("##cfg_le", &config.security.allow_local_execute); });
-        }
     }
 
     ActionBar(f.a, f.btn_h,

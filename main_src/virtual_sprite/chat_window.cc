@@ -109,6 +109,8 @@ media_engine::Window* ChatWindow::GetWindow() const {
 
 void ChatWindow::Render() {
     if (!visible_ || !d_ || !d_->window) return;
+    update_handler_.CheckAndShowUpdate();
+    update_handler_.Render();
     RenderChatUI();
 }
 
@@ -165,13 +167,11 @@ void ChatWindow::RenderCurrentView(int cont_x, int cont_y, int cont_w, int cont_
         case NavItem::Providers:    RenderProvidersView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::ActiveTriggers: RenderActiveTriggersView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::About:        RenderAboutView(cont_x, cont_y, cont_w, cont_h); break;
-        case NavItem::Memory:       RenderMemoryView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::LocalModels:  RenderLocalModelsView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Tts:          RenderTtsView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Security:     RenderSecurityView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Skills:       RenderSkillsView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::KnowledgeBase: RenderKnowledgeView(cont_x, cont_y, cont_w, cont_h); break;
-        case NavItem::Scheduler:    RenderSchedulerView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Mcp:          RenderMcpView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::PetStore:         RenderPetStoreView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::ComputerOrganize: RenderComputerOrganizeView(cont_x, cont_y, cont_w, cont_h); break;
@@ -267,7 +267,7 @@ void ChatWindow::CreateTrayWindow() {
     tray_window_->SetPosition(dw - tcfg_layout.tray_margin, dh - tcfg_layout.tray_margin);
     tray_window_->Hide();
 
-    std::string icon_path = std::string(PROSOPHOR_SOURCE_DIR) + "/main_src/resources/preview.png";
+    std::string icon_path = (ProsophorConfig::BaseDir() / "resources" / "preview.png").string();
     tray_texture_ = std::make_unique<media_engine::Texture>(*tray_window_, icon_path);
 
     media_engine::MediaCore::Instance().RegRenderHandler(tray_window_, [this]() { RenderTray(); });
@@ -309,5 +309,6 @@ void ChatWindow::RenderTray() {
         tray_texture_->DrawImGui(pad, pad, s - pad * 2.0f, s - pad * 2.0f, 0.0f, 0.0f, 1.0f, 1.0f);
     media_engine::ImGuiWindow::End();
 }
+
 
 }  // namespace prosophor

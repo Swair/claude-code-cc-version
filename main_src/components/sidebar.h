@@ -28,7 +28,6 @@ enum class NavItem {
     Security,
     Skills,
     KnowledgeBase,
-    Scheduler,
     Mcp,
     PetStore,
     ComputerOrganize,

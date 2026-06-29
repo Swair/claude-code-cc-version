@@ -9,6 +9,8 @@
 
 #include "common/log_wrapper.h"
 #include "common/file_utils.h"
+#include "common/time_wrapper.h"
+
 #include "providers/llm/llm_provider.h"
 
 namespace prosophor {
@@ -57,10 +59,63 @@ TokenTracker& TokenTracker::GetInstance() {
     return instance;
 }
 
+void TokenTracker::SetDailyDir(const std::string& dir) {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    daily_dir_ = dir;
+    if (!DirExists(dir)) return;
+    auto files = ListDir(dir, ".json");
+    for (const auto& fname : files) {
+        auto stem = fname.size() >= 10 ? fname.substr(0, 10) : fname;
+        if (stem.size() != 10 || stem[4] != '-' || stem[7] != '-') continue;
+        auto json_opt = ReadJson(JoinPath(dir, fname));
+        if (!json_opt) continue;
+        TokenStats day_total;
+        for (const auto& [model, mj] : json_opt->items()) {
+            TokenStats ms;
+            ms.prompt_tokens = mj.value("prompt_tokens", 0);
+            ms.completion_tokens = mj.value("completion_tokens", 0);
+            ms.total_tokens = mj.value("total_tokens", 0);
+            ms.cost_usd = mj.value("cost_usd", 0);
+            day_total.Add(ms.prompt_tokens, ms.completion_tokens);
+            day_total.cost_usd += ms.cost_usd;
+            daily_model_history_[stem][model] = ms;
+            auto& mstats = model_stats_[model];
+            mstats.prompt_tokens += ms.prompt_tokens;
+            mstats.completion_tokens += ms.completion_tokens;
+            mstats.total_tokens += ms.total_tokens;
+            mstats.cost_usd += ms.cost_usd;
+        }
+        daily_history_[stem] = day_total;
+    }
+    totals_dirty = true;
+    LOG_INFO("Loaded {} daily usage file(s) from {}", daily_history_.size(), daily_dir_);
+}
+
+void TokenTracker::FlushToday() {
+    std::string today;
+    nlohmann::json day_json;
+    {
+        std::shared_lock<std::shared_mutex> lock(mutex_);
+        if (daily_dir_.empty()) return;
+        today = SystemClock::GetCurrentDate();
+        auto model_it = daily_model_history_.find(today);
+        if (model_it == daily_model_history_.end()) return;
+        for (const auto& [model, ms] : model_it->second) {
+            nlohmann::json mj;
+            mj["prompt_tokens"] = ms.prompt_tokens;
+            mj["completion_tokens"] = ms.completion_tokens;
+            mj["total_tokens"] = ms.total_tokens;
+            mj["cost_usd"] = ms.cost_usd;
+            day_json[model] = std::move(mj);
+        }
+    }
+    WriteJson(JoinPath(daily_dir_, today + ".json"), day_json, 2);
+}
+
 void TokenTracker::RecordUsage(const std::string& model, int prompt_tokens, int completion_tokens) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
-
     auto& stats = model_stats_[model];
+    double cost_before = stats.cost_usd;
     stats.Add(prompt_tokens, completion_tokens);
 
     // Calculate cost if we have rates
@@ -75,7 +130,17 @@ void TokenTracker::RecordUsage(const std::string& model, int prompt_tokens, int 
     }
 
     totals_dirty = true;
+    // Record daily history
+    auto today = SystemClock::GetCurrentDate();
+    double cost_delta = stats.cost_usd - cost_before;
+    daily_history_[today].Add(prompt_tokens, completion_tokens);
+    daily_history_[today].cost_usd += cost_delta;
+    auto& dms = daily_model_history_[today][model];
+    dms.Add(prompt_tokens, completion_tokens);
+    dms.cost_usd += cost_delta;
     LOG_DEBUG("Token usage recorded for {}: {} prompt, {} completion", model, prompt_tokens, completion_tokens);
+    lock.unlock();
+    FlushToday();
 }
 
 void TokenTracker::RecordExtendedUsage(const std::string& model,
@@ -108,7 +173,15 @@ void TokenTracker::RecordExtendedUsage(const std::string& model,
     ext_stats.session_count++;
 
     totals_dirty = true;
+    // Record daily history
+    auto today = SystemClock::GetCurrentDate();
+    daily_history_[today].Add(prompt_tokens, completion_tokens);
+    daily_history_[today].cost_usd += cost_usd;
+    daily_model_history_[today][model].Add(prompt_tokens, completion_tokens);
+    daily_model_history_[today][model].cost_usd += cost_usd;
     LOG_DEBUG("Extended usage recorded for {}: {} total tokens, ${:.4f}", model, stats.total_tokens, cost_usd);
+    lock.unlock();
+    FlushToday();
 }
 
 void TokenTracker::RecordCodeChanges(int lines_added, int lines_removed) {
@@ -230,6 +303,18 @@ nlohmann::json TokenTracker::ToJson() const {
     }
     json["models"] = models;
 
+    // Daily history
+    nlohmann::json daily = nlohmann::json::object();
+    for (const auto& [date, stats] : daily_history_) {
+        nlohmann::json day_json = nlohmann::json::object();
+        day_json["prompt_tokens"] = stats.prompt_tokens;
+        day_json["completion_tokens"] = stats.completion_tokens;
+        day_json["total_tokens"] = stats.total_tokens;
+        day_json["cost_usd"] = stats.cost_usd;
+        daily[date] = day_json;
+    }
+    json["daily_history"] = daily;
+
     return json;
 }
 
@@ -263,6 +348,18 @@ void TokenTracker::FromJson(const nlohmann::json& json) {
     }
     if (json.contains("tool_duration_ms")) {
         extended_stats_["__total__"].tool_duration_ms = json.value("tool_duration_ms", 0);
+    }
+
+    // Load daily history
+    if (json.contains("daily_history") && json["daily_history"].is_object()) {
+        for (const auto& [date, day_json] : json["daily_history"].items()) {
+            TokenStats stats;
+            stats.prompt_tokens = day_json.value("prompt_tokens", 0);
+            stats.completion_tokens = day_json.value("completion_tokens", 0);
+            stats.total_tokens = day_json.value("total_tokens", 0);
+            stats.cost_usd = day_json.value("cost_usd", 0);
+            daily_history_[date] = stats;
+        }
     }
 
     totals_dirty = true;
@@ -440,6 +537,16 @@ int64_t TokenTracker::GetTotalToolDurationMs() const {
 
 std::unordered_map<std::string, ExtendedTokenStats> TokenTracker::GetAllExtendedStats() const {
     return extended_stats_;
+}
+
+std::unordered_map<std::string, TokenStats> TokenTracker::GetDailyHistory() const {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    return daily_history_;
+}
+
+std::unordered_map<std::string, std::unordered_map<std::string, TokenStats>> TokenTracker::GetDailyModelHistory() const {
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    return daily_model_history_;
 }
 
 std::string TokenTracker::FormatTotalCost() const {

@@ -65,8 +65,6 @@ public:
         tts_speak_callback_ = std::move(cb);
     }
 
-    inline MemoryConsolidationService* GetConsolidationService() const { return consolidation_service_; }
-    inline void SetConsolidationService(MemoryConsolidationService* v) { consolidation_service_ = v; }
     inline const std::vector<std::string>& GetRelatedFiles() const { return related_files_; }
     inline void SetRelatedFiles(std::vector<std::string> v) { related_files_ = std::move(v); }
 
@@ -88,6 +86,12 @@ public:
     inline void SetTimeout(int v) { timeout_ = v; }
     inline const std::string& GetSessionHistoryDir() const { return session_history_dir_; }
     inline void SetSessionHistoryDir(const std::string& v) { session_history_dir_ = v; }
+    inline const std::string& GetSessionLogDir() const { return session_log_dir_; }
+    inline void SetSessionLogDir(const std::string& v) { session_log_dir_ = v; }
+
+    /// 把未持久化的消息追加到 sessions/{role_id}/{date}.jsonl
+    /// 在 CompactIfNeeded 和 CloseSession 时调用
+    void FlushToDisk();
     inline SteadyClock::TimePoint GetCreatedAt() const { return created_at_; }
     inline bool IsActive() const { return is_active_; }
     inline void SetActive(bool v) { is_active_ = v; }
@@ -102,6 +106,8 @@ public:
     // ── 只读访问器（外部代码通过此处读取内部数据）───────────
     inline const std::vector<MessageSchema>& GetMessages() const { return messages_; }
     inline const std::vector<SystemSchema>& GetSystemPrompt() const { return system_prompt_; }
+    inline int GetConsolidatedCount() const { return last_consolidated_count_; }
+    inline void SetConsolidatedCount(int n) { last_consolidated_count_ = n; }
 
     // ── 线程安全接口（内部持渲染锁）────────────────────────
     void SetOutput(AgentRuntimeState new_state,
@@ -142,11 +148,13 @@ private:
     bool use_tools_ = true;
     bool auto_confirm_tools_ = false;
     std::string working_directory_;
-    MemoryConsolidationService* consolidation_service_ = nullptr;
     std::vector<std::string> related_files_;
 
     // ── 控制标志 ──────────────────────────────────────────
     std::atomic<bool> stop_requested_{false};
+
+    // ── 记忆 ─────────────────────────────────────────────
+    int last_consolidated_count_ = 0;
 
     // ── 元数据 ────────────────────────────────────────────
     std::string session_id_;
@@ -156,6 +164,8 @@ private:
     std::string api_key_;
     int timeout_ = 60;
     std::string session_history_dir_;
+    std::string session_log_dir_;
+    int last_flushed_index_ = 0;
     bool is_active_ = true;
 
     // ── 会话锁 ────────────────────────────────────────────

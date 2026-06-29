@@ -8,10 +8,6 @@
 #include <filesystem>
 #include <algorithm>
 
-#ifndef PROSOPHOR_SOURCE_DIR
-#define PROSOPHOR_SOURCE_DIR "."
-#endif
-
 #include "common/file_utils.h"
 #include "common/log_wrapper.h"
 #include "config/config.h"
@@ -182,32 +178,12 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
 
         // 1. config sprite_assets_dir/{sprite_id}/meta.json
         if (!config.sprite_assets_dir.empty()) {
-            std::string meta_path = config.sprite_assets_dir + "/" + role.sprite_id + "/meta.json";
+            std::string meta_path = prosophor::JoinPath(config.sprite_assets_dir, role.sprite_id, "meta.json");
             std::ifstream mf(meta_path);
             if (mf) { try { mf >> sj; } catch (...) {} }
         }
 
-        // 2. Fallback: petdex-sprites recursive search
-        if (sj.empty()) {
-            static const char* kPetdexDir = PROSOPHOR_SOURCE_DIR "/assets/petdex-sprites/by-collection";
-            if (!DirExists(kPetdexDir)) {
-                LOG_WARN("Petdex directory not found: {}", kPetdexDir);
-            } else {
-                for (const auto& entry : std::filesystem::recursive_directory_iterator(kPetdexDir)) {
-                    if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
-                    try {
-                        std::ifstream pf(entry.path());
-                        nlohmann::json pj;
-                        pf >> pj;
-                        if (pj.value("id", "") == role.sprite_id) { sj = std::move(pj); break; }
-                    } catch (const std::exception& e) {
-                        LOG_WARN("Failed to read petdex entry {}: {}", entry.path().string(), e.what());
-                    }
-                }
-            }
-        }
-
-        // 3. Override role fields with sprite fields (同名覆盖)
+        // 2. Override role fields with sprite fields (同名覆盖)
         if (!sj.empty()) {
             if (auto it = sj.find("display_name"); it != sj.end() && it->is_string())
                 role.name = it->get<std::string>();
@@ -297,8 +273,9 @@ AgentRole AgentRoleLoader::ParseFromJson(const nlohmann::json& j, const std::str
         role.tools.clear();
     }
 
-    // 初始化默认对话策略
+    // 初始化默认策略
     role.dialog_strategy = DialogStrategy::CreateDefault();
+    role.memory_strategy = CreateDefaultMemoryStrategy();
 
     return role;
 }

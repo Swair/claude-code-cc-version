@@ -11,7 +11,7 @@
 #include "common/log_wrapper.h"
 #include "common/constants.h"
 #include "common/time_wrapper.h"
-#include "managers/memory_manager.h"
+#include "core/memory_manager.h"
 #include "managers/skill_loader.h"
 #include "core/agent_session.h"
 #include "core/agent_core.h"

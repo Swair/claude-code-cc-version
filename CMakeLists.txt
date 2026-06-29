@@ -184,9 +184,10 @@ if(WIN32 AND MINGW)
     # Use compiler's directory to find MinGW DLLs (more reliable than MINGW_PREFIX env var)
     get_filename_component(MINGW_BIN_DIR ${CMAKE_CXX_COMPILER} DIRECTORY)
 
-    # Runtime DLLs
+    # Runtime DLLs (OpenMP from MinGW for llama.cpp parallel CPU inference)
     install(FILES
         "${MINGW_BIN_DIR}/libcurl-4.dll"
+        "${MINGW_BIN_DIR}/libgomp-1.dll"
         "${MINGW_BIN_DIR}/libgcc_s_seh-1.dll"
         "${MINGW_BIN_DIR}/libstdc++-6.dll"
         "${MINGW_BIN_DIR}/libwinpthread-1.dll"
@@ -206,6 +207,7 @@ if(WIN32 AND MINGW)
         "${MINGW_BIN_DIR}/libssh2-1.dll"
         "${MINGW_BIN_DIR}/libunistring-5.dll"
         "${MINGW_BIN_DIR}/libzstd.dll"
+        "${MINGW_BIN_DIR}/vulkan-1.dll"
         DESTINATION bin
     )
 

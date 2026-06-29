@@ -242,6 +242,8 @@ void RoleConfigManager::HotReload(const std::string& role_id) {
             }
         } catch (...) {}
     }
+    // Rebuild system prompt so updated soul/description/role_system_prompt take effect
+    mgr.RebuildSystemPromptForRole(role_id);
     LOG_DEBUG("RoleConfigManager: hot-reloaded {} sessions for role {}", sessions.size(), role_id);
 }
 

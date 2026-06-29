@@ -37,6 +37,8 @@
 "font_medium": "Medium",
 "font_large": "Large",
   "btn_save": "Save",
+  "btn_delete": "Delete",
+  "btn_new_role": "New Role",
   "btn_cancel": "Cancel",
 
   "menu_about": "About",
@@ -147,6 +149,7 @@
   "log_error": "ERROR",
   "log_debug": "DEBUG",
   "log_clear": "Clear",
+  "log_no_entries": "No log entries",
 
   "usage_total_tokens": "Total Tokens",
   "usage_input_tokens": "Input Tokens",
@@ -155,6 +158,8 @@
   "usage_session": "Session",
   "usage_overall": "Overall",
   "usage_reset": "Reset",
+  "usage_start": "Start",
+  "usage_end": "End",
 
   "debug_system": "System",
   "debug_providers": "Providers",
@@ -165,5 +170,14 @@
 
   "btn_refresh": "Refresh",
 "nav_refresh": "Refresh",
-  "btn_focus": "Focus"
+  "btn_focus": "Focus",
+
+  "perm_title": "Tool Access Authorization",
+
+  "perm_auto": "Auto",
+  "perm_auto_desc": "Auto-allow safe tools, deny dangerous ones",
+  "perm_full": "Full Access",
+  "perm_full_desc": "Auto-allow all operations, no prompting",
+  "perm_ask": "Require Approval",
+  "perm_ask_desc": "Every operation requires user confirmation"
 }

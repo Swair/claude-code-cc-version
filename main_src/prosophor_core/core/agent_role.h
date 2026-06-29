@@ -15,6 +15,7 @@
 
 #include "tools/tool_registry.h"  // For ToolsSchema
 #include "core/dialog_strategy.h"
+#include "core/memory_manager.h"
 
 namespace prosophor {
 
@@ -64,6 +65,9 @@ struct AgentRole {
 
     // === 对话策略（共享，同策略的 role 索引同一实例） ===
     std::shared_ptr<DialogStrategy> dialog_strategy;
+
+    // === 记忆策略 ===
+    std::shared_ptr<MemoryStrategy> memory_strategy;
 
     /// 检查是否绑定了专属 Provider
     bool HasCustomProvider() const {

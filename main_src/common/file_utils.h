@@ -135,4 +135,31 @@ std::string FindFileInDirs(const std::string& base_dir, const std::string& filen
 /// @return Parent directory, or "." if no separator found
 std::string ParentDir(const std::string& path);
 
+// ============================================================================
+// Path Joining (cross-platform, no double separators)
+// ============================================================================
+
+/// JoinPath - Join path components using std::filesystem::path::operator/=
+/// @tparam Args Path component types (convertible to std::filesystem::path)
+/// @param first First path component
+/// @param rest Remaining path components
+/// @return Joined path string
+template <typename T, typename... Args>
+std::string JoinPath(T&& first, Args&&... rest) {
+    std::filesystem::path p(std::forward<T>(first));
+    ((p /= std::forward<Args>(rest)), ...);
+    return p.string();
+}
+
+/// ListDir - List filenames (not full paths) in a directory, optionally filtered by extension
+/// @param dir Directory path
+/// @param ext Filter extension (e.g. ".json"), empty = all files
+/// @return Sorted list of filenames
+std::vector<std::string> ListDir(const std::string& dir, const std::string& ext = "");
+
+/// ReadDir - List entries in a directory, returning full paths
+/// @param dir Directory path
+/// @return List of full paths for regular files
+std::vector<std::string> ReadDir(const std::string& dir);
+
 }  // namespace prosophor

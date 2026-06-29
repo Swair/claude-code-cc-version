@@ -18,6 +18,7 @@
 #include "common/time_wrapper.h"
 #include "tools/tool_registry.h"
 #include "core/dialog_strategy.h"
+#include "core/memory_manager.h"
 
 namespace prosophor {
 
@@ -315,6 +316,7 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
                 session.SetOutput(AgentRuntimeState::COMPLETE, "Done.", assistant_msg);
             }
 
+            ConsolidateMemoryIfNeeded(session);
             return;
         }
 
@@ -325,6 +327,12 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
 
     // Max iterations (unexpected — LLM didn't complete in time)
     session.SetOutput(AgentRuntimeState::STATE_ERROR, "[Max iterations reached]");
+}
+
+void AgentCore::ConsolidateMemoryIfNeeded(AgentSession& session) {
+    auto* role = session.GetRole();
+    if (!role || !role->memory_strategy) return;
+    role->memory_strategy->TrySegmentConsolidation(session);
 }
 
 }  // namespace prosophor

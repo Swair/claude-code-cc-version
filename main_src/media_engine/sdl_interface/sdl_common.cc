@@ -40,6 +40,7 @@ SdlResource::~SdlResource() {
 }
 
 void SdlResource::SDLInit() {
+    SDL_SetAppMetadata("Prosophor", PROSOPHOR_VERSION, "prosophor");
     if (!SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO)){
         LOG_ERROR("[SdlResource] SDL init failed: {}", SDL_GetError());
     }

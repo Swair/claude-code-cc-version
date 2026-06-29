@@ -4,6 +4,8 @@
 #include "core/agent_session.h"
 
 #include "common/log_wrapper.h"
+#include "common/time_wrapper.h"
+#include "common/file_utils.h"
 
 namespace {
 
@@ -64,7 +66,6 @@ AgentSession::AgentSession(AgentSession&& other) noexcept
       use_tools_(other.use_tools_),
       auto_confirm_tools_(other.auto_confirm_tools_),
       working_directory_(std::move(other.working_directory_)),
-      consolidation_service_(other.consolidation_service_),
       related_files_(std::move(other.related_files_)),
       stop_requested_(other.stop_requested_.load()),
       session_id_(std::move(other.session_id_)),
@@ -97,7 +98,6 @@ AgentSession& AgentSession::operator=(AgentSession&& other) noexcept {
     use_tools_ = other.use_tools_;
     auto_confirm_tools_ = other.auto_confirm_tools_;
     working_directory_ = std::move(other.working_directory_);
-    consolidation_service_ = other.consolidation_service_;
     related_files_ = std::move(other.related_files_);
     stop_requested_.store(other.stop_requested_.load());
     session_id_ = std::move(other.session_id_);
@@ -265,6 +265,43 @@ void AgentSession::CompactHistory(const std::vector<MessageSchema>& kept_message
 
 void AgentSession::SetSystemPrompt(const std::vector<SystemSchema>& prompt) {
     system_prompt_ = prompt;
+}
+
+void AgentSession::FlushToDisk() {
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    if (session_log_dir_.empty()) return;
+    if (last_flushed_index_ >= static_cast<int>(messages_.size())) return;
+
+    std::filesystem::create_directories(session_log_dir_);
+    auto filepath = std::filesystem::path(session_log_dir_) /
+                    (SystemClock::GetCurrentDate() + ".jsonl");
+
+    std::string batch;
+    for (int i = last_flushed_index_; i < static_cast<int>(messages_.size()); ++i) {
+        nlohmann::json j;
+        j["role"] = messages_[i].role;
+        j["ts"] = SystemClock::GetCurrentTimestamp();
+
+        for (const auto& block : messages_[i].content) {
+            if (block.type == "text") {
+                j["content"] = block.text;
+            } else if (block.type == "tool_use") {
+                j["tool"] = block.name;
+                j["args"] = block.input;
+            } else if (block.type == "tool_result") {
+                j["result"] = block.content;
+            }
+        }
+        batch += j.dump() + "\n";
+    }
+
+    if (!WriteFile(filepath.string(), batch, true)) {
+        LOG_ERROR("Failed to flush session log: {}", filepath.string());
+        return;
+    }
+
+    last_flushed_index_ = static_cast<int>(messages_.size());
+    LOG_DEBUG("Flushed {} messages to {}", last_flushed_index_, filepath.string());
 }
 
 void AgentSession::ApplyProviderOverride(const std::string& provider_name,

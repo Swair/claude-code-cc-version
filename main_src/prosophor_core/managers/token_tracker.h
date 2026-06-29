@@ -131,16 +131,28 @@ public:
     /// Get model usage for all models (for cost display)
     std::unordered_map<std::string, ExtendedTokenStats> GetAllExtendedStats() const;
 
+    /// Get daily usage history (date -> stats for that day)
+    std::unordered_map<std::string, TokenStats> GetDailyHistory() const;
+
+    /// Get per-model daily usage history (date -> model -> stats)
+    std::unordered_map<std::string, std::unordered_map<std::string, TokenStats>> GetDailyModelHistory() const;
+
+    /// Set directory for per-date usage files and load all existing data
+    void SetDailyDir(const std::string& dir);
+
+    /// Flush today's stats to disk (called after each record if daily_dir_ is set)
+    void FlushToday();
+
     /// Export stats to JSON
     nlohmann::json ToJson() const;
 
     /// Import stats from JSON
     void FromJson(const nlohmann::json& json);
 
-    /// Save stats to file
+    /// Save all stats to a single file (legacy)
     void SaveToFile(const std::string& filepath);
 
-    /// Load stats from file
+    /// Load all stats from a single file (legacy)
     void LoadFromFile(const std::string& filepath);
 
     /// Format total cost for display
@@ -154,8 +166,11 @@ private:
     ~TokenTracker() = default;
 
     mutable std::shared_mutex mutex_;  // Protects all stats maps
+    std::string daily_dir_;  // Directory for per-date usage files (empty = no auto-flush)
     std::unordered_map<std::string, TokenStats> model_stats_;
     std::unordered_map<std::string, ExtendedTokenStats> extended_stats_;
+    std::unordered_map<std::string, TokenStats> daily_history_;  // date -> daily total
+    std::unordered_map<std::string, std::unordered_map<std::string, TokenStats>> daily_model_history_;  // date -> model -> stats
     std::unordered_map<std::string, std::pair<double, double>> cost_rates_;  // input, output per 1K tokens
     mutable std::unordered_map<std::string, TokenStats> cached_totals_;
     mutable std::unordered_map<std::string, ExtendedTokenStats> cached_extended_totals_;

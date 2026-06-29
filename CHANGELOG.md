@@ -1,5 +1,65 @@
 # Changelog
 
+## [Unreleased] — 2026-06-29 记忆系统重构 + 自动更新 + 面板全面增强 + Token 用量统计
+
+本期重点：记忆系统从 managers 层迁移至 core 层统一管理；新增自动更新检查/UI 机制；Usage/Roles/Logs/Security 面板全面增强；Token 跟踪系统大幅升级；新增 Skill Creator 系统；精灵模块重构精简。净变化 +2,740 / -1,723 行。
+
+### 记忆系统重构（核心变更）
+- **移除旧实现**：删除 `managers/memory_manager` 和 `core/memory_consolidation_service`
+- **新建统一记忆管理器**：`core/memory_manager`（+515 / +160 行），将记忆管理集中到 core 层
+- **AgentSession 扩展**：新增相关记忆操作方法（`agent_session.cc/h`）
+
+### 自动更新机制（新增）
+- **`updater/update_checker.cc/h`**（+209 / +56 行）：实现自动更新检查逻辑
+- **`update_handler.cc/h`**（+88 / +19 行）：处理更新 UI 交互
+- **virtual_sprite.cc**：主入口接入更新功能
+
+### 面板全面增强
+- **UsageView**（`usage_view.cc`）：大幅重构，+510 行，Token 用量统计展示
+- **RolesView**（`roles_view.cc`）：+365 行，角色管理面板大幅增强
+- **LogsView**（`logs_view.cc`）：+131 行，日志面板改进
+- **SecurityView**（`security_view.cc`）：+54 行，安全设置面板增强
+- **删除旧面板**：移除 `memory_view.cc` 和 `scheduler_view.cc`
+- **ConfigView**：精简移除冗余配置项
+
+### Token 跟踪系统
+- `token_tracker.cc/h`：Token 用量统计与跟踪能力大幅增强（+109 / +19 行）
+
+### Skill Creator 系统（新增）
+- `config/.prosophor/active/skill_creator/`：技能创建器，含 ACTIVE.md、trigger.py、trigger_mode.cfg
+- 新增资源 `preview.png`
+
+### 媒体引擎改进
+- `media_core.cc`：+59 行关键媒体核心逻辑更新
+- `sdl_common.cc`、`imgui_widget.cc/h`、`media_core.h`：相应适配
+
+### 国际化
+- `en.json` / `zh-CN.json`：各 +16 行，新增/修改翻译条目
+
+### 工具类增强
+- `file_utils.cc/h`：+29/+27 行，新增文件工具方法
+- `log_wrapper.h`：+20 行，日志功能增强
+
+### 组件与 UI
+- `sidebar.cc`：+43 行，侧边栏功能增强
+- `chat_panel.cc`：+31 行，聊天面板改进
+- `item_list.cc`、`selectable_item.cc`：列表和可选择项改进
+- `sprite.cc/h`：大幅精简（-120 行），精灵重构
+- `asset_define.h`：+14 行，新增精灵资源定义
+
+### 代理核心改进
+- `agent_core.cc/h`：新增内省方法
+- `agent_role.h`：角色定义扩展
+- `role_config_manager.cc`、`agent_role_loader.cc`：角色配置加载优化
+- `subagent_coordinator.cc`、`command_registry.cc`：命令注册与子代理协调改进
+
+### 构建系统
+- `CMakeLists.txt`（根目录和 main_src）：添加新模块编译支持
+- `Makefile`：+12 行构建规则
+- `tests/CMakeLists.txt`：+10 行测试配置
+
+---
+
 ## [Unreleased] — 2026-06-21 llamacpp 重构 + Provider 体系增强 + README 文档完善
 
 本期重点：llamacpp Provider 大规模重构——移除 PIMPL 模式、`PROSOPHOR_HAS_LOCAL_MODEL` 条件编译下沉、使用 `common_chat_templates_apply` 渲染 prompt；全 Provider 体系新增 `thinking_budget_tokens` / `reasoning_effort`；新增 Tool Call 流式事件；会话系统新增 `enable_tools` 控制；README 文档全面升级新增环形缓冲区图解与 SDL 演示图。净变化 ~1,120 行，4 张新图片。

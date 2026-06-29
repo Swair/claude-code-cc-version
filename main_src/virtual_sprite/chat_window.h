@@ -10,6 +10,7 @@
 #include <atomic>
 
 #include "virtual_sprite/settings_window.h"
+#include "virtual_sprite/update_handler.h"
 #include "components/sidebar.h"
 #include "media_engine/media/colors.h"
 
@@ -52,13 +53,11 @@ private:
     void RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderProvidersView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderAboutView(int cont_x, int cont_y, int cont_w, int cont_h);
-    void RenderMemoryView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderLocalModelsView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderTtsView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderSecurityView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderSkillsView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderKnowledgeView(int cont_x, int cont_y, int cont_w, int cont_h);
-    void RenderSchedulerView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderMcpView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderPetStoreView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderComputerOrganizeView(int cont_x, int cont_y, int cont_w, int cont_h);
@@ -89,6 +88,7 @@ private:
     std::unique_ptr<media_engine::Texture> tray_texture_;
 
     SettingsWindow settings_;
+    UpdateHandler update_handler_;
     Sidebar sidebar_;
 
     bool visible_         = true;
@@ -101,7 +101,18 @@ private:
     int  prev_layout_h_   = 0;
 
     // Log filter state
-    int  log_filter_      = 0; // 0=All, 1=INFO, 2=WARN, 3=ERROR, 4=DEBUG
+    int  log_filter_      = 0; // 0=All, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR
+
+    struct LogEntry {
+        std::string raw;
+        std::string level;
+        media_engine::Color color;
+    };
+    struct LogCache {
+        std::string last_raw_payload;
+        std::vector<LogEntry> entries;
+    };
+    LogCache log_cache_;
 
     SubmitCallback submit_cb_;
 };

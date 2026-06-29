@@ -66,7 +66,7 @@ class Sprite : public Noncopyable {
     };
     const SpriteBounds& GetSpriteBounds() const { return sprite_bounds_; }
 
-    int GetPetCount() const { return static_cast<int>(pet_list_.size()); }
+    int GetPetCount() const { return pet_sprite_ ? 1 : 0; }
     const std::string& GetCurrentPetSlug() const;
     const std::string& GetCurrentPetName() const;
     std::string GetSpritesheetPath() const;
@@ -84,18 +84,12 @@ class Sprite : public Noncopyable {
 
  private:
     // ── Pet loading ──
-    struct PetEntry {
-        std::string slug;
-        std::string name;
-    };
     struct SpriteBinding {
         std::string sprite_id;
         std::string assets_dir;    // 非空时优先，直接从该目录加载 sprite
         std::string spritesheet_file; // 相对 sprite_assets_dir 的纹理文件名
         std::string display_name;  // display name from role JSON
     };
-    void LoadPetList();
-    void LoadCurrentPet();
     void LoadPetBySpriteId(const std::string& sprite_id);
     void LoadPetFromDir(const std::string& assets_dir);
     SpriteBinding LoadSpriteBindingFromRole(const std::string& role_id);
@@ -124,8 +118,6 @@ class Sprite : public Noncopyable {
     media_engine::NavBar nav_anchor_;    // bottom nav bar (prev/next/+new)
 
     // ── Pet / animation ──
-    std::vector<PetEntry> pet_list_;
-    int current_pet_index_ = 0;
     std::unique_ptr<Spritesheet> pet_sprite_;
     float animation_time_ = 0.0f;
     AgentRuntimeState agent_state_ = AgentRuntimeState::IDLE;

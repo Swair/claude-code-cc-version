@@ -142,6 +142,7 @@ private:
     CommandResult CmdBye(const CommandContext&, const std::vector<std::string>& args);
     CommandResult CmdSetup(const CommandContext&, const std::vector<std::string>& args);
     CommandResult CmdWorkspace(const CommandContext&, const std::vector<std::string>& args);
+    CommandResult CmdUpdate(const CommandContext&, const std::vector<std::string>& args);
 
     /// Register dynamic skill commands from ~/.prosophor/skills/
     void RegisterSkillCommands();
