@@ -331,6 +331,7 @@ ProviderConfig ProviderConfig::FromJson(const nlohmann::json& json) {
 LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
     LlamacppModelConfig config;
     config.model_path = Platform::NormalizePath(json.value("model_path", ""));
+    config.mmproj_path = Platform::NormalizePath(json.value("mmproj_path", ""));
     config.port = json.value("port", 8080);
     // Backward compat: gpu_enable=true → -1, gpu_enable=false → 0; else use n_gpu_layers directly
     if (json.contains("gpu_enable")) {
@@ -370,6 +371,7 @@ LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
 nlohmann::ordered_json LlamacppModelConfig::ToJson() const {
     nlohmann::ordered_json j;
     j["model_path"] = model_path;
+    j["mmproj_path"] = mmproj_path;
     j["n_gpu_layers"] = n_gpu_layers;
     j["threads"] = threads;
     j["auto_start"] = auto_start;
@@ -499,7 +501,7 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
         std::string single = json.value("default_role", json.value("defaultRole", "default"));
         config.default_role = {single};
     }
-    config.enable_summary = json.value("enable_summary", true);
+    config.enable_summary = json.value("enable_summary", false);
     config.sprite_assets_dir = ExpandHome(json.value("sprite_assets_dir", "~/.prosophor/assets"));
     config.workspace_path = ExpandHome(json.value("workspace_path", ""));
     config.font_scale = json.value("font_scale", ProsophorConfig::kFontScaleLarge);
@@ -798,6 +800,7 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
                         const auto& lc = llamacpp_models[0];
                         model_json["model"] = model_config.model;
                         model_json["model_path"] = lc.model_path;
+                        model_json["mmproj_path"] = lc.mmproj_path;
                         model_json["n_gpu_layers"] = lc.n_gpu_layers;
                         model_json["threads"] = lc.threads;
                         model_json["context_window"] = lc.context_window;

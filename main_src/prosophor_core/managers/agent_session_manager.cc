@@ -470,6 +470,10 @@ void AgentSessionManager::SwitchRoleForSession(const std::string& session_id,
     {   // session_mutex: 与 Loop 路径不并发读写 role/provider/base_url/system_prompt
         auto session_lock = session.ScopedLock();
         session.SetRole(&role_it->second);
+
+        // 全局 enable_summary 覆盖角色配置（与 CreateSession 保持一致）
+        role_it->second.enable_summary = ProsophorConfig::GetInstance().enable_summary;
+
         session.SetProvider(LlmProviderRouter::GetInstance().GetProviderByName(session.GetRole()->provider_prot));
 
         auto& config = ProsophorConfig::GetInstance();

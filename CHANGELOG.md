@@ -1,5 +1,41 @@
 # Changelog
 
+## [Unreleased] — 2026-07-05 记忆面板独立 + 计算机整理重写 + 日志面板重写 + 角色面板精简
+
+本期重点：新增独立记忆浏览面板，计算机硬盘整理工具完全重写为主流程序缓存扫描，日志面板去掉缓存层改为实时 ring buffer 渲染，角色面板大幅精简移除嵌入的记忆子面板。导航结构重新组织（Roles/Memory 移至 Capabilities 组）。净变化 +1,259 / -626 行。
+
+### 面板重构
+- **记忆面板独立**（`memory_view.cc` +464 行）：新增 `NavItem::Memory`，侧边栏 Capabilities 组新增记忆导航项，记忆浏览从角色面板移至独立面板，支持按角色/日期/类型查询记忆，查看全文，直接打开文件
+- **角色面板精简**（`roles_view.cc` -500 行）：移除嵌入的记忆管理子面板和大量静态变量，专注角色配置管理
+- **计算机整理重写**（`computer_organize_view.cc` +703 / -465 行）：移除旧磁盘信息展示，改为主流程序缓存扫描——浏览器缓存（Chrome/Edge/Firefox/Opera）、聊天工具（WeChat/QQ）、IDE、开发工具、系统日志/DNS 缓存；新增分类图标和大小排序
+- **日志面板重写**（`logs_view.cc`）：移除 `LogCache` 中间缓存层，直接基于 ring buffer 实时渲染；新增复制按钮（`log_copy`，按过滤器复制到剪贴板）；清除逻辑改为锚点偏移（`log_clear_anchor_`），不再销毁缓存
+- **删除旧面板**：移除 `scheduler_view.cc` 中的日志跳转引用
+
+### 导航与组件
+- **侧边栏重构**：`NavItem::Roles` 和 `NavItem::Memory` 从 Settings 组移至 Capabilities 组（`sidebar.cc`）
+- **ItemList 组件增强**：`Item()` 新增 `disabled` 参数，支持禁用 checkbox（灰色不可交互，`item_list.cc/h`）
+
+### 配置系统
+- **`enable_summary` 默认关闭**：`settings.json` 和 `config.cc` 默认值从 `true` 改为 `false`
+- **角色切换同步**：`SwitchRoleForSession` 时以全局 `enable_summary` 覆盖角色配置（`agent_session_manager.cc`）
+- **多模态模型支持**：llamacpp 配置新增 `mmproj_path` 字段（多模态投影文件路径，`config.cc/h`）
+
+### 代理核心
+- **AgentEngine 扩展**：新增 `GetMemoryManager()` 方法暴露内存管理器引用（`agent_engine.h`）
+- **AgentRole 调整**：`enable_summary` 默认值从 `true` 改为 `false`（`agent_role.h`）
+
+### 媒体引擎
+- **键盘 API**：`ImGuiWidget` 新增 `IsKeyDown` / `IsKeyPressed` 静态方法；新增 `ImGuiKey_LeftCtrl` / `RightCtrl` / `C` / `A` 键盘常量（`imgui_widget.h`）
+- **颜色系统**：`Color::Slot` 新增 `TextDisabled = 1` 槽位（`colors.h`）
+
+### 国际化
+- `en.json` / `zh-CN.json`：新增日志复制按钮、记忆面板导航等翻译条目
+
+### 其他
+- `.gitignore` / `README.md`：文档和忽略规则更新
+
+---
+
 ## [Unreleased] — 2026-06-29 记忆系统重构 + 自动更新 + 面板全面增强 + Token 用量统计
 
 本期重点：记忆系统从 managers 层迁移至 core 层统一管理；新增自动更新检查/UI 机制；Usage/Roles/Logs/Security 面板全面增强；Token 跟踪系统大幅升级；新增 Skill Creator 系统；精灵模块重构精简。净变化 +2,740 / -1,723 行。

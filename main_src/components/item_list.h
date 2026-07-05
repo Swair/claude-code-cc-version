@@ -15,9 +15,10 @@ public:
     /// @param text     显示文字
     /// @param selected 是否选中
     /// @param checked  可选 checkbox 指针（null = 不显示 checkbox）
+    /// @param disabled checkbox 是否禁用（灰色不可点击，仅当 checked != null 时生效）
     /// @return true 表示被点击选中
     bool Item(const char* id, const char* text, bool selected,
-              bool* checked = nullptr);
+              bool* checked = nullptr, bool disabled = false);
 
     float NextY() const { return current_y_; }
 

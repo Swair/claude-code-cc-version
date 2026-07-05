@@ -13,7 +13,7 @@ static media_engine::Color LevelColor(const std::string& level) {
     if (level == "ERROR" || level == "CRITICAL") return media_engine::Colors::RedBright;
     if (level == "WARN")                         return media_engine::Colors::Amber;
     if (level == "DEBUG" || level == "TRACE")     return media_engine::Colors::Gray70;
-    return media_engine::Colors::Gray86;
+    return media_engine::Colors::White;
 }
 
 static int LevelPriority(const std::string& level) {
@@ -36,8 +36,6 @@ static std::string NormalizeLevel(const std::string& raw) {
     return raw;
 }
 
-/// Extract log level from a formatted spdlog line:
-///   [2026-06-09 22:02:06.723] [prosophor] [info] message
 static std::string ExtractLevel(const std::string& line) {
     auto br1 = line.find(']');
     if (br1 == std::string::npos) return "INFO";
@@ -72,61 +70,77 @@ void ChatWindow::RenderLogsView(int cont_x, int cont_y, int cont_w, int cont_h) 
         }
     }
     media_engine::Layout::SameLine(0, 8.0f * sm);
+    if (media_engine::ImGuiWidget::Button(L.Get("log_copy").c_str(), 0, 22.0f * sm)) {
+        auto ring = GetLogRingSink();
+        auto formatted = ring->last_formatted();
+        int target = filter_target[log_filter_];
+        std::string copy_text;
+        for (auto& line : formatted) {
+            if (target > 0 && LevelPriority(ExtractLevel(line)) != target) continue;
+            copy_text += line;
+        }
+        media_engine::ImGuiWidget::SetClipboardText(copy_text.c_str());
+    }
+    media_engine::Layout::SameLine(0, 4.0f * sm);
     if (media_engine::ImGuiWidget::Button(L.Get("log_clear").c_str(), 0, 22.0f * sm)) {
-        log_cache_ = LogCache{};
+        log_clear_anchor_ = GetLogRingSink()->last_formatted().size();
     }
 
-    // ---- Read from ring buffer (real-time, no file I/O) ----
+    // ---- Read from ring buffer ----
     auto ring = GetLogRingSink();
     auto formatted = ring->last_formatted();
 
-    // Rebuild cache if snapshot changed
-    if (!formatted.empty()) {
-        if (log_cache_.last_raw_payload != formatted.back()) {
-            log_cache_.last_raw_payload = formatted.back();
-            log_cache_.entries.clear();
-            log_cache_.entries.reserve(formatted.size());
-            for (auto& line : formatted) {
-                log_cache_.entries.push_back({
-                    line,
-                    ExtractLevel(line),
-                    LevelColor(ExtractLevel(line))
-                });
-            }
-        }
+    size_t start_idx = 0;
+    if (log_clear_anchor_ > 0) {
+        if (log_clear_anchor_ < formatted.size())
+            start_idx = formatted.size() - log_clear_anchor_;
+        else
+            start_idx = formatted.size();
     }
 
-    // ---- Render with level filter + selectable text ----
+    // ---- Render scrollable log area with per-line colored Selectable ----
     float ly = fy + 28.0f * sm;
-    float lw = f.a.w - 24.0f;
+    float lw = f.a.w;
     float lh = f.a.y + f.a.h - ly - 8.0f;
 
     int target = filter_target[log_filter_];
+
+    // Check if any entries pass the filter
     bool any_shown = false;
-    for (auto& e : log_cache_.entries) {
-        if (target > 0 && LevelPriority(e.level) != target) continue;
+    for (size_t i = start_idx; i < formatted.size(); ++i) {
+        if (target > 0 && LevelPriority(ExtractLevel(formatted[i])) != target) continue;
         any_shown = true;
         break;
     }
 
     if (any_shown) {
-        media_engine::Area scroll_area = {f.a.x + 12.0f, ly, lw, lh};
+        media_engine::Area scroll_area = {f.a.x, ly, lw, lh};
         auto _dark = media_engine::ScopedColors(
             media_engine::Color::Slot::ChildBg, media_engine::Colors::GrayNearBlack)
-            .Then(media_engine::Color::Slot::Text, media_engine::Colors::Gray86);
+            .Then(media_engine::Color::Slot::Text, media_engine::Colors::White);
         auto _scrollbar = media_engine::ScopedStyleVar::ScrollbarSize(8.0f);
         auto _log = PanelContainer::BeginScroll(scroll_area, 0, 0, true);
         if (_log) {
-            for (auto& e : log_cache_.entries) {
-                if (target > 0 && LevelPriority(e.level) != target) continue;
+            for (size_t i = start_idx; i < formatted.size(); ++i) {
+                auto& line = formatted[i];
+                std::string level = ExtractLevel(line);
+                if (target > 0 && LevelPriority(level) != target) continue;
+
                 auto _c = media_engine::ScopedColors(
-                    media_engine::Color::Slot::Text, e.color);
-                media_engine::Text::Fmt("%s", e.raw.c_str());
-                media_engine::Layout::Dummy(0, 2.0f * sm);
+                    media_engine::Color::Slot::Text, LevelColor(level));
+                media_engine::ID::Push(("l" + std::to_string(i)).c_str());
+                media_engine::ImGuiWidget::Selectable(line.c_str());
+                media_engine::ID::Pop();
             }
+
+            // Auto-scroll
+            float sy = media_engine::Scroll::GetY();
+            float smax = media_engine::Scroll::GetMaxY();
+            if (smax > 0 && sy >= smax - 10.0f)
+                media_engine::Scroll::SetY(smax);
         }
     } else {
-        media_engine::Layout::SetCursorScreenPos(f.a.x + 12.0f, ly);
+        media_engine::Layout::SetCursorScreenPos(f.a.x, ly);
         auto _empty = media_engine::ScopedColors(
             media_engine::Color::Slot::Text, media_engine::Colors::Gray70);
         media_engine::Text::Fmt("  %s", L.Get("log_no_entries").c_str());

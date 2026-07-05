@@ -51,6 +51,7 @@ private:
     void RenderUsageView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderConfigView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h);
+    void RenderMemoryView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderProvidersView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderAboutView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderLocalModelsView(int cont_x, int cont_y, int cont_w, int cont_h);
@@ -102,17 +103,7 @@ private:
 
     // Log filter state
     int  log_filter_      = 0; // 0=All, 1=DEBUG, 2=INFO, 3=WARN, 4=ERROR
-
-    struct LogEntry {
-        std::string raw;
-        std::string level;
-        media_engine::Color color;
-    };
-    struct LogCache {
-        std::string last_raw_payload;
-        std::vector<LogEntry> entries;
-    };
-    LogCache log_cache_;
+    size_t log_clear_anchor_ = 0; // ring buffer entries to skip after Clear
 
     SubmitCallback submit_cb_;
 };

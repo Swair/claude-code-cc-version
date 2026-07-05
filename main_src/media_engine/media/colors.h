@@ -17,6 +17,7 @@ struct Color {
     // ImGui 样式颜色槽索引 — 值匹配 ImGui 1.92.8
     enum Slot {
         Text = 0,
+        TextDisabled = 1,
         WindowBg = 2,
         ChildBg = 3,
         PopupBg = 4,

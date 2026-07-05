@@ -158,6 +158,8 @@ int Sidebar::GetWidth() const {
         // ═══ 服务 ═══
         collapse_group(SidebarGroup::Capabilities, L18n.Get("sidebar_group_capabilities").c_str());
         if (IsGroupExpanded(SidebarGroup::Capabilities)) {
+            nav_item(NavItem::Roles,      "\xf0\x9f\x91\xa4", L18n.Get("nav_roles").c_str(), indent_s);
+            nav_item(NavItem::Memory,     "\xf0\x9f\xa7\xa0", L18n.Get("nav_memory").c_str(), indent_s);
             nav_item(NavItem::Skills,     "\xf0\x9f\x9b\xa0", L18n.Get("nav_skills").c_str(), indent_s);
             nav_item(NavItem::Mcp,        "\xf0\x9f\x94\x8c", L18n.Get("nav_mcp").c_str(), indent_s);
         }
@@ -174,7 +176,6 @@ int Sidebar::GetWidth() const {
         collapse_group(SidebarGroup::Settings, L18n.Get("sidebar_group_settings").c_str());
         if (IsGroupExpanded(SidebarGroup::Settings)) {
             nav_item(NavItem::Config,     "\xe2\x9a\x99", L18n.Get("nav_config").c_str(), indent_s);
-            nav_item(NavItem::Roles,      "\xf0\x9f\x91\xa4", L18n.Get("nav_roles").c_str(), indent_s);
             nav_item(NavItem::Providers,  "\xf0\x9f\x97\x84", L18n.Get("nav_providers").c_str(), indent_s);
             nav_item(NavItem::LocalModels,"\xf0\x9f\x93\xa6", L18n.Get("nav_local_models").c_str(), indent_s);
             nav_item(NavItem::Tts,        "\xf0\x9f\x97\xa3", L18n.Get("nav_tts").c_str(), indent_s);

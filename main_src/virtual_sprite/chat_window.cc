@@ -164,6 +164,7 @@ void ChatWindow::RenderCurrentView(int cont_x, int cont_y, int cont_w, int cont_
         case NavItem::Usage:        RenderUsageView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Config:       RenderConfigView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Roles:        RenderRolesView(cont_x, cont_y, cont_w, cont_h); break;
+        case NavItem::Memory:       RenderMemoryView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Providers:    RenderProvidersView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::ActiveTriggers: RenderActiveTriggersView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::About:        RenderAboutView(cont_x, cont_y, cont_w, cont_h); break;

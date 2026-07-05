@@ -109,6 +109,7 @@
           {
             "model": "google_gemma-4-E4B-it-Q4_K_M",
             "model_path": "/e/ai_ws/llama_cpp_model/google_gemma-4-E4B-it-Q4_K_M.gguf",
+            "mmproj_path": "",
             "n_gpu_layers": -1,
             "threads": 2,
             "context_window": 128000,

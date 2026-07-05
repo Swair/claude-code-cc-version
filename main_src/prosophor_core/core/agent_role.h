@@ -39,7 +39,7 @@ struct AgentRole {
     int max_tokens = 8192;
     int context_window = 128000;
     bool enable_streaming = true;      // 是否启用流式输出
-    bool enable_summary = true;        // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
+    bool enable_summary = false;       // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
     bool thinking = false;
     int thinking_budget_tokens = 4096;
     std::string reasoning_effort = "medium";

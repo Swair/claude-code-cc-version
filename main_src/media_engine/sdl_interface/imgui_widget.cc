@@ -822,11 +822,9 @@ bool ImGuiWidget::InputTextMultiline(const char* label, char* buf, size_t buf_si
     int flags = read_only ? ImGuiInputTextFlags_ReadOnly : 0;
     if (read_only) {
         ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, IM_COL32(0, 0, 0, 0));
     }
     bool result = ImGui::InputTextMultiline(label, buf, buf_size, ImVec2(width, height), flags);
     if (read_only) {
-        ImGui::PopStyleColor();
         ImGui::PopStyleVar();
     }
     return result;
@@ -902,6 +900,22 @@ bool Menu::Begin(const char* label, bool enabled) {
 
 void Menu::End() {
     ImGui::EndMenu();
+}
+
+bool ImGuiWidget::Selectable(const char* label, bool selected, float width) {
+    return ImGui::Selectable(label, selected, 0, ImVec2(width, 0));
+}
+
+void ImGuiWidget::SetClipboardText(const char* text) {
+    ImGui::SetClipboardText(text);
+}
+
+bool Mouse::IsKeyDown(int imgui_key) {
+    return ImGui::IsKeyDown(static_cast<ImGuiKey>(imgui_key));
+}
+
+bool Mouse::IsKeyPressed(int imgui_key, bool repeat) {
+    return ImGui::IsKeyPressed(static_cast<ImGuiKey>(imgui_key), repeat);
 }
 
 } // namespace media_engine
