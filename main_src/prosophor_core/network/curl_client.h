@@ -126,7 +126,7 @@ struct SseStreamHandler : public StreamHandler {
 
     void OnLine(const std::string& line) override;
     void OnEvent(const std::string& event_type, const std::string& data) override;
-    std::string& Buffer() override { return buffer; }
+    std::string& Buffer() { return buffer; }
 
     std::string buffer;
     std::string current_event;

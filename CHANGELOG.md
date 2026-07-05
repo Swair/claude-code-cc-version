@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased] — 2026-07-05 Platform API 扩展 + 计算机整理跨平台重构 + 构建修复
+
+本期重点：`Platform` 层新增 `ExpandEnv()` / `GetWellKnownCacheDirs()` API，将计算机整理面板的缓存目录定义和变量展开逻辑上提到平台层，移除 `#ifdef _WIN32` 条件编译实现跨平台支持；构建系统移除 `IMGUI_USE_WCHAR32` 编译定义并修复 `BUILD_SHARED_LIBS` 作用范围。净变化 +168 / -150 行。
+
+### Platform API 扩展
+- **`ExpandEnv()`**（`platform.cc` +85 行）：新增跨平台环境变量展开方法，Windows 支持 `%LOCALAPPDATA%` / `%APPDATA%` / `%USERPROFILE%` / `%TEMP%` / `%WINDIR%`，Unix 支持 `$HOME` / `$XDG_CACHE_HOME`
+- **`GetWellKnownCacheDirs()`**（`platform.cc` +42 行）：返回已知的主流应用缓存目录列表（系统/浏览器/聊天/IDE/开发工具 5 大类），Windows 30+ 项，Unix 15 项
+
+### 计算机整理面板重构
+- **跨平台化**（`computer_organize_view.cc` -112 行）：移除面板内联的 `ExpandEnv()` 函数和 `kCacheDefs` 静态数组，改用 `Platform::ExpandEnv()` / `Platform::GetWellKnownCacheDirs()`；移除 `#ifdef _WIN32` / `#ifndef _WIN32` 条件编译和对应的 stub 实现
+
+### 构建系统修复
+- **`BUILD_SHARED_LIBS` 作用域修正**（`CMakeLists.txt`）：仅 Linux 下强制 OFF，Windows 下不再覆盖，防止干扰 SDL 共享库构建
+- **移除 `IMGUI_USE_WCHAR32`**：从 `imgui_lib` / `imgui_widget_lib` / 主目标三个位置移除该编译定义
+- **修复重复 `nlohmann_json` 链接**：`link_libraries` 中移除重复条目
+
+### 其他
+- **`settings_window.cc`**：精简 ProvidersTab 渲染代码，移除不必要的中间变量
+- **`curl_client.h`**：`SseStreamHandler::Buffer()` 改为非虚方法（移除 `override` 关键字）
+- **`audio_capture.h`**：修复注释编码
+
+---
+
 ## [Unreleased] — 2026-07-05 记忆面板独立 + 计算机整理重写 + 日志面板重写 + 角色面板精简
 
 本期重点：新增独立记忆浏览面板，计算机硬盘整理工具完全重写为主流程序缓存扫描，日志面板去掉缓存层改为实时 ring buffer 渲染，角色面板大幅精简移除嵌入的记忆子面板。导航结构重新组织（Roles/Memory 移至 Capabilities 组）。净变化 +1,259 / -626 行。

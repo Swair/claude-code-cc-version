@@ -848,4 +848,131 @@ bool Platform::IsAlreadyRunning() {
 #endif
 }
 
+std::string Platform::ExpandEnv(const std::string& path) {
+    std::string result = path;
+
+    auto get_env = [](const char* var) -> std::string {
+        char* val = std::getenv(var);
+        return val ? std::string(val) : "";
+    };
+
+    auto expand_one = [&](const std::string& var, const std::string& val) {
+        if (val.empty()) return;
+        for (size_t pos = 0; (pos = result.find(var, pos)) != std::string::npos;) {
+            result.replace(pos, var.length(), val);
+            pos += val.length();
+        }
+    };
+
+#ifdef _WIN32
+    std::string localappdata = get_env("LOCALAPPDATA");
+    std::string appdata = get_env("APPDATA");
+    std::string userprofile = get_env("USERPROFILE");
+    std::string temp = get_env("TEMP");
+    std::string windir = get_env("WINDIR");
+
+    auto norm = [](std::string& s) {
+        for (auto& c : s) if (c == '/') c = '\\';
+    };
+    norm(localappdata); norm(appdata); norm(userprofile); norm(temp); norm(windir);
+
+    expand_one("%LOCALAPPDATA%", localappdata);
+    expand_one("%APPDATA%", appdata);
+    expand_one("%USERPROFILE%", userprofile);
+    expand_one("%TEMP%", temp);
+    expand_one("%TMP%", temp);
+    expand_one("%WINDIR%", windir);
+#else
+    std::string home = get_env("HOME");
+    std::string xdg_cache_home = get_env("XDG_CACHE_HOME");
+    if (xdg_cache_home.empty()) xdg_cache_home = home + "/.cache";
+
+    expand_one("$HOME", home);
+    expand_one("$XDG_CACHE_HOME", xdg_cache_home);
+#endif
+
+    return result;
+}
+
+std::vector<Platform::CacheDir> Platform::GetWellKnownCacheDirs() {
+#ifdef _WIN32
+    return {
+        // -- System --
+        {"Windows Temp",       "%TEMP%",                            "system"},
+        {"Windows Prefetch",   "%WINDIR%\\Prefetch",                 "system"},
+        {"Recycle Bin",        "%USERPROFILE%\\$Recycle.Bin",       "system"},
+        {"Windows Update Cache", "%WINDIR%\\SoftwareDistribution\\Download", "system"},
+        {"Windows Error Reporting", "%LOCALAPPDATA%\\CrashDumps",   "system"},
+        {"Thumbnail Cache",    "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer", "system"},
+        {"Delivery Optimization", "%WINDIR%\\ServiceProfiles\\NetworkService\\AppData\\Local\\Microsoft\\Windows\\DeliveryOptimization\\Cache", "system"},
+
+        // -- Browsers --
+        {"Chrome Cache",        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache", "browser"},
+        {"Chrome Code Cache",   "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Code Cache", "browser"},
+        {"Chrome Service Worker", "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Service Worker\\CacheStorage", "browser"},
+        {"Chrome GPU Cache",    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\GPUCache", "browser"},
+        {"Edge Cache",          "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache", "browser"},
+        {"Edge Code Cache",     "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Code Cache", "browser"},
+        {"Edge Service Worker", "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Service Worker\\CacheStorage", "browser"},
+        {"Edge GPU Cache",      "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\GPUCache", "browser"},
+        {"Firefox Cache",       "%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles", "browser"},
+
+        // -- Chat / Social --
+        {"WeChat File Storage", "%USERPROFILE%\\Documents\\WeChat Files", "chat"},
+        {"WeChat Plugin Cache", "%APPDATA%\\Tencent\\WeChat\\XPlugin", "chat"},
+        {"QQ Cache",            "%APPDATA%\\Tencent\\QQ\\QtDataMgr", "chat"},
+        {"QQ Light Pic Cache",  "%APPDATA%\\Tencent\\QQLight\\PicCache", "chat"},
+        {"Discord Cache",       "%APPDATA%\\discord\\Cache", "chat"},
+        {"Discord Code Cache",  "%APPDATA%\\discord\\Code Cache", "chat"},
+        {"Discord GPU Cache",   "%APPDATA%\\discord\\GPUCache", "chat"},
+
+        // -- IDEs --
+        {"VS Code Cache",       "%APPDATA%\\Code\\Cache", "ide"},
+        {"VS Code Cached Data", "%APPDATA%\\Code\\CachedData", "ide"},
+        {"VS Code Cached Extensions", "%APPDATA%\\Code\\CachedExtensions", "ide"},
+        {"VS Code VSIX Cache",  "%APPDATA%\\Code\\CachedExtensionVSIXs", "ide"},
+        {"JetBrains Caches",    "%LOCALAPPDATA%\\JetBrains", "ide"},
+
+        // -- Dev Tools --
+        {"npm Cache",           "%APPDATA%\\npm-cache", "devtool"},
+        {"pip Cache",           "%LOCALAPPDATA%\\pip\\cache", "devtool"},
+        {"yarn Cache",          "%LOCALAPPDATA%\\Yarn\\Cache", "devtool"},
+        {"NuGet Cache",         "%USERPROFILE%\\.nuget\\packages", "devtool"},
+        {"Cargo Registry",      "%USERPROFILE%\\.cargo\\registry", "devtool"},
+        {"Go Module Cache",     "%USERPROFILE%\\go\\pkg\\mod", "devtool"},
+        {"CMake File API",      "%LOCALAPPDATA%\\CMake", "devtool"},
+        {"Conan Cache",         "%USERPROFILE%\\.conan\\data", "devtool"},
+    };
+#else
+    return {
+        // -- System --
+        {"Temp Dir",            "/tmp",                              "system"},
+        {"Thumbnails",          "$HOME/.cache/thumbnails",           "system"},
+        {"Trash",               "$HOME/.local/share/Trash",          "system"},
+
+        // -- Browsers --
+        {"Chrome Cache",        "$HOME/.cache/google-chrome",        "browser"},
+        {"Chromium Cache",      "$HOME/.cache/chromium",             "browser"},
+        {"Firefox Cache",       "$HOME/.cache/mozilla/firefox",      "browser"},
+
+        // -- Chat / Social --
+        {"Discord Cache",       "$HOME/.cache/discord",              "chat"},
+        {"Slack Cache",         "$HOME/.cache/slack",                "chat"},
+
+        // -- IDEs --
+        {"VS Code Cache",       "$HOME/.config/Code/Cache",          "ide"},
+        {"VS Code Cached Data", "$HOME/.config/Code/CachedData",     "ide"},
+        {"JetBrains Caches",    "$HOME/.cache/JetBrains",            "ide"},
+
+        // -- Dev Tools --
+        {"npm Cache",           "$HOME/.npm/_cacache",               "devtool"},
+        {"pip Cache",           "$HOME/.cache/pip",                  "devtool"},
+        {"yarn Cache",          "$HOME/.cache/yarn",                 "devtool"},
+        {"Cargo Registry",      "$HOME/.cargo/registry",             "devtool"},
+        {"Go Module Cache",     "$HOME/go/pkg/mod",                  "devtool"},
+        {"Conan Cache",         "$HOME/.conan/data",                 "devtool"},
+    };
+#endif
+}
+
 }  // namespace prosophor

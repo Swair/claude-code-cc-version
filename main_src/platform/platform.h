@@ -214,6 +214,25 @@ public:
     /// Falls back to ~/.trash if no system trash is available.
     /// Returns true on success.
     static bool TrashFile(const std::string& path);
+
+    // ── Env var expansion ──
+
+    /// Expand platform-specific environment variables in a path string.
+    /// Windows: expands %LOCALAPPDATA%, %APPDATA%, %USERPROFILE%, %TEMP%, %WINDIR%
+    /// Unix: expands $HOME, $XDG_CACHE_HOME
+    static std::string ExpandEnv(const std::string& path);
+
+    // ── Well-known cache locations ──
+
+    /// Describes a well-known cache directory for a mainstream application.
+    struct CacheDir {
+        std::string name;       // display name (e.g. "Chrome Cache")
+        std::string raw_path;   // path with env vars (expand via ExpandEnv)
+        std::string category;   // "system", "browser", "chat", "ide", "devtool"
+    };
+
+    /// Return a list of well-known cache directories for the current platform.
+    static std::vector<CacheDir> GetWellKnownCacheDirs();
 };
 
 }  // namespace prosophor

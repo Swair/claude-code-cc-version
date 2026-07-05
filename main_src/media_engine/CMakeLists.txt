@@ -35,7 +35,9 @@ FetchContent_MakeAvailable(SDL3)
 # SDL3 is built as static (SDL_SHARED=OFF, SDL_STATIC=ON), so only SDL3::SDL3-static exists.
 # SDL sub-libraries (SDL3_ttf, SDL3_image, SDL3_mixer) default to shared on Linux,
 # which requires SDL3::SDL3-shared. Force BUILD_SHARED_LIBS=OFF to match SDL3.
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+if(UNIX AND NOT APPLE)
+  set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+endif()
 
 ############################################# SDL3_ttf #####################################
 set(SDLTTF_VENDORED ON)
@@ -152,7 +154,6 @@ target_include_directories(imgui_lib PUBLIC
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
 )
-target_compile_definitions(imgui_lib PUBLIC IMGUI_USE_WCHAR32)
 target_link_libraries(imgui_lib PUBLIC SDL3::SDL3 spdlog::spdlog)
 
 # FreeType for color emoji font rendering (reuse SDL_ttf's vendored FreeType)
@@ -169,7 +170,6 @@ add_library(imgui_widget_lib STATIC ${IMGUI_WIDGET_SOURCES})
 target_include_directories(imgui_widget_lib PUBLIC
     ${CMAKE_CURRENT_LIST_DIR}
 )
-target_compile_definitions(imgui_widget_lib PUBLIC IMGUI_USE_WCHAR32)
 target_link_libraries(imgui_widget_lib PUBLIC imgui_lib)
 
 ############################################# Embedded Font #####################################
@@ -200,7 +200,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD_REQUIRED ON
 )
 
-target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_USE_WCHAR32)
 
 target_include_directories(${PROJECT_NAME}
 PUBLIC
@@ -216,7 +215,6 @@ PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     nlohmann_json::nlohmann_json
     imgui_widget_lib
-    nlohmann_json::nlohmann_json
     SDL3_image::SDL3_image
     SDL3_mixer::SDL3_mixer
     SDL3_ttf::SDL3_ttf

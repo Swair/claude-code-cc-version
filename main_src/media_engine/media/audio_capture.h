@@ -13,7 +13,7 @@ namespace media_engine {
 
 /// AudioCapture: continuous microphone capture using SDL3 audio.
 /// Uses an internal ring buffer (like whisper's audio_async).
-/// Read audio via Read() -- no push callback needed.
+/// Read audio via Read() — no push callback needed.
 class AudioCapture {
  public:
     AudioCapture();

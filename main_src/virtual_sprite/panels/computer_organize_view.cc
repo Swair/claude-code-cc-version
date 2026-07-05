@@ -29,9 +29,6 @@
 namespace fs = std::filesystem;
 namespace prosophor {
 
-// ── Windows-only: Computer Organize view uses Win32 API ──
-#ifdef _WIN32
-
 namespace {
 
 // ============================================================================
@@ -114,118 +111,30 @@ std::pair<bool, uint64_t> CheckCacheDir(const std::string& path_str) {
     return {true, sz};
 }
 
-// ── Expand environment variables in a path string ──
-std::string ExpandEnv(const std::string& path) {
-    std::string result = path;
-    auto expand_one = [&](const std::string& var, const std::string& val) {
-        if (val.empty()) return;
-        for (size_t pos = 0; (pos = result.find(var, pos)) != std::string::npos;) {
-            result.replace(pos, var.length(), val);
-            pos += val.length();
-        }
-    };
-
-    auto get_env = [](const char* var) -> std::string {
-        char* val = std::getenv(var);
-        return val ? std::string(val) : "";
-    };
-
-    std::string localappdata = get_env("LOCALAPPDATA");
-    std::string appdata = get_env("APPDATA");
-    std::string userprofile = get_env("USERPROFILE");
-    std::string temp = get_env("TEMP");
-    std::string windir = get_env("WINDIR");
-
-    auto norm = [](std::string& s) {
-        for (auto& c : s) if (c == '/') c = '\\';
-    };
-    norm(localappdata); norm(appdata); norm(userprofile); norm(temp); norm(windir);
-
-    expand_one("%LOCALAPPDATA%", localappdata);
-    expand_one("%APPDATA%", appdata);
-    expand_one("%USERPROFILE%", userprofile);
-    expand_one("%TEMP%", temp);
-    expand_one("%TMP%", temp);
-    expand_one("%WINDIR%", windir);
-
-    return result;
-}
-
-// ── Define known cache locations for mainstream programs ──
-struct CacheDef {
-    std::string name;       // display name
-    std::string path;       // path with env vars
-    std::string category;   // category key
-};
-
-static const std::vector<CacheDef> kCacheDefs = {
-    // ── System ──
-    {"Windows Temp",       "%TEMP%",                            "system"},
-    {"Windows Prefetch",   "%WINDIR%\\Prefetch",                 "system"},
-    {"Recycle Bin",        "%USERPROFILE%\\$Recycle.Bin",       "system"},
-    {"Windows Update Cache", "%WINDIR%\\SoftwareDistribution\\Download", "system"},
-    {"Windows Error Reporting", "%LOCALAPPDATA%\\CrashDumps",   "system"},
-    {"Thumbnail Cache",    "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer", "system"},
-    {"Delivery Optimization", "%WINDIR%\\ServiceProfiles\\NetworkService\\AppData\\Local\\Microsoft\\Windows\\DeliveryOptimization\\Cache", "system"},
-
-    // ── Browsers ──
-    {"Chrome Cache",        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache", "browser"},
-    {"Chrome Code Cache",   "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Code Cache", "browser"},
-    {"Chrome Service Worker", "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Service Worker\\CacheStorage", "browser"},
-    {"Chrome GPU Cache",    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\GPUCache", "browser"},
-    {"Edge Cache",          "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache", "browser"},
-    {"Edge Code Cache",     "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Code Cache", "browser"},
-    {"Edge Service Worker", "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Service Worker\\CacheStorage", "browser"},
-    {"Edge GPU Cache",      "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\GPUCache", "browser"},
-    {"Firefox Cache",       "%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles", "browser"},
-
-    // ── Chat / Social ──
-    {"WeChat File Storage", "%USERPROFILE%\\Documents\\WeChat Files", "chat"},
-    {"WeChat Plugin Cache", "%APPDATA%\\Tencent\\WeChat\\XPlugin", "chat"},
-    {"QQ Cache",            "%APPDATA%\\Tencent\\QQ\\QtDataMgr", "chat"},
-    {"QQ Light Pic Cache",  "%APPDATA%\\Tencent\\QQLight\\PicCache", "chat"},
-    {"Discord Cache",       "%APPDATA%\\discord\\Cache", "chat"},
-    {"Discord Code Cache",  "%APPDATA%\\discord\\Code Cache", "chat"},
-    {"Discord GPU Cache",   "%APPDATA%\\discord\\GPUCache", "chat"},
-
-    // ── IDEs ──
-    {"VS Code Cache",       "%APPDATA%\\Code\\Cache", "ide"},
-    {"VS Code Cached Data", "%APPDATA%\\Code\\CachedData", "ide"},
-    {"VS Code Cached Extensions", "%APPDATA%\\Code\\CachedExtensions", "ide"},
-    {"VS Code VSIX Cache",  "%APPDATA%\\Code\\CachedExtensionVSIXs", "ide"},
-    {"JetBrains Caches",    "%LOCALAPPDATA%\\JetBrains", "ide"},
-
-    // ── Dev Tools ──
-    {"npm Cache",           "%APPDATA%\\npm-cache", "devtool"},
-    {"pip Cache",           "%LOCALAPPDATA%\\pip\\cache", "devtool"},
-    {"yarn Cache",          "%LOCALAPPDATA%\\Yarn\\Cache", "devtool"},
-    {"NuGet Cache",         "%USERPROFILE%\\.nuget\\packages", "devtool"},
-    {"Cargo Registry",      "%USERPROFILE%\\.cargo\\registry", "devtool"},
-    {"Go Module Cache",     "%USERPROFILE%\\go\\pkg\\mod", "devtool"},
-    {"CMake File API",      "%LOCALAPPDATA%\\CMake", "devtool"},
-    {"Conan Cache",         "%USERPROFILE%\\.conan\\data", "devtool"},
-};
+// ── Cache definitions come from Platform::GetWellKnownCacheDirs() ──
 
 // ── Scan all known cache locations ──
 void DoScan() {
     s_state.scanning.store(true);
     s_state.cancel.store(false);
     s_state.progress.store(0);
-    s_state.total_steps.store((int)kCacheDefs.size());
+
+    auto cache_dirs = Platform::GetWellKnownCacheDirs();
+    s_state.total_steps.store((int)cache_dirs.size());
     s_state.grand_total_size = 0;
     s_state.has_results = false;
     s_state.report_sent = false;
 
     std::unordered_map<std::string, std::vector<CacheEntry>> cat_map;
 
-    for (size_t i = 0; i < kCacheDefs.size(); ++i) {
+    for (size_t i = 0; i < cache_dirs.size(); ++i) {
         if (s_state.cancel.load()) break;
 
-        const auto& def = kCacheDefs[i];
+        const auto& def = cache_dirs[i];
         s_state.current_item = def.name;
         s_state.progress.store((int)i + 1);
 
-        std::string real_path = ExpandEnv(def.path);
+        std::string real_path = Platform::ExpandEnv(def.raw_path);
 
         auto [exists, size] = CheckCacheDir(real_path);
         CacheEntry entry{def.name, real_path, def.category, size, exists};
@@ -590,12 +499,5 @@ void ChatWindow::RenderComputerOrganizeView(int cont_x, int cont_y,
         RenderChatContent();
     }
 }
-
-#endif // _WIN32
-
-// Stub for non-Windows: the view is Windows-only
-#ifndef _WIN32
-void ChatWindow::RenderComputerOrganizeView(int, int, int, int) {}
-#endif
 
 } // namespace prosophor
