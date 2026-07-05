@@ -37,7 +37,10 @@
 "font_medium": "中",
 "font_large": "大",
   "btn_save": "保存",
+  "btn_delete": "删除",
+  "btn_new_role": "新建角色",
   "btn_cancel": "取消",
+  "role_protected": "⚠ 系统角色不可删除",
 
   "menu_about": "关于",
   "about_title": "关于智灵",
@@ -48,6 +51,8 @@
   "ctx_chat": "对话",
   "ctx_show_main": "显示主窗口",
   "ctx_settings": "设置",
+  "ctx_enable_tools": "启用工具",
+  "ctx_disable_tools": "禁用工具",
   "ctx_quit": "退出",
 
   "nav_prev": "上一个",
@@ -110,7 +115,22 @@
 "view_mcp": "MCP",
 "view_petstore": "桌宠商店",
   "view_computer_organize": "电脑整理",
-  "computer_organize_select_drive": "选择磁盘：",
+  "computer_organize_desc": "扫描主流程序缓存，查看可清理空间。支持一键清理和 AI 清理建议。",
+  "cache_system": "系统缓存",
+  "cache_browser": "浏览器缓存",
+  "cache_chat": "聊天软件缓存",
+  "cache_ide": "开发工具缓存",
+  "cache_devtool": "构建工具缓存",
+  "cache_scan_btn": "开始扫描",
+  "cache_cancel": "取消扫描",
+  "cache_delete": "清理",
+  "cache_delete_all": "一键清理所有",
+  "cache_cleanable": "可清理：",
+  "cache_scanning": "扫描中...",
+  "cache_clean_done": "✓ 清理完成！已释放磁盘空间。",
+  "cache_total": "总计可清理：",
+  "cache_agent_tip": "💡 提示：右侧聊天面板可咨询 AI 清理助手",
+  "cache_agent_tip2": "向 AI 助手询问哪些缓存可以安全清理，或让它分析你的磁盘使用情况。",
 
   "all_roles": "所有角色",
 
@@ -141,6 +161,8 @@
   "log_error": "错误",
   "log_debug": "调试",
   "log_clear": "清除",
+  "log_copy": "复制",
+  "log_no_entries": "暂无日志",
 
   "usage_total_tokens": "总 Token",
   "usage_input_tokens": "输入 Token",
@@ -149,6 +171,8 @@
   "usage_session": "会话",
   "usage_overall": "总计",
   "usage_reset": "重置",
+  "usage_start": "开始",
+  "usage_end": "结束",
 
   "debug_system": "系统",
   "debug_providers": "提供商",
@@ -159,5 +183,14 @@
 
   "btn_refresh": "刷新",
 "nav_refresh": "刷新",
-  "btn_focus": "聚焦"
+  "btn_focus": "聚焦",
+
+  "perm_title": "Tool 调用授权",
+
+  "perm_auto": "自动",
+  "perm_auto_desc": "安全 tool 自动放行，危险 tool 拒绝",
+  "perm_full": "完全访问",
+  "perm_full_desc": "所有操作自动放行，不询问",
+  "perm_ask": "请求审批",
+  "perm_ask_desc": "每次操作都需要用户确认"
 }

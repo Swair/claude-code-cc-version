@@ -15,6 +15,7 @@
 
 #include "tools/tool_registry.h"  // For ToolsSchema
 #include "core/dialog_strategy.h"
+#include "core/memory_manager.h"
 
 namespace prosophor {
 
@@ -38,8 +39,10 @@ struct AgentRole {
     int max_tokens = 8192;
     int context_window = 128000;
     bool enable_streaming = true;      // 是否启用流式输出
-    bool enable_summary = true;        // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
+    bool enable_summary = false;       // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
     bool thinking = false;
+    int thinking_budget_tokens = 4096;
+    std::string reasoning_effort = "medium";
 
     // === 性格配置 ===
     std::string personality;           // "concise", "detailed", "cautious", "creative"
@@ -54,6 +57,7 @@ struct AgentRole {
 
     // === 行为约束 ===
     int max_iterations = 15;           // 最大工具调用轮次
+    bool enable_tools = true;          // 是否启用工具
     bool auto_confirm_tools = false;   // 是否自动确认工具
 
     // === 记忆配置 ===
@@ -61,6 +65,9 @@ struct AgentRole {
 
     // === 对话策略（共享，同策略的 role 索引同一实例） ===
     std::shared_ptr<DialogStrategy> dialog_strategy;
+
+    // === 记忆策略 ===
+    std::shared_ptr<MemoryStrategy> memory_strategy;
 
     /// 检查是否绑定了专属 Provider
     bool HasCustomProvider() const {

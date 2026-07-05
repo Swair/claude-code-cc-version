@@ -104,10 +104,39 @@ void ChatPanel::RenderContentInRect(float x, float y, float w, float h,
     last_streaming_len_ = streaming_len;
 }
 
+/// Build display text from a message, including formatted tool content.
+static std::string BuildMessageDisplayText(const MessageSchema& msg) {
+    auto text = msg.text();
+    if (!text.empty()) return text;
+    // No text content — build display from tool_use / tool_result blocks.
+    for (const auto& b : msg.content) {
+        if (b.type == "tool_use") {
+            if (!text.empty()) text += "\n";
+            text += "[Tool: " + b.name + "]";
+            if (!b.input.is_null() && !b.input.empty()) {
+                auto dump = b.input.dump();
+                if (dump.length() > 80) dump = dump.substr(0, 80) + "...";
+                text += " " + dump;
+            }
+        } else if (b.type == "tool_result") {
+            if (!text.empty()) text += "\n";
+            auto result = b.content;
+            // Truncate long tool results to first line + brief preview
+            auto nl = result.find('\n');
+            if (nl != std::string::npos) result = result.substr(0, nl);
+            if (result.length() > 100) result = result.substr(0, 100) + "...";
+            text += "[Result] " + result;
+        }
+    }
+    return text;
+}
+
 void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {
     size_t index = 0;
     for (const auto& msg : snapshot.messages) {
         if (!role_filter_.empty() && msg.role != role_filter_) continue;
+        auto display_text = BuildMessageDisplayText(msg);
+        if (display_text.empty()) continue;
         bool has_thinking = false;
         for (const auto& b : msg.content) {
             if (b.type == "thinking") { has_thinking = true; break; }
@@ -128,7 +157,7 @@ void ChatPanel::RenderMessages(const RenderSnapshot& snapshot) {
             if (!combined.empty())
                 RenderMessage("assistant", combined, index++);
         } else {
-            RenderMessage(msg.role, msg.text(), index++);
+            RenderMessage(msg.role, display_text, index++);
         }
     }
     // Streaming entries: during thinking→content transition, combine into

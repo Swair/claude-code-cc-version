@@ -97,9 +97,6 @@ public:
     /// Read a line from stdin (handles Windows console encoding)
     static std::string ReadLine();
 
-    /// Get home directory (cross-platform: HOME / USERPROFILE)
-    static std::string HomeDir();
-
     /// Read a line from console (bypasses stdin encoding issues on Windows)
     static std::string ReadConsoleLine();
 

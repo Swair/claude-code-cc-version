@@ -257,6 +257,8 @@ ModelConfig ModelConfig::FromJson(const nlohmann::json& json) {
     config.max_tokens = json.value("max_tokens", json.value("maxTokens", kDefaultMaxTokens));
     config.context_window = json.value("context_window", json.value("contextWindow", kDefaultContextWindow));
     config.thinking = json.value("thinking", false);
+    config.thinking_budget_tokens = json.value("thinking_budget_tokens", json.value("thinkingBudgetTokens", 4096));
+    config.reasoning_effort = json.value("reasoning_effort", json.value("reasoningEffort", "medium"));
     config.use_tools = json.value("use_tools", json.value("useTools", true));
     config.enable_streaming = json.value("enable_streaming", json.value("enableStreaming", true));
     config.auto_compact = json.value("auto_compact", json.value("autoCompact", true));
@@ -329,6 +331,7 @@ ProviderConfig ProviderConfig::FromJson(const nlohmann::json& json) {
 LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
     LlamacppModelConfig config;
     config.model_path = Platform::NormalizePath(json.value("model_path", ""));
+    config.mmproj_path = Platform::NormalizePath(json.value("mmproj_path", ""));
     config.port = json.value("port", 8080);
     // Backward compat: gpu_enable=true → -1, gpu_enable=false → 0; else use n_gpu_layers directly
     if (json.contains("gpu_enable")) {
@@ -345,7 +348,12 @@ LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
     config.max_tokens = json.value("max_tokens", json.value("max_new_tokens", 2048));
     config.temperature   = json.value("temperature",    0.7f);
     config.top_p         = json.value("top_p",          0.95f);
-    config.thinking      = json.value("thinking",      false);
+    config.thinking_start = json.value("thinking_start",  "<|channel>");
+    config.thinking_end   = json.value("thinking_end",    "<channel|");
+    config.tool_call_start = json.value("tool_call_start", "<|tool_call>");
+    config.tool_call_end   = json.value("tool_call_end",   "<tool_call|>");
+    config.end_of_turn   = json.value("end_of_turn",   "<end_of_turn>");
+    config.start_of_turn = json.value("start_of_turn", "<start_of_turn>");
     config.type_k = json.value("type_k", "q4_0");
     config.type_v = json.value("type_v", "q4_0");
     config.n_batch         = json.value("n_batch", 1024);
@@ -363,6 +371,7 @@ LlamacppModelConfig LlamacppModelConfig::FromJson(const nlohmann::json& json) {
 nlohmann::ordered_json LlamacppModelConfig::ToJson() const {
     nlohmann::ordered_json j;
     j["model_path"] = model_path;
+    j["mmproj_path"] = mmproj_path;
     j["n_gpu_layers"] = n_gpu_layers;
     j["threads"] = threads;
     j["auto_start"] = auto_start;
@@ -380,6 +389,12 @@ nlohmann::ordered_json LlamacppModelConfig::ToJson() const {
     j["no_mmap"] = no_mmap;
     j["min_p"] = min_p;
     j["seed"] = seed;
+    j["thinking_start"] = thinking_start;
+    j["thinking_end"] = thinking_end;
+    j["end_of_turn"] = end_of_turn;
+    j["start_of_turn"] = start_of_turn;
+    j["tool_call_start"] = tool_call_start;
+    j["tool_call_end"] = tool_call_end;
     return j;
 }
 
@@ -486,7 +501,7 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
         std::string single = json.value("default_role", json.value("defaultRole", "default"));
         config.default_role = {single};
     }
-    config.enable_summary = json.value("enable_summary", true);
+    config.enable_summary = json.value("enable_summary", false);
     config.sprite_assets_dir = ExpandHome(json.value("sprite_assets_dir", "~/.prosophor/assets"));
     config.workspace_path = ExpandHome(json.value("workspace_path", ""));
     config.font_scale = json.value("font_scale", ProsophorConfig::kFontScaleLarge);
@@ -696,6 +711,7 @@ void ProsophorConfig::CreateDefaultConfig(const std::string& filepath) {
             "context_window": 128000,
             "use_tools": true,
             "thinking": false,
+            "thinking_budget_tokens": 4096,
             "enable_streaming": true
           }
         }
@@ -784,6 +800,7 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
                         const auto& lc = llamacpp_models[0];
                         model_json["model"] = model_config.model;
                         model_json["model_path"] = lc.model_path;
+                        model_json["mmproj_path"] = lc.mmproj_path;
                         model_json["n_gpu_layers"] = lc.n_gpu_layers;
                         model_json["threads"] = lc.threads;
                         model_json["context_window"] = lc.context_window;
@@ -800,11 +817,24 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
                         model_json["no_mmap"] = lc.no_mmap;
                         model_json["min_p"] = lc.min_p;
                         model_json["seed"] = lc.seed;
+                        model_json["thinking_start"] = lc.thinking_start;
+                        model_json["thinking_end"] = lc.thinking_end;
+                        model_json["end_of_turn"] = lc.end_of_turn;
+                        model_json["start_of_turn"] = lc.start_of_turn;
+                        model_json["tool_call_start"] = lc.tool_call_start;
+                        model_json["tool_call_end"] = lc.tool_call_end;
                     } else {
                         model_json["model"] = model_config.model;
                         model_json["temperature"] = model_config.temperature;
                         model_json["max_tokens"] = model_config.max_tokens;
                         model_json["context_window"] = model_config.context_window;
+                    }
+                    if (model_config.thinking) {
+                        model_json["thinking"] = true;
+                        model_json["thinking_budget_tokens"] = model_config.thinking_budget_tokens;
+                        if (model_config.reasoning_effort != "medium") {
+                            model_json["reasoning_effort"] = model_config.reasoning_effort;
+                        }
                     }
                     models_json.push_back(model_json);
                 }
@@ -828,6 +858,10 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
                 model_json["temperature"] = model_config.temperature;
                 model_json["max_tokens"] = model_config.max_tokens;
                 model_json["context_window"] = model_config.context_window;
+                if (model_config.thinking) {
+                    model_json["thinking"] = true;
+                    model_json["thinking_budget_tokens"] = model_config.thinking_budget_tokens;
+                }
                 models_json.push_back(model_json);
             }
             nlohmann::ordered_json entry_json;

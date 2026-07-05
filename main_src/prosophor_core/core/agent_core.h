@@ -43,6 +43,9 @@ class AgentCore {
                                  MessageSchema& assistant_msg,
                                  std::string& accumulated_text,
                                  int& iterations);
+
+    /// Trigger memory consolidation if message count exceeds threshold
+    static void ConsolidateMemoryIfNeeded(AgentSession& session);
 };
 
 }  // namespace prosophor

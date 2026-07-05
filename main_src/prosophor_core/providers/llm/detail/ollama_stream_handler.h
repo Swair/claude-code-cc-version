@@ -93,7 +93,6 @@ struct OllamaStreamHandler : public StreamHandler {
 
             // Parse thinking content
             if (msg.contains("thinking")) {
-                accumulated_response.has_thinking = true;
                 TransitionPhase(StreamPhase::kThinking);
                 std::string thinking = msg.value("thinking", "");
                 if (!thinking.empty()) {

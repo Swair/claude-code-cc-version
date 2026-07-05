@@ -9,6 +9,7 @@
 #include <sstream>
 #include <string_view>
 #include <system_error>
+#include <algorithm>
 
 #include "common/log_wrapper.h"
 
@@ -295,6 +296,34 @@ bool WriteWav(const std::string& path, const std::vector<int16_t>& samples, int 
 std::string ParentDir(const std::string& path) {
     auto pos = path.find_last_of("/\\");
     return (pos == std::string::npos) ? "." : path.substr(0, pos);
+}
+
+std::vector<std::string> ListDir(const std::string& dir, const std::string& ext) {
+    std::vector<std::string> result;
+    std::error_code ec;
+    if (!std::filesystem::exists(dir, ec)) return result;
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        if (!entry.is_regular_file()) continue;
+        auto name = entry.path().filename().string();
+        if (ext.empty() || (name.size() >= ext.size() &&
+            name.compare(name.size() - ext.size(), ext.size(), ext) == 0)) {
+            result.push_back(std::move(name));
+        }
+    }
+    std::sort(result.begin(), result.end());
+    return result;
+}
+
+std::vector<std::string> ReadDir(const std::string& dir) {
+    std::vector<std::string> result;
+    std::error_code ec;
+    if (!std::filesystem::exists(dir, ec)) return result;
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        if (!entry.is_regular_file()) continue;
+        result.push_back(entry.path().string());
+    }
+    std::sort(result.begin(), result.end());
+    return result;
 }
 
 }  // namespace prosophor

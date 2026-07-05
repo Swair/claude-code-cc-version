@@ -10,7 +10,7 @@
 #include "common/log_wrapper.h"
 #include "common/string_utils.h"
 #include "common/file_utils.h"
-#include "managers/memory_manager.h"
+#include "core/memory_manager.h"
 #include "managers/agent_session_manager.h"
 #include "managers/agent_role_loader.h"
 #include "managers/active_trigger_manager.h"

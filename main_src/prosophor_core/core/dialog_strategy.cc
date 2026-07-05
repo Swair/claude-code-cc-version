@@ -149,6 +149,10 @@ void DialogStrategy::CompactIfNeeded(AgentSession& session) const {
     }
     auto kept = KeepRecentMessages(messages, lo);
     session.CompactHistory(kept, "");
+
+    // 把被压缩掉的旧消息刷入持久化日志
+    session.FlushToDisk();
+
     LOG_WARN("Compacted to {} messages (~{} tokens) to fit ctx={} limit={}", lo, EstimateTokens(kept), ctx, limit);
 }
 

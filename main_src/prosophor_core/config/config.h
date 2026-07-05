@@ -54,6 +54,8 @@ struct ModelConfig {
     int max_tokens = 8192;
     int context_window = 128000;
     bool thinking = false;
+    int thinking_budget_tokens = 4096;
+    std::string reasoning_effort = "medium";
     bool use_tools = true;
     bool enable_streaming = true;  // Whether to use streaming for responses
 
@@ -81,6 +83,7 @@ struct LlamacppModelConfig {
     static LlamacppModelConfig FromJson(const nlohmann::json& json);
     nlohmann::ordered_json ToJson() const;
     std::string model_path;         // Path to GGUF model file
+    std::string mmproj_path;        // Path to multimodal projector (mmproj) file
     int port = 8080;                // Legacy: kept for config compatibility
     int n_gpu_layers = -1;      // Layers to offload to GPU (-1 = all, 0 = CPU only, N = N layers)
     int threads = 0;                // CPU threads (0 = auto-detect)
@@ -93,7 +96,12 @@ struct LlamacppModelConfig {
     int   max_tokens = 2048; // Max generated tokens per response
     float temperature  = 0.7f;   // Sampling temperature (0.0 = greedy, 1.0 = creative)
     float top_p        = 0.95f;  // Nucleus sampling probability
-    bool  thinking     = false;  // Enable extended thinking/reasoning
+    std::string thinking_start;  // Thinking start marker (model-specific, e.g. <|channel|>)
+    std::string thinking_end;    // Thinking end marker (model-specific, e.g. <channel|>)
+    std::string tool_call_start = "<|tool_call>";   // Tool call open marker
+    std::string tool_call_end   = "<tool_call|>";   // Tool call close marker
+    std::string end_of_turn     = "<end_of_turn>";  // End-of-turn marker (Gemma-style)
+    std::string start_of_turn   = "<start_of_turn>";// Start-of-turn marker (Gemma-style)
 
     // KV cache quantization type: "f16", "q8_0", "q4_0" (default)
     // Maps to ggml_type: F16=2 bytes/value, Q8_0=1 byte, Q4_0=0.5 byte
@@ -240,7 +248,7 @@ struct ProsophorConfig {
     std::string log_level = "info";
     std::vector<std::string> default_role = {"default"};  // Default roles (SDL: one sprite per role, TUI: first only)
 
-    bool enable_summary = true;      // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
+    bool enable_summary = false;     // 是否启用对话摘要（system prompt 指令 + 摘要提取循环）
 
     // ── 字体缩放常量（与 MediaCore::kFontScaleMin/Max 同步）──
     static constexpr float kFontScaleSmall  = 0.8f;

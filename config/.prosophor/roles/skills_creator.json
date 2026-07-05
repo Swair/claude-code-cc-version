@@ -12,7 +12,11 @@
     "skills_white_list": [],
     "tools_white_list": [],
     "enable_streaming": true,
+    "thinking": true,
+    "thinking_budget_tokens": 4096,
+    "reasoning_effort": "medium",
     "max_iterations": 10,
-    "auto_confirm_tools": false
+    "auto_confirm_tools": false,
+    "enable_tools": true
   }
 }

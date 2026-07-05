@@ -11,7 +11,7 @@ namespace prosophor {
 
 /// I18n: lightweight internationalisation singleton.
 /// Loads key→value pairs from JSON translation files at
-/// PROSOPHOR_SOURCE_DIR/config/lang/{lang}.json  and returns
+/// ~/.prosophor/lang/{lang}.json  and returns
 /// translated strings via `Get(key)`.
 class I18n : public Noncopyable {
 public:

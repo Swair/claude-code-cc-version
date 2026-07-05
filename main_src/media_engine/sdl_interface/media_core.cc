@@ -543,6 +543,53 @@ void MediaCore::DestroyMediaWindow(Window* window) {
     }
 }
 
+void MediaCore::ApplyColorOverrides(
+    const std::unordered_map<std::string, std::vector<float>>& color_overrides)
+{
+    ImGuiContext* saved = ImGui::GetCurrentContext();
+    for (auto& win : Instance().all_windows_) {
+        auto* ctx = win->GetImGuiContext();
+        if (!ctx) continue;
+        ImGui::SetCurrentContext(ctx);
+
+        SetupStyle(win->HasTransparentBg());
+        auto& style = ImGui::GetStyle();
+
+        static const std::unordered_map<std::string, ImGuiCol> kImGuiColMap = {
+            {"WindowBg", ImGuiCol_WindowBg},
+            {"PopupBg", ImGuiCol_PopupBg},
+            {"Text", ImGuiCol_Text},
+            {"Border", ImGuiCol_Border},
+            {"FrameBg", ImGuiCol_FrameBg},
+            {"FrameBgHovered", ImGuiCol_FrameBgHovered},
+            {"FrameBgActive", ImGuiCol_FrameBgActive},
+            {"TitleBg", ImGuiCol_TitleBg},
+            {"TitleBgActive", ImGuiCol_TitleBgActive},
+            {"Button", ImGuiCol_Button},
+            {"ButtonHovered", ImGuiCol_ButtonHovered},
+            {"ButtonActive", ImGuiCol_ButtonActive},
+            {"TextSelectedBg", ImGuiCol_TextSelectedBg},
+            {"ScrollbarBg", ImGuiCol_ScrollbarBg},
+            {"ScrollbarGrab", ImGuiCol_ScrollbarGrab},
+            {"ScrollbarGrabHovered", ImGuiCol_ScrollbarGrabHovered},
+            {"ScrollbarGrabActive", ImGuiCol_ScrollbarGrabActive},
+        };
+
+        for (const auto& [name, rgba] : color_overrides) {
+            auto it = kImGuiColMap.find(name);
+            if (it != kImGuiColMap.end() && rgba.size() >= 4) {
+                style.Colors[it->second] = ImVec4(rgba[0], rgba[1], rgba[2], rgba[3]);
+                if (win->HasTransparentBg()) {
+                    if (it->second == ImGuiCol_WindowBg || it->second == ImGuiCol_PopupBg) {
+                        style.Colors[it->second].w = 0.0f;
+                    }
+                }
+            }
+        }
+    }
+    ImGui::SetCurrentContext(saved);
+}
+
 void MediaCore::SetupStyle(bool transparent_bg) {
     auto& style = ImGui::GetStyle();
     ImGui::StyleColorsLight();
@@ -557,9 +604,9 @@ void MediaCore::SetupStyle(bool transparent_bg) {
         style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.85f, 0.85f, 0.85f, 0.9f);
         style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.8f, 0.8f, 0.8f, 0.9f);
         style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.3f, 0.5f, 0.8f, 0.5f);
-        style.Colors[ImGuiCol_Button] = ImVec4(0.3f, 0.5f, 0.8f, 0.8f);
-        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.4f, 0.6f, 0.9f, 0.9f);
-        style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.2f, 0.4f, 0.7f, 1.0f);
+        style.Colors[ImGuiCol_Button] = ImVec4(0.96f, 0.92f, 0.85f, 0.85f);
+        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(1.0f, 0.78f, 0.50f, 0.95f);
+        style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.92f, 0.68f, 0.40f, 1.0f);
     } else {
         style.Colors[ImGuiCol_WindowBg] = ImVec4(0.96f, 0.96f, 0.96f, 1.0f);
         style.Colors[ImGuiCol_PopupBg] = ImVec4(0.96f, 0.96f, 0.96f, 1.0f);
@@ -567,9 +614,9 @@ void MediaCore::SetupStyle(bool transparent_bg) {
         style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.95f, 0.95f, 0.95f, 1.0f);
         style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.9f, 0.9f, 0.9f, 1.0f);
         style.Colors[ImGuiCol_TextSelectedBg] = ImVec4(0.3f, 0.5f, 0.8f, 0.5f);
-        style.Colors[ImGuiCol_Button] = ImVec4(0.85f, 0.85f, 0.85f, 1.0f);
-        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.8f, 0.8f, 0.8f, 1.0f);
-        style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.75f, 0.75f, 0.75f, 1.0f);
+        style.Colors[ImGuiCol_Button] = ImVec4(0.96f, 0.92f, 0.85f, 1.0f);  // warm beige
+        style.Colors[ImGuiCol_ButtonHovered] = ImVec4(1.0f, 0.78f, 0.50f, 1.0f);  // bright orange
+        style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.92f, 0.68f, 0.40f, 1.0f);  // dark orange
     }
 }
 

@@ -53,7 +53,6 @@ struct AnthropicStreamHandler : public SseStreamHandler {
                 std::string block_type = block.value("type", "");
                 if (block_type == "thinking") {
                     TransitionPhase(StreamPhase::kThinking);
-                    accumulated_response.has_thinking = true;
                 } else if (block_type == "text") {
                     TransitionPhase(StreamPhase::kContent);
                 } else if (block_type == "tool_use") {

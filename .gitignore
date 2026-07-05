@@ -7,6 +7,8 @@ tests
 
 thirdparty_src/
 dist/releases/
+.vscode
+.github
 
 # Editor / IDE
 .vscode/

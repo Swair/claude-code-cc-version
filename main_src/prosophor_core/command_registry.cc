@@ -18,7 +18,7 @@
 #include "managers/plugin_manager.h"
 #include "managers/skill_loader.h"
 #include "agents/plan_mode.h"
-#include "managers/memory_manager.h"
+#include "core/memory_manager.h"
 #include "managers/permission_manager.h"
 #include "config/config.h"
 #include "config/effort_config.h"
@@ -29,6 +29,7 @@
 #include "common/file_utils.h"
 #include "agent_engine.h"
 #include "platform/platform.h"
+#include "updater/update_checker.h"
 
 namespace prosophor {
 
@@ -520,6 +521,19 @@ void CommandRegistry::Initialize() {
                 }
             }
             return completions;
+        };
+        RegisterCommand(cmd);
+    }
+
+    // /update - Check for updates
+    {
+        Command cmd;
+        cmd.name = "update";
+        cmd.description = "Check for application updates";
+        cmd.usage = "/update";
+        cmd.aliases = {};
+        cmd.handler = [this](const CommandContext& ctx, const std::vector<std::string>& args) {
+            return CmdUpdate(ctx, args);
         };
         RegisterCommand(cmd);
     }
@@ -2496,6 +2510,36 @@ CommandResult CommandRegistry::CmdWorkspace(const CommandContext& ctx, const std
     std::ostringstream oss;
     oss << "Workspace changed to: " << new_path;
     return CommandResult::Ok(oss.str());
+}
+
+CommandResult CommandRegistry::CmdUpdate(const CommandContext&, const std::vector<std::string>&) {
+    auto& updater = UpdateChecker::Instance();
+    if (!updater.IsCheckDone()) {
+        return CommandResult::Ok("Update check in progress...");
+    }
+
+    switch (updater.GetResult()) {
+        case CheckResult::kNoUpdate:
+            return CommandResult::Ok("Already up to date (v" PROSOPHOR_VERSION ").");
+        case CheckResult::kUpdateReady: {
+            auto release = updater.GetLatestRelease();
+            std::ostringstream oss;
+            oss << "Update available: " << release.tag_name << "\n";
+            oss << "Current version: v" PROSOPHOR_VERSION << "\n";
+            if (!release.release_notes.empty()) {
+                std::string notes = release.release_notes;
+                if (notes.length() > 500) notes = notes.substr(0, 497) + "...";
+                oss << "\nRelease notes:\n" << notes << "\n";
+            }
+            oss << "\nDownload: " << release.download_url;
+            return CommandResult::Ok(oss.str());
+        }
+        case CheckResult::kNoNetwork:
+            return CommandResult::Fail("No network connection. Please check your network and try again.");
+        case CheckResult::kCheckFailed:
+            return CommandResult::Fail("Update check failed. Please try again later.");
+    }
+    return CommandResult::Ok("Update check completed.");
 }
 
 }  // namespace prosophor

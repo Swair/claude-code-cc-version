@@ -18,6 +18,7 @@
 #include "common/time_wrapper.h"
 #include "tools/tool_registry.h"
 #include "core/dialog_strategy.h"
+#include "core/memory_manager.h"
 
 namespace prosophor {
 
@@ -162,6 +163,8 @@ ChatRequest AgentCore::BuildRequest(const AgentSession& session) {
     req.temperature = session.GetRole()->temperature;
     req.max_tokens = session.GetRole()->max_tokens;
     req.thinking = session.GetRole()->thinking;
+    req.thinking_budget_tokens = session.GetRole()->thinking_budget_tokens;
+    req.reasoning_effort = session.GetRole()->reasoning_effort;
     req.base_url = session.GetBaseUrl();
     req.api_key = session.GetApiKey();
 
@@ -179,8 +182,8 @@ ChatRequest AgentCore::BuildRequest(const AgentSession& session) {
     LOG_DEBUG("BuildRequest: model='{}', base_url='{}', timeout={}s, api_key={}",
              req.model, req.base_url, req.timeout,
              req.api_key.size() > 8 ? req.api_key.substr(0, 8) + "..." : req.api_key);
-    LOG_DEBUG("BuildRequest: thinking={}, temperature={}, max_tokens={}",
-             req.thinking, req.temperature, req.max_tokens);
+    LOG_DEBUG("BuildRequest: thinking={}, thinking_budget_tokens={}, reasoning_effort={}, temperature={}, max_tokens={}",
+             req.thinking, req.thinking_budget_tokens, req.reasoning_effort, req.temperature, req.max_tokens);
     return req;
 }
 
@@ -256,6 +259,15 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
                         case StreamEvent::kContentEnd:
                             session.SetOutput(AgentRuntimeState::STREAM_CONTENT_END, "", std::nullopt);
                             break;
+                        case StreamEvent::kToolStart:
+                            session.SetOutput(AgentRuntimeState::STREAM_TOOL_START, "", std::nullopt);
+                            break;
+                        case StreamEvent::kToolDelta:
+                            session.SetOutput(AgentRuntimeState::STREAM_TOOL, "", std::nullopt);
+                            break;
+                        case StreamEvent::kToolEnd:
+                            session.SetOutput(AgentRuntimeState::STREAM_TOOL_END, "", std::nullopt);
+                            break;
                         default:
                             break;
                     }
@@ -281,7 +293,7 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
         // In thinking mode, thinking blocks must be preserved even if empty
         MessageSchema assistant_msg;
         assistant_msg.role = "assistant";
-        if (response.has_thinking) {
+        if (!response.content_thinking.empty()) {
             assistant_msg.AddThinkingContent(response.content_thinking,
                                              response.thinking_signature);
         }
@@ -304,16 +316,23 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
                 session.SetOutput(AgentRuntimeState::COMPLETE, "Done.", assistant_msg);
             }
 
+            ConsolidateMemoryIfNeeded(session);
             return;
         }
 
-        session.SetOutput(AgentRuntimeState::STATE_ERROR, "Unexpected LLM response format");
-        LOG_ERROR("Loop res error: {}", response.content_text);
+        session.SetOutput(AgentRuntimeState::STATE_ERROR, "Unexpected LLM response format, no content_text and no tool_calls");
+        LOG_ERROR("AgentCore::Loop: res error: {}", response.content_text);
         return;
     }
 
     // Max iterations (unexpected — LLM didn't complete in time)
     session.SetOutput(AgentRuntimeState::STATE_ERROR, "[Max iterations reached]");
+}
+
+void AgentCore::ConsolidateMemoryIfNeeded(AgentSession& session) {
+    auto* role = session.GetRole();
+    if (!role || !role->memory_strategy) return;
+    role->memory_strategy->TrySegmentConsolidation(session);
 }
 
 }  // namespace prosophor

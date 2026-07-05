@@ -10,9 +10,11 @@
 #include "common/i18n.h"
 #include "agent_engine.h"
 #include "config/config.h"
+#include "managers/token_tracker.h"
 
 #include "providers/provider_router/asr_provider_router.h"
 #include "platform/platform.h"
+#include "updater/update_checker.h"
 #include <memory>
 
 namespace prosophor {
@@ -87,6 +89,11 @@ void VirtualSprite::GlobalInit() {
             fs = (fs < ProsophorConfig::kFontScaleSwitch) ? ProsophorConfig::kFontScaleSmall : ProsophorConfig::kFontScaleLarge;
             media_engine::MediaCore::SetGlobalFontScale(fs);
         }
+
+        // Load daily token usage history from per-date files
+        auto token_dir = ProsophorConfig::BaseDir() / "token";
+        prosophor::EnsureDirectory(token_dir.string());
+        TokenTracker::GetInstance().SetDailyDir(token_dir.string());
 
         central_window_.SetOnSubmit([](const std::string& msg) {
             auto& engine = AgentEngine::GetInstance();
@@ -219,11 +226,16 @@ void VirtualSprite::GlobalInit() {
         }
     });
 
+    // ── Check for updates (async, SDL GUI only) ─────────────────
+    UpdateChecker::Instance().CheckForUpdate();
+
     LOG_INFO("SDL application initialized successfully.");
 }
 
 void VirtualSprite::Shutdown() {
     LOG_INFO("Shutting down SDL application...");
+    // Flush today's token usage one last time on shutdown
+    TokenTracker::GetInstance().FlushToday();
     SpriteManager::GetInstance().Clear();
     media_engine::MediaCore::Instance().Shutdown();
     LOG_INFO("SDL application shutdown complete.");

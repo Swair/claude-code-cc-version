@@ -37,7 +37,10 @@
 "font_medium": "Medium",
 "font_large": "Large",
   "btn_save": "Save",
+  "btn_delete": "Delete",
+  "btn_new_role": "New Role",
   "btn_cancel": "Cancel",
+  "role_protected": "⚠ Built-in role, cannot be deleted",
 
   "menu_about": "About",
   "about_title": "About Prosophor",
@@ -48,6 +51,8 @@
   "ctx_chat": "Chat",
   "ctx_show_main": "Show Main Window",
   "ctx_settings": "Settings",
+  "ctx_enable_tools": "Enable Tools",
+  "ctx_disable_tools": "Disable Tools",
   "ctx_quit": "Quit",
 
   "nav_prev": "Prev",
@@ -113,8 +118,23 @@
   "view_scheduler": "Scheduler",
 "view_mcp": "MCP",
 "view_petstore": "Pet Store",
-  "view_computer_organize": "Disk Cleanup",
-  "computer_organize_select_drive": "Select Drive:",
+  "view_computer_organize": "Cache Cleanup",
+  "computer_organize_desc": "Scan mainstream program caches to find cleanable space. Supports one-click cleanup and AI recommendations.",
+  "cache_system": "System Cache",
+  "cache_browser": "Browser Cache",
+  "cache_chat": "Chat App Cache",
+  "cache_ide": "IDE Cache",
+  "cache_devtool": "Dev Tool Cache",
+  "cache_scan_btn": "Scan Now",
+  "cache_cancel": "Cancel",
+  "cache_delete": "Clean",
+  "cache_delete_all": "Clean All",
+  "cache_cleanable": "Cleanable:",
+  "cache_scanning": "Scanning...",
+  "cache_clean_done": "✓ Cleanup complete! Disk space released.",
+  "cache_total": "Total cleanable:",
+  "cache_agent_tip": "💡 Tip: Ask the AI agent on the right for cleaning advice",
+  "cache_agent_tip2": "Ask which caches are safe to delete, or let the agent analyze your disk usage.",
 
   "all_roles": "All Roles",
 
@@ -145,6 +165,8 @@
   "log_error": "ERROR",
   "log_debug": "DEBUG",
   "log_clear": "Clear",
+  "log_copy": "Copy",
+  "log_no_entries": "No log entries",
 
   "usage_total_tokens": "Total Tokens",
   "usage_input_tokens": "Input Tokens",
@@ -153,6 +175,8 @@
   "usage_session": "Session",
   "usage_overall": "Overall",
   "usage_reset": "Reset",
+  "usage_start": "Start",
+  "usage_end": "End",
 
   "debug_system": "System",
   "debug_providers": "Providers",
@@ -163,5 +187,14 @@
 
   "btn_refresh": "Refresh",
 "nav_refresh": "Refresh",
-  "btn_focus": "Focus"
+  "btn_focus": "Focus",
+
+  "perm_title": "Tool Access Authorization",
+
+  "perm_auto": "Auto",
+  "perm_auto_desc": "Auto-allow safe tools, deny dangerous ones",
+  "perm_full": "Full Access",
+  "perm_full_desc": "Auto-allow all operations, no prompting",
+  "perm_ask": "Require Approval",
+  "perm_ask_desc": "Every operation requires user confirmation"
 }

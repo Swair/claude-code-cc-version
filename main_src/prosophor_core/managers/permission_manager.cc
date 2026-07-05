@@ -195,6 +195,11 @@ PermissionResult PermissionManager::CheckPermission(
         return PermissionResult::Allow();
     }
 
+    // Ask mode - always require user confirmation
+    if (mode_ == "ask") {
+        return PermissionResult::Ask();
+    }
+
     // Auto mode for non-interactive sessions
     if (mode_ == "auto") {
         // In auto mode, deny dangerous operations

@@ -36,7 +36,7 @@ void I18n::SetLanguage(const std::string& lang) {
 }
 
 void I18n::Load(const std::string& lang) {
-    std::string path = std::string(PROSOPHOR_SOURCE_DIR) + "/config/.prosophor/lang/" + lang + ".json";
+    std::string path = GetHomeDir() + "/.prosophor/lang/" + lang + ".json";
     if (!std::filesystem::exists(path)) {
         LOG_WARN("[I18n] Translation file not found: {}, keeping current", path);
         return;

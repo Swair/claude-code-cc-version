@@ -274,7 +274,17 @@ public:
     static ImVec2Wrapper GetDragDelta(float threshold = 0.0f);
     static void ResetDragDelta();
     static void SetCursor(int cursor_type);
+    /// Keyboard: is a key currently held down (use ImGuiKey_* constants)
+    static bool IsKeyDown(int imgui_key);
+    /// Keyboard: was a key just pressed (use ImGuiKey_* constants)
+    static bool IsKeyPressed(int imgui_key, bool repeat = true);
 };
+
+/// Common ImGui key constants (values match ImGui 1.92.8, keys start at 512)
+constexpr int ImGuiKey_LeftCtrl   = 527;
+constexpr int ImGuiKey_RightCtrl  = 531;
+constexpr int ImGuiKey_C          = 548;
+constexpr int ImGuiKey_A          = 546;
 
 /// Style — 样式栈操作
 class Style {
@@ -403,6 +413,7 @@ public:
     static bool BeginModal(const char* name, bool* open, int flags = 0);
     static bool MenuItem(const char* label, bool selected = false, bool enabled = true);
     static void End();
+    static void CloseCurrentPopup();
 };
 
 /// 标签栏
@@ -443,6 +454,10 @@ public:
     static bool IsItemHovered();
     /// Set mouse cursor to hand when last item is hovered
     static void SetHandCursorOnHover();
+    /// Selectable text item (clickable, focusable, supports Ctrl+C copy)
+    static bool Selectable(const char* label, bool selected = false, float width = 0.0f);
+    /// Copy text to clipboard
+    static void SetClipboardText(const char* text);
 };
 
 /// MenuBar — 传统菜单栏 (ImGui BeginMenuBar / EndMenuBar)

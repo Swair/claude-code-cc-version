@@ -80,6 +80,7 @@ class AgentEngine : public Noncopyable {
     std::vector<std::string> ListSessions() const;
 
     const ProsophorConfig& GetConfig() const { return config_; }
+    MemoryManager& GetMemoryManager() const { return *memory_manager_; }
 
  private:
     AgentEngine();

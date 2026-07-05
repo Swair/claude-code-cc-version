@@ -54,6 +54,16 @@ set(TEST_LINK_LIBS
 file(GLOB TEST_SOURCES "unittest/*.cc")
 list(REMOVE_ITEM TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/unittest/main.cc")
 
+# Llama-dependent tests: only build when llama.cpp is enabled
+if(NOT PROSOPHOR_BUILD_LLAMA)
+    list(REMOVE_ITEM TEST_SOURCES
+        "${CMAKE_CURRENT_SOURCE_DIR}/unittest/llamacpp_stream_test.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/unittest/parse_tool_calls_test.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/unittest/process_token_frame_test.cc"
+    )
+    message(STATUS "PROSOPHOR_BUILD_LLAMA=OFF: excluding llama-dependent tests")
+endif()
+
 # Create an executable for each test file
 foreach(TEST_FILE ${TEST_SOURCES})
     # Get filename without path and extension

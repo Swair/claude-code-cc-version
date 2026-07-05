@@ -111,7 +111,7 @@ bool Sprite::Create() {
         auto& eng_cfg = AgentEngine::GetInstance().GetConfig();
         std::string slug = std::filesystem::path(binding.spritesheet_file).stem().string();
         pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug,
-            eng_cfg.sprite_assets_dir + "/");
+            eng_cfg.sprite_assets_dir);
         if (pet_sprite_->IsValid()) {
             std::string display = pet_sprite_->GetDisplayName();
             if (!display.empty()) { name_ = display; sprite_window_->SetTitle(display.c_str()); }
@@ -126,14 +126,6 @@ bool Sprite::Create() {
     }
     if (!pet_sprite_ && !binding.sprite_id.empty()) {
         LoadPetBySpriteId(binding.sprite_id);
-    }
-    if (!pet_sprite_) {
-        LoadPetList();
-        if (!pet_list_.empty()) {
-            std::mt19937 rng{std::random_device{}()};
-            current_pet_index_ = std::uniform_int_distribution<int>(0, static_cast<int>(pet_list_.size()) - 1)(rng);
-            LoadCurrentPet();
-        }
     }
 
     // Fallback: if no pet loading source provided a display name,
@@ -348,51 +340,10 @@ void Sprite::EndDrag() {
 
 // ── Background ────────────────────────────────────────────────────────
 
-// ── Pet list ─────────────────────────────────────────────────────────
-
-void Sprite::LoadPetList() {
-    std::string path = PetdexDir() + "pet_list.json";
-    auto content = ReadFile(path);
-    if (!content) {
-        LOG_WARN("Petdex pet_list.json not found: {}", path);
-        return;
-    }
-
-    try {
-        auto j = nlohmann::json::parse(*content);
-        for (const auto& item : j) {
-            PetEntry entry;
-            entry.slug = item.value("slug", "");
-            entry.name = item.value("name", entry.slug);
-            if (!entry.slug.empty()) {
-                pet_list_.push_back(std::move(entry));
-            }
-        }
-        LOG_INFO("Petdex: loaded {} pets", pet_list_.size());
-    } catch (const std::exception& e) {
-        LOG_ERROR("Petdex pet_list.json parse error: {}", e.what());
-    }
-}
-
-void Sprite::LoadCurrentPet() {
-    if (pet_list_.empty()) return;
-    const auto& entry = pet_list_[current_pet_index_];
-    pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, entry.slug, PetdexSpritesDir());
-    if (pet_sprite_->IsValid()) {
-        name_ = entry.name;
-        sprite_window_->SetTitle(name_.c_str());
-        name_label_.SetText(name_);
-        if (speech_bubble_) {
-            speech_bubble_->SetTitle(name_);
-            speech_bubble_->SetAssistantRoleName(name_);
-        }
-    } else {
-        pet_sprite_.reset();
-    }
-}
+// ── Pet binding ─────────────────────────────────────────────────────
 
 Sprite::SpriteBinding Sprite::LoadSpriteBindingFromRole(const std::string& role_id) {
-    std::string path = std::string(PROSOPHOR_SOURCE_DIR) + "/config/.prosophor/roles/" + role_id + ".json";
+    auto path = (ProsophorConfig::BaseDir() / "roles" / (role_id + ".json")).string();
     if (!FileExists(path)) return {};
     try {
         std::ifstream ifs(path);
@@ -413,7 +364,7 @@ void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
     // Priority 1: config sprite_assets_dir/{sprite_id}/ (subdirectory with meta.json)
     auto& config = AgentEngine::GetInstance().GetConfig();
     if (!config.sprite_assets_dir.empty()) {
-        std::string dir = config.sprite_assets_dir + "/" + sprite_id;
+        std::string dir = prosophor::JoinPath(config.sprite_assets_dir, sprite_id);
         if (DirExists(dir)) {
             LoadPetFromDir(dir);
             if (pet_sprite_) return;
@@ -422,9 +373,9 @@ void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
 
     // Priority 1b: config sprite_assets_dir/{sprite_id}.webp directly
     if (!config.sprite_assets_dir.empty()) {
-        std::string webp_path = config.sprite_assets_dir + "/" + sprite_id + ".webp";
+        std::string webp_path = prosophor::JoinPath(config.sprite_assets_dir, sprite_id + ".webp");
         if (FileExists(webp_path)) {
-            pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, sprite_id, config.sprite_assets_dir + "/");
+            pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, sprite_id, config.sprite_assets_dir);
             if (pet_sprite_->IsValid()) {
                 std::string display = pet_sprite_->GetDisplayName();
                 if (!display.empty()) {
@@ -439,57 +390,7 @@ void Sprite::LoadPetBySpriteId(const std::string& sprite_id) {
         }
     }
 
-    // Priority 2: petdex-sprites recursive search
-    std::string kPetdexDir = PetdexSpritesDir();
-    if (!DirExists(kPetdexDir)) {
-        LOG_WARN("Petdex directory not found: {}", kPetdexDir);
-        LOG_WARN("No sprite found for sprite_id='{}'", sprite_id);
-        return;
-    }
-    for (const auto& entry : std::filesystem::recursive_directory_iterator(kPetdexDir)) {
-        if (!entry.is_regular_file() || entry.path().extension() != ".json") continue;
-        try {
-            std::ifstream pf(entry.path());
-            nlohmann::json pj;
-            pf >> pj;
-            if (pj.value("id", "") == sprite_id) {
-                std::string spritesheet_file = pj.value("spritesheet_path", "");
-                if (!spritesheet_file.empty()) {
-                    // 同名匹配：从 JSON 指定的 spritesheet_path 加载
-                    std::filesystem::path sfp(spritesheet_file);
-                    std::string slug = sfp.stem().string();
-                    std::string base_dir = entry.path().parent_path().string() + "/";
-                    pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug, base_dir);
-                    if (!pet_sprite_->IsValid()) {
-                        // Fallback: from config sprite_assets_dir/{sprite_id}/
-                        if (!config.sprite_assets_dir.empty()) {
-                            std::string assets_dir = config.sprite_assets_dir + "/" + sprite_id;
-                            pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug, assets_dir + "/");
-                        }
-                    }
-                } else {
-                    // Fallback: 用 JSON 文件名 stem 匹配
-                    std::string slug = entry.path().stem().string();
-                    pet_sprite_ = std::make_unique<Spritesheet>(*sprite_window_, slug, PetdexSpritesDir());
-                }
-                if (!pet_sprite_->IsValid()) {
-                    LOG_WARN("Spritesheet not valid for sprite_id='{}' at {}", sprite_id, entry.path().string());
-                    pet_sprite_.reset();
-                } else {
-                    std::string display_name = pj.value("display_name",
-                        pet_sprite_->GetDisplayName().empty() ? entry.path().stem().string() : pet_sprite_->GetDisplayName());
-                    name_ = display_name;
-                    sprite_window_->SetTitle(display_name.c_str());
-                    name_label_.SetText(name_);
-                    LOG_INFO("Loaded pet (sprite_id='{}') as '{}' from spritesheet={}", sprite_id, display_name, spritesheet_file.empty() ? entry.path().stem().string() + ".webp" : spritesheet_file);
-                }
-                return;
-            }
-        } catch (const std::exception& e) {
-            LOG_WARN("Failed to read petdex entry {}: {}", entry.path().string(), e.what());
-        }
-    }
-    LOG_WARN("No petdex entry found for sprite_id='{}'", sprite_id);
+    LOG_WARN("No sprite found for sprite_id='{}'", sprite_id);
 }
 
 void Sprite::LoadPetFromDir(const std::string& assets_dir) {
@@ -559,14 +460,11 @@ void Sprite::LoadPetFromDir(const std::string& assets_dir) {
 const std::string& Sprite::GetCurrentPetSlug() const {
     static const std::string s_empty;
     if (pet_sprite_) return pet_sprite_->GetSlug();
-    if (pet_list_.empty()) return s_empty;
-    return pet_list_[current_pet_index_].slug;
+    return s_empty;
 }
 
 const std::string& Sprite::GetCurrentPetName() const {
-    static const std::string s_empty;
-    if (pet_list_.empty()) return s_empty;
-    return pet_list_[current_pet_index_].name;
+    return name_;
 }
 
 std::string Sprite::GetSpritesheetPath() const {
@@ -591,6 +489,9 @@ SpritesheetAction Sprite::GetEffectiveAction() const {
         case AgentRuntimeState::STREAM_THINKING:
         case AgentRuntimeState::STREAM_THINKING_END:
             return SpritesheetAction::REVIEW;
+        case AgentRuntimeState::STREAM_TOOL_START:
+        case AgentRuntimeState::STREAM_TOOL:
+        case AgentRuntimeState::STREAM_TOOL_END:
         case AgentRuntimeState::EXECUTING_TOOL:
         case AgentRuntimeState::TOOL_USE:
             return SpritesheetAction::SPRINT;

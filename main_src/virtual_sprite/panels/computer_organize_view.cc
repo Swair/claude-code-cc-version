@@ -1,3 +1,6 @@
+// Copyright 2026 Prosophor Contributors
+// SPDX-License-Identifier: Apache-2.0
+
 #include "virtual_sprite/chat_window.h"
 #include "virtual_sprite/panels/panel_helpers.h"
 #include "virtual_sprite/sprite.h"
@@ -8,6 +11,7 @@
 #include "media_engine/ui_component/input_panel.h"
 #include "media_engine/media_engine.h"
 #include "common/i18n.h"
+#include "common/file_utils.h"
 
 #include "platform/platform.h"
 #include <filesystem>
@@ -19,6 +23,8 @@
 #include <sstream>
 #include <iomanip>
 #include <mutex>
+#include <unordered_map>
+#include <cstdlib>
 
 namespace fs = std::filesystem;
 namespace prosophor {
@@ -28,74 +34,45 @@ namespace prosophor {
 
 namespace {
 
-struct DiskInfo {
-    char drive_letter;
-    uint64_t total_bytes = 0;
-    uint64_t free_bytes = 0;
-    uint64_t used_bytes = 0;
+// ============================================================================
+// Cache scanner — targeted mainstream program cache scan
+// ============================================================================
+
+struct CacheEntry {
+    std::string name;        // display name (e.g. "Chrome Cache")
+    std::string path;        // full path on disk
+    std::string category;    // category key: "browser", "chat", "ide", "devtool", "system"
+    uint64_t size = 0;
+    bool exists = false;
 };
 
-struct ScanResult {
-    std::string name;
-    std::string path;
-    uint64_t size = 0;
+struct CacheCategory {
+    std::string key;         // category key
+    std::string label;       // translated label
+    std::vector<CacheEntry> entries;
+    uint64_t total_size = 0;
 };
 
 struct ScanState {
     std::atomic<bool> scanning{false};
     std::atomic<bool> cancel{false};
-    std::atomic<uint64_t> scanned_files{0};
-    std::string current_path;
-    std::vector<ScanResult> large_files;
-    std::vector<ScanResult> temp_files;
-    std::vector<ScanResult> old_files;
-    uint64_t total_size = 0;
-    uint64_t temp_total = 0;
-    uint64_t old_total = 0;
+    std::atomic<int> progress{0};
+    std::atomic<int> total_steps{0};
+    std::string current_item;
+
+    std::vector<CacheCategory> categories;
+    uint64_t grand_total_size = 0;
+    bool has_results = false;
+    bool report_sent = false;  // true after scan results auto-sent to agent
 };
 
 static ScanState s_state;
-static char s_sel_drive[4] = "C:";
-static int s_depth = 3;
-static double s_min_mb = 10.0;
+static bool s_show_deleted = false;
 
-static std::vector<DiskInfo> s_drive_cache;
-static std::once_flag s_drive_flag;
-
-std::vector<DiskInfo> ListDrives() {
-    std::call_once(s_drive_flag, []() {
-        DWORD mask = GetLogicalDrives();
-        for (char d = 'C'; d <= 'Z'; ++d) {
-            if (!(mask & 1)) { mask >>= 1; continue; }
-            mask >>= 1;
-            std::string root = std::string(1, d) + ":\\";
-            UINT type = GetDriveTypeA(root.c_str());
-            if (type != DRIVE_FIXED && type != DRIVE_RAMDISK) continue;
-            ULARGE_INTEGER total, free;
-            if (!GetDiskFreeSpaceExA(root.c_str(), nullptr, &total, &free)) continue;
-            s_drive_cache.push_back({d, total.QuadPart, free.QuadPart,
-                total.QuadPart - free.QuadPart});
-        }
-        std::sort(s_drive_cache.begin(), s_drive_cache.end(),
-            [](auto& a, auto& b) { return a.used_bytes > b.used_bytes; });
-    });
-    return s_drive_cache;
-}
-
-bool IsTemp(const fs::path& p) {
-    auto ext = p.extension().string();
-    for (auto& c : ext) c = std::tolower(c);
-    return ext == ".tmp" || ext == ".log" || ext == ".cache" || ext == ".dmp";
-}
-
-bool IsOld(const fs::path& p) {
-    auto ext = p.extension().string();
-    for (auto& c : ext) c = std::tolower(c);
-    return ext == ".bak" || ext == ".old" || ext == ".backup";
-}
+// ── Helpers ──
 
 std::string FmtSize(uint64_t bytes) {
-    const char* u[] = {"B","KB","MB","GB","TB"};
+    const char* u[] = {"B", "KB", "MB", "GB", "TB"};
     int i = 0;
     double v = (double)bytes;
     while (v >= 1024.0 && i < 4) { v /= 1024.0; ++i; }
@@ -104,191 +81,511 @@ std::string FmtSize(uint64_t bytes) {
     return os.str();
 }
 
-void DoScan(const fs::path& dir, int depth,
-            std::vector<ScanResult>& large,
-            std::vector<ScanResult>& temp,
-            std::vector<ScanResult>& old,
-            uint64_t min_size, int max_depth) {
-    if (s_state.cancel.load() || depth > max_depth) return;
+uint64_t ComputeDirSize(const fs::path& path, int max_depth = 5) {
+    uint64_t total = 0;
     std::error_code ec;
     try {
-        for (auto& e : fs::directory_iterator(dir, ec)) {
-            if (s_state.cancel.load()) return;
-            s_state.scanned_files.fetch_add(1);
-            std::string name;
-            try {
-                name = e.path().filename().string();
-            } catch (...) { continue; }
-            s_state.current_path = e.path().string();
-            if (name == "$Recycle.Bin" || name == "System Volume Information")
-                continue;
-            if (e.is_directory(ec)) {
-                DoScan(e.path(), depth + 1, large, temp, old, min_size, max_depth);
-            } else if (e.is_regular_file(ec)) {
-                auto sz = e.file_size(ec);
-                if (ec) continue;
-                ScanResult r{name, e.path().string(), sz};
-                if (sz >= min_size) large.push_back(r);
-                if (IsTemp(e.path())) temp.push_back(r);
-                if (IsOld(e.path())) old.push_back(r);
-            }
+        std::function<void(const fs::path&, int)> walk =
+            [&](const fs::path& p, int d) {
+                if (d > max_depth || s_state.cancel.load()) return;
+                for (auto& e : fs::directory_iterator(p, ec)) {
+                    if (ec) { ec.clear(); continue; }
+                    if (s_state.cancel.load()) return;
+                    if (e.is_regular_file(ec)) {
+                        total += e.file_size(ec);
+                        ec.clear();
+                    } else if (e.is_directory(ec)) {
+                        ec.clear();
+                        walk(e.path(), d + 1);
+                    }
+                }
+            };
+        walk(path, 0);
+    } catch (...) {}
+    return total;
+}
+
+// Check if a path exists and return its total cached size
+std::pair<bool, uint64_t> CheckCacheDir(const std::string& path_str) {
+    std::error_code ec;
+    fs::path p(path_str);
+    if (!fs::exists(p, ec) || ec) return {false, 0};
+    uint64_t sz = ComputeDirSize(p);
+    return {true, sz};
+}
+
+// ── Expand environment variables in a path string ──
+std::string ExpandEnv(const std::string& path) {
+    std::string result = path;
+    auto expand_one = [&](const std::string& var, const std::string& val) {
+        if (val.empty()) return;
+        for (size_t pos = 0; (pos = result.find(var, pos)) != std::string::npos;) {
+            result.replace(pos, var.length(), val);
+            pos += val.length();
         }
-    } catch (const fs::filesystem_error&) {
+    };
+
+    auto get_env = [](const char* var) -> std::string {
+        char* val = std::getenv(var);
+        return val ? std::string(val) : "";
+    };
+
+    std::string localappdata = get_env("LOCALAPPDATA");
+    std::string appdata = get_env("APPDATA");
+    std::string userprofile = get_env("USERPROFILE");
+    std::string temp = get_env("TEMP");
+    std::string windir = get_env("WINDIR");
+
+    auto norm = [](std::string& s) {
+        for (auto& c : s) if (c == '/') c = '\\';
+    };
+    norm(localappdata); norm(appdata); norm(userprofile); norm(temp); norm(windir);
+
+    expand_one("%LOCALAPPDATA%", localappdata);
+    expand_one("%APPDATA%", appdata);
+    expand_one("%USERPROFILE%", userprofile);
+    expand_one("%TEMP%", temp);
+    expand_one("%TMP%", temp);
+    expand_one("%WINDIR%", windir);
+
+    return result;
+}
+
+// ── Define known cache locations for mainstream programs ──
+struct CacheDef {
+    std::string name;       // display name
+    std::string path;       // path with env vars
+    std::string category;   // category key
+};
+
+static const std::vector<CacheDef> kCacheDefs = {
+    // ── System ──
+    {"Windows Temp",       "%TEMP%",                            "system"},
+    {"Windows Prefetch",   "%WINDIR%\\Prefetch",                 "system"},
+    {"Recycle Bin",        "%USERPROFILE%\\$Recycle.Bin",       "system"},
+    {"Windows Update Cache", "%WINDIR%\\SoftwareDistribution\\Download", "system"},
+    {"Windows Error Reporting", "%LOCALAPPDATA%\\CrashDumps",   "system"},
+    {"Thumbnail Cache",    "%LOCALAPPDATA%\\Microsoft\\Windows\\Explorer", "system"},
+    {"Delivery Optimization", "%WINDIR%\\ServiceProfiles\\NetworkService\\AppData\\Local\\Microsoft\\Windows\\DeliveryOptimization\\Cache", "system"},
+
+    // ── Browsers ──
+    {"Chrome Cache",        "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Cache", "browser"},
+    {"Chrome Code Cache",   "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Code Cache", "browser"},
+    {"Chrome Service Worker", "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Service Worker\\CacheStorage", "browser"},
+    {"Chrome GPU Cache",    "%LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\GPUCache", "browser"},
+    {"Edge Cache",          "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Cache", "browser"},
+    {"Edge Code Cache",     "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Code Cache", "browser"},
+    {"Edge Service Worker", "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\Service Worker\\CacheStorage", "browser"},
+    {"Edge GPU Cache",      "%LOCALAPPDATA%\\Microsoft\\Edge\\User Data\\Default\\GPUCache", "browser"},
+    {"Firefox Cache",       "%LOCALAPPDATA%\\Mozilla\\Firefox\\Profiles", "browser"},
+
+    // ── Chat / Social ──
+    {"WeChat File Storage", "%USERPROFILE%\\Documents\\WeChat Files", "chat"},
+    {"WeChat Plugin Cache", "%APPDATA%\\Tencent\\WeChat\\XPlugin", "chat"},
+    {"QQ Cache",            "%APPDATA%\\Tencent\\QQ\\QtDataMgr", "chat"},
+    {"QQ Light Pic Cache",  "%APPDATA%\\Tencent\\QQLight\\PicCache", "chat"},
+    {"Discord Cache",       "%APPDATA%\\discord\\Cache", "chat"},
+    {"Discord Code Cache",  "%APPDATA%\\discord\\Code Cache", "chat"},
+    {"Discord GPU Cache",   "%APPDATA%\\discord\\GPUCache", "chat"},
+
+    // ── IDEs ──
+    {"VS Code Cache",       "%APPDATA%\\Code\\Cache", "ide"},
+    {"VS Code Cached Data", "%APPDATA%\\Code\\CachedData", "ide"},
+    {"VS Code Cached Extensions", "%APPDATA%\\Code\\CachedExtensions", "ide"},
+    {"VS Code VSIX Cache",  "%APPDATA%\\Code\\CachedExtensionVSIXs", "ide"},
+    {"JetBrains Caches",    "%LOCALAPPDATA%\\JetBrains", "ide"},
+
+    // ── Dev Tools ──
+    {"npm Cache",           "%APPDATA%\\npm-cache", "devtool"},
+    {"pip Cache",           "%LOCALAPPDATA%\\pip\\cache", "devtool"},
+    {"yarn Cache",          "%LOCALAPPDATA%\\Yarn\\Cache", "devtool"},
+    {"NuGet Cache",         "%USERPROFILE%\\.nuget\\packages", "devtool"},
+    {"Cargo Registry",      "%USERPROFILE%\\.cargo\\registry", "devtool"},
+    {"Go Module Cache",     "%USERPROFILE%\\go\\pkg\\mod", "devtool"},
+    {"CMake File API",      "%LOCALAPPDATA%\\CMake", "devtool"},
+    {"Conan Cache",         "%USERPROFILE%\\.conan\\data", "devtool"},
+};
+
+// ── Scan all known cache locations ──
+void DoScan() {
+    s_state.scanning.store(true);
+    s_state.cancel.store(false);
+    s_state.progress.store(0);
+    s_state.total_steps.store((int)kCacheDefs.size());
+    s_state.grand_total_size = 0;
+    s_state.has_results = false;
+    s_state.report_sent = false;
+
+    std::unordered_map<std::string, std::vector<CacheEntry>> cat_map;
+
+    for (size_t i = 0; i < kCacheDefs.size(); ++i) {
+        if (s_state.cancel.load()) break;
+
+        const auto& def = kCacheDefs[i];
+        s_state.current_item = def.name;
+        s_state.progress.store((int)i + 1);
+
+        std::string real_path = ExpandEnv(def.path);
+
+        auto [exists, size] = CheckCacheDir(real_path);
+        CacheEntry entry{def.name, real_path, def.category, size, exists};
+        cat_map[def.category].push_back(std::move(entry));
     }
+
+    // Build categorized results
+    s_state.categories.clear();
+    uint64_t grand_total = 0;
+
+    auto add_cat = [&](const std::string& key, const std::string& label) {
+        auto it = cat_map.find(key);
+        if (it == cat_map.end() || it->second.empty()) return;
+        CacheCategory cat;
+        cat.key = key;
+        cat.label = label;
+        cat.total_size = 0;
+        for (auto& e : it->second) {
+            if (e.exists) {
+                cat.total_size += e.size;
+                grand_total += e.size;
+            }
+            cat.entries.push_back(std::move(e));
+        }
+        std::sort(cat.entries.begin(), cat.entries.end(),
+            [](const CacheEntry& a, const CacheEntry& b) {
+                return a.size > b.size;
+            });
+        s_state.categories.push_back(std::move(cat));
+    };
+
+    // Order: system, browser, chat, ide, devtool
+    auto& L = I18n::Instance();
+    add_cat("system",  L.Get("cache_system"));
+    add_cat("browser", L.Get("cache_browser"));
+    add_cat("chat",    L.Get("cache_chat"));
+    add_cat("ide",     L.Get("cache_ide"));
+    add_cat("devtool", L.Get("cache_devtool"));
+
+    s_state.grand_total_size = grand_total;
+    s_state.has_results = true;
+    s_state.scanning.store(false);
+    s_state.current_item.clear();
+}
+
+// ── Build a text report of scan results for the AI agent ──
+std::string BuildScanReport() {
+    std::ostringstream os;
+    os << "📊 缓存扫描报告\n\n";
+    int total_items = 0;
+    for (auto& cat : s_state.categories) {
+        os << "【" << cat.label << "】(" << FmtSize(cat.total_size) << ")\n";
+        for (auto& e : cat.entries) {
+            if (!e.exists) continue;
+            os << "  - " << e.name << ": " << FmtSize(e.size) << "\n";
+            ++total_items;
+        }
+        os << "\n";
+    }
+    os << "总计可清理空间: " << FmtSize(s_state.grand_total_size) << "\n";
+    os << "涉及 " << total_items << " 个缓存目录\n\n";
+    os << "请分析以上缓存项，给出清理建议：哪些可以安全清理，哪些建议保留。";
+    return os.str();
+}
+
+// ── Delete a single cache entry ──
+bool DeleteCacheEntry(CacheEntry& entry) {
+    std::error_code ec;
+    if (!fs::exists(entry.path, ec) || ec) return true;
+    fs::remove_all(entry.path, ec);
+    if (ec) return false;
+    entry.exists = false;
+    entry.size = 0;
+    return true;
+}
+
+// ── Delete all caches in a category ──
+struct DeleteResult {
+    std::string name;
+    bool success;
+};
+std::vector<DeleteResult> DeleteCategory(CacheCategory& cat) {
+    std::vector<DeleteResult> results;
+    for (auto& entry : cat.entries) {
+        if (!entry.exists) continue;
+        bool ok = DeleteCacheEntry(entry);
+        results.push_back({entry.name, ok});
+    }
+    cat.total_size = 0;
+    for (auto& e : cat.entries) {
+        if (e.exists) cat.total_size += e.size;
+    }
+    return results;
 }
 
 } // anonymous namespace
 
-void ChatWindow::RenderComputerOrganizeView(int cont_x, int cont_y, int cont_w, int cont_h) {
+// ============================================================================
+// RenderComputerOrganizeView — Main panel entry point
+// ============================================================================
+
+void ChatWindow::RenderComputerOrganizeView(int cont_x, int cont_y,
+                                             int cont_w, int cont_h) {
     auto& L = I18n::Instance();
     float sm = Spacing();
-    PanelContainer f(cont_x, cont_y, cont_w, cont_h, L.Get("view_computer_organize").c_str());
+    PanelContainer f(cont_x, cont_y, cont_w, cont_h,
+                     L.Get("view_computer_organize").c_str());
 
-    // Split: left tool panel, right chat
-    auto split = PanelContainer::SplitRight(f.a, 320.0f);
+    // Split: left tool panel, right chat with agent
+    auto split = PanelContainer::SplitRight(f.a, 340.0f);
 
-    // ── Left: Disk Tool ──
+    // ── Left: Cache scan panel ──
     {
         auto _scroll = PanelContainer::BeginScroll(split.main, 0, 4.0f, true);
-        float x = split.main.x;
-        float y = 0;
-        float w = split.main.w;
+        // local coordinates inside the scrollable child window
+        float pad = 4.0f * sm;
+        float lx = pad;               // local X
+        float ly = 12.0f * sm;        // local Y (top padding)
+        float w = split.main.w;       // local width
         float lh = 22.0f * sm;
 
-        // Drive buttons
-        media_engine::DrawList::Text(x, y, media_engine::Colors::Gray55,
-            L.Get("computer_organize_select_drive").c_str());
-        y += lh;
+        // ── Header description ──
+        media_engine::Layout::SetCursorPos(lx, ly);
+        media_engine::Text::Colored(media_engine::Colors::Gray55,
+            L.Get("computer_organize_desc").c_str());
+        ly += lh;
 
-        auto drives = ListDrives();
-        float bx = x;
-        float bw = 70.0f * sm;
-        float bh = 32.0f * sm;
-        for (auto& d : drives) {
-            bool sel = (s_sel_drive[0] == d.drive_letter);
-            auto bg = sel ? media_engine::Colors::OrangeLightest
-                          : media_engine::Colors::White;
-            auto brd = sel ? media_engine::Colors::Orange
-                           : media_engine::Colors::CreamBorder;
-            media_engine::DrawList::RoundRect(bx, y, bw, bh, 4.0f, bg);
-            media_engine::DrawList::RoundRect(bx, y, bw, bh, 4.0f, brd);
-            std::string lbl = std::string(1, d.drive_letter) + ":";
-            media_engine::DrawList::Text(bx + 4.0f, y + 2.0f,
-                media_engine::Colors::Gray40, lbl.c_str());
-            media_engine::DrawList::Text(bx + 4.0f, y + bh * 0.5f + 2.0f,
-                media_engine::Colors::Gray55,
-                (FmtSize(d.used_bytes) + " / " + FmtSize(d.total_bytes)).c_str());
-            media_engine::Layout::SetCursorScreenPos(bx, y);
-            if (media_engine::ImGuiWidget::InvisibleButton(
-                    ("dv" + std::string(1, d.drive_letter)).c_str(), bw, bh))
-                s_sel_drive[0] = d.drive_letter;
-            bx += bw + 6.0f * sm;
-            if (bx + bw > x + w) { bx = x; y += bh + 6.0f * sm; }
+        // ── Auto-send results to agent when scan completes ──
+        if (s_state.has_results && !s_state.scanning.load() && !s_state.report_sent) {
+            s_state.report_sent = true;
+            std::string sid = SpriteManager::GetInstance().GetFocusedSession();
+            if (!sid.empty()) {
+                std::string report = BuildScanReport();
+                AgentEngine::GetInstance().SendUserMessage(sid, report);
+            }
         }
-        y += bh + 10.0f * sm;
 
-        // Scan button / progress
+        // ── Scan / Cancel buttons ──
         if (!s_state.scanning.load()) {
-            media_engine::Layout::SetCursorScreenPos(x, y);
-            if (media_engine::ImGuiWidget::Button("Start Scan", 120.0f * sm, 30.0f * sm)) {
+            media_engine::Layout::SetCursorPos(lx, ly);
+            bool scan_clicked = media_engine::ImGuiWidget::Button(
+                L.Get("cache_scan_btn").c_str(), 140.0f * sm, 30.0f * sm);
+
+            if (scan_clicked) {
+                s_state.scanning.store(false);
                 s_state.cancel.store(false);
-                s_state.large_files.clear();
-                s_state.temp_files.clear();
-                s_state.old_files.clear();
-                s_state.scanned_files.store(0);
-                s_state.total_size = 0;
-                s_state.temp_total = 0;
-                s_state.old_total = 0;
-                uint64_t min_sz = (uint64_t)(s_min_mb * 1024.0 * 1024.0);
-                int dp = s_depth;
-                std::string root = std::string(s_sel_drive) + "\\";
-                std::thread([root, min_sz, dp]() {
-                    s_state.scanning.store(true);
-                    DoScan(root, 0, s_state.large_files,
-                        s_state.temp_files, s_state.old_files, min_sz, dp);
-                    std::sort(s_state.large_files.begin(), s_state.large_files.end(),
-                        [](auto& a, auto& b) { return a.size > b.size; });
-                    if (s_state.large_files.size() > 100)
-                        s_state.large_files.resize(100);
-                    for (auto& r : s_state.temp_files) s_state.temp_total += r.size;
-                    for (auto& r : s_state.old_files) s_state.old_total += r.size;
-                    s_state.scanning.store(false);
-                }).detach();
+                s_state.progress.store(0);
+                s_state.total_steps.store(0);
+                s_state.current_item.clear();
+                s_state.categories.clear();
+                s_state.grand_total_size = 0;
+                s_state.has_results = false;
+                s_state.report_sent = false;
+                s_show_deleted = false;
+                std::thread(DoScan).detach();
             }
 
-            media_engine::DrawList::Text(x + 130.0f * sm, y + 4.0f * sm,
-                media_engine::Colors::Gray55,
-                ("Min: " + std::to_string((int)s_min_mb) + " MB").c_str());
-            media_engine::Layout::SetCursorScreenPos(x + 130.0f * sm, y + 20.0f * sm);
-            media_engine::ImGuiWidget::SliderFloat("##minsz", &s_min_mb, 1.0, 1000.0, "");
+            if (s_state.has_results) {
+                // Delete all button
+                media_engine::Layout::SetCursorPos(lx + 150.0f * sm, ly);
+                std::string clean_label = L.Get("cache_delete_all") + " (" +
+                    FmtSize(s_state.grand_total_size) + ")";
+                if (media_engine::ImGuiWidget::Button(
+                        clean_label.c_str(), 200.0f * sm, 30.0f * sm)) {
+                    for (auto& cat : s_state.categories) {
+                        DeleteCategory(cat);
+                    }
+                    s_state.grand_total_size = 0;
+                    for (auto& cat : s_state.categories) {
+                        s_state.grand_total_size += cat.total_size;
+                    }
+                    s_show_deleted = true;
+                }
+
+                media_engine::Layout::SetCursorPos(lx + 360.0f * sm, ly + 6.0f * sm);
+                media_engine::Text::Colored(media_engine::Colors::Gray40,
+                    (L.Get("cache_cleanable") + " " + FmtSize(s_state.grand_total_size)).c_str());
+            }
+            ly += 38.0f * sm;
+
         } else {
-            media_engine::DrawList::Text(x, y + 2.0f * sm, media_engine::Colors::Orange,
-                ("Scanning... " + std::to_string(s_state.scanned_files.load()) + " files").c_str());
-            media_engine::DrawList::Text(x, y + 20.0f * sm, media_engine::Colors::Gray55,
-                s_state.current_path.c_str());
-            media_engine::Layout::SetCursorScreenPos(x, y + 42.0f * sm);
-            if (media_engine::ImGuiWidget::Button("Cancel", 100.0f * sm, 26.0f * sm))
+            // ── Scanning progress ──
+            float scroll_y = media_engine::Scroll::GetY();
+            float sx = split.main.x;
+            float sy = split.main.y;
+            media_engine::DrawList::RoundRect(sx + lx, sy + ly - scroll_y,
+                w - pad * 2, 36.0f * sm, 4.0f, media_engine::Colors::OrangeLightest);
+
+            int pct = s_state.total_steps.load() > 0
+                ? (s_state.progress.load() * 100 / s_state.total_steps.load())
+                : 0;
+
+            media_engine::Layout::SetCursorPos(lx + 6.0f * sm, ly + 2.0f * sm);
+            media_engine::Text::Colored(media_engine::Colors::Orange,
+                (L.Get("cache_scanning") + " " + std::to_string(pct) + "%").c_str());
+            media_engine::Layout::SetCursorPos(lx + 6.0f * sm, ly + 20.0f * sm);
+            media_engine::Text::Colored(media_engine::Colors::Gray55,
+                s_state.current_item.c_str());
+
+            media_engine::Layout::SetCursorPos(lx, ly + 42.0f * sm);
+            if (media_engine::ImGuiWidget::Button(
+                    L.Get("cache_cancel").c_str(), 100.0f * sm, 26.0f * sm))
                 s_state.cancel.store(true);
+            ly += 76.0f * sm;
         }
-        y += 50.0f * sm;
 
-        // Results
-        if (!s_state.scanning.load() && (!s_state.large_files.empty() ||
-            !s_state.temp_files.empty() || !s_state.old_files.empty())) {
+        // ── Results display ──
+        if (s_state.has_results && !s_state.scanning.load()) {
+            float scroll_y = media_engine::Scroll::GetY();
+            float sx = split.main.x;
+            float sy = split.main.y;
 
-            // Summary
-            media_engine::DrawList::RoundRect(x, y, w, 36.0f * sm, 4.0f,
-                media_engine::Colors::MilkyWhite);
-            uint64_t total = s_state.temp_total + s_state.old_total;
-            media_engine::DrawList::Text(x + 6.0f * sm, y + 4.0f * sm,
-                media_engine::Colors::OrangeDeep,
-                ("Scanned: " + std::to_string(s_state.scanned_files.load())).c_str());
-            media_engine::DrawList::Text(x + 6.0f * sm, y + 20.0f * sm,
-                media_engine::Colors::Gray40,
-                ("Reclaimable: " + FmtSize(total)).c_str());
-            y += 44.0f * sm;
+            if (s_show_deleted) {
+                media_engine::DrawList::RoundRect(sx + lx, sy + ly - scroll_y,
+                    w - pad * 2, 30.0f * sm, 4.0f, media_engine::Colors::GreenPale);
+                media_engine::Layout::SetCursorPos(lx + 6.0f * sm, ly + 6.0f * sm);
+                media_engine::Text::Colored(media_engine::Colors::GreenMid,
+                    L.Get("cache_clean_done").c_str());
+                ly += 36.0f * sm;
 
-            // Temp / cache
-            if (!s_state.temp_files.empty()) {
-                media_engine::DrawList::Text(x, y, media_engine::Colors::Orange,
-                    ("Temporary Files  (" + FmtSize(s_state.temp_total) + ")").c_str());
-                y += 20.0f * sm;
-                int n = 0;
-                for (auto& r : s_state.temp_files) {
-                    if (++n > 15) { media_engine::DrawList::Text(x + 4.0f * sm, y,
-                        media_engine::Colors::Gray55, "..."); y += 16.0f * sm; break; }
-                    media_engine::DrawList::Text(x + 4.0f * sm, y,
-                        media_engine::Colors::Gray40,
-                        (r.name + "  " + FmtSize(r.size)).c_str());
-                    y += 16.0f * sm;
+                // Show what was deleted
+                for (auto& cat : s_state.categories) {
+                    bool has_deleted = false;
+                    for (auto& e : cat.entries) {
+                        if (!e.exists && e.size == 0) { has_deleted = true; break; }
+                    }
+                    if (!has_deleted) continue;
+
+                    media_engine::Layout::SetCursorPos(lx, ly);
+                    media_engine::Text::Colored(media_engine::Colors::OrangeDeep,
+                        cat.label.c_str());
+                    ly += 20.0f * sm;
+
+                    int n = 0;
+                    for (auto& e : cat.entries) {
+                        if (e.exists) continue;
+                        if (++n > 10) {
+                            media_engine::Layout::SetCursorPos(lx + 4.0f * sm, ly);
+                            media_engine::Text::Colored(media_engine::Colors::Gray55, "...");
+                            ly += 16.0f * sm;
+                            break;
+                        }
+                        media_engine::Layout::SetCursorPos(lx + 4.0f * sm, ly);
+                        media_engine::Text::Colored(media_engine::Colors::Gray55,
+                            ("\xe2\x9c\x93 " + e.name).c_str());
+                        ly += 16.0f * sm;
+                    }
+                    ly += 4.0f * sm;
                 }
-                y += 4.0f * sm;
             }
 
-            // Backup / old
-            if (!s_state.old_files.empty()) {
-                media_engine::DrawList::Text(x, y, media_engine::Colors::Orange,
-                    ("Backup / Old Files  (" + FmtSize(s_state.old_total) + ")").c_str());
-                y += 20.0f * sm;
-                int n = 0;
-                for (auto& r : s_state.old_files) {
-                    if (++n > 15) { media_engine::DrawList::Text(x + 4.0f * sm, y,
-                        media_engine::Colors::Gray55, "..."); y += 16.0f * sm; break; }
-                    media_engine::DrawList::Text(x + 4.0f * sm, y,
-                        media_engine::Colors::Gray40,
-                        (r.name + "  " + FmtSize(r.size)).c_str());
-                    y += 16.0f * sm;
+            // ── Categorized results ──
+            int cat_idx = 0;
+            for (auto& cat : s_state.categories) {
+                // Category header background
+                media_engine::DrawList::RoundRect(sx + lx, sy + ly - scroll_y,
+                    w - pad * 2, 30.0f * sm, 4.0f,
+                    (cat_idx % 2 == 0) ? media_engine::Colors::MilkyWhite
+                                       : media_engine::Colors::White);
+                media_engine::Layout::SetCursorPos(lx + 6.0f * sm, ly + 4.0f * sm);
+                media_engine::Text::Colored(media_engine::Colors::Orange,
+                    cat.label.c_str());
+
+                std::string size_str = FmtSize(cat.total_size);
+                media_engine::Layout::SetCursorPos(lx + 6.0f * sm, ly + 18.0f * sm);
+                media_engine::Text::Colored(media_engine::Colors::Gray40,
+                    (size_str + " \xe2\x80\x94 " + std::to_string(cat.entries.size()) + " items").c_str());
+
+                // Category delete button
+                media_engine::Layout::SetCursorPos(lx + w - 100.0f * sm - pad, ly + 2.0f * sm);
+                if (cat.total_size > 0 && media_engine::ImGuiWidget::Button(
+                        (L.Get("cache_delete")).c_str(), 90.0f * sm, 24.0f * sm)) {
+                    DeleteCategory(cat);
+                    s_state.grand_total_size = 0;
+                    for (auto& c : s_state.categories) {
+                        s_state.grand_total_size += c.total_size;
+                    }
                 }
-                y += 4.0f * sm;
+                ly += 36.0f * sm;
+
+                // List each cache entry
+                int n = 0;
+                for (auto& entry : cat.entries) {
+                    if (++n > 15) {
+                        media_engine::Layout::SetCursorPos(lx + 4.0f * sm, ly);
+                        media_engine::Text::Colored(media_engine::Colors::Gray55, "...");
+                        ly += 16.0f * sm;
+                        break;
+                    }
+
+                    if (entry.exists) {
+                        media_engine::Layout::SetCursorPos(lx + 8.0f * sm, ly);
+                        media_engine::Text::Colored(media_engine::Colors::Gray40,
+                            entry.name.c_str());
+                        media_engine::Layout::SetCursorPos(lx + w * 0.5f, ly);
+                        media_engine::Text::Colored(media_engine::Colors::Gray55,
+                            FmtSize(entry.size).c_str());
+
+                        // Item-level delete button
+                        media_engine::Layout::SetCursorPos(lx + w - 50.0f * sm - pad, ly);
+                        if (media_engine::ImGuiWidget::Button(
+                                ("\xc3\x97##" + entry.name).c_str(),
+                                24.0f * sm, 16.0f * sm)) {
+                            DeleteCacheEntry(entry);
+                            cat.total_size = 0;
+                            for (auto& e : cat.entries) {
+                                if (e.exists) cat.total_size += e.size;
+                            }
+                            s_state.grand_total_size = 0;
+                            for (auto& c : s_state.categories) {
+                                s_state.grand_total_size += c.total_size;
+                            }
+                        }
+                    } else {
+                        media_engine::Layout::SetCursorPos(lx + 8.0f * sm, ly);
+                        media_engine::Text::Colored(media_engine::Colors::Gray55,
+                            ("\xe2\x9c\x97 " + entry.name).c_str());
+                    }
+                    ly += 16.0f * sm;
+                }
+                ly += 8.0f * sm;
+                ++cat_idx;
             }
+
+            // ── Grand total footer ──
+            if (s_state.grand_total_size > 0) {
+                media_engine::DrawList::RoundRect(sx + lx, sy + ly - scroll_y,
+                    w - pad * 2, 30.0f * sm, 4.0f, media_engine::Colors::OrangeLightest);
+                media_engine::Layout::SetCursorPos(lx + 6.0f * sm, ly + 6.0f * sm);
+                media_engine::Text::Colored(media_engine::Colors::OrangeDeep,
+                    (L.Get("cache_total") + " " + FmtSize(s_state.grand_total_size)).c_str());
+                ly += 36.0f * sm;
+            }
+        }
+
+        // ── Tip for agent integration ──
+        if (!s_state.scanning.load()) {
+            ly += 10.0f * sm;
+            float scroll_y = media_engine::Scroll::GetY();
+            float sx = split.main.x;
+            float sy = split.main.y;
+            media_engine::DrawList::RoundRect(sx + lx, sy + ly - scroll_y,
+                w - pad * 2, 40.0f * sm, 4.0f, media_engine::Colors::CyanLight);
+            media_engine::Layout::SetCursorPos(lx + 6.0f * sm, ly + 4.0f * sm);
+            media_engine::Text::Colored(media_engine::Colors::Gray40,
+                L.Get("cache_agent_tip").c_str());
+            ly += 20.0f * sm;
+            media_engine::Layout::SetCursorPos(lx + 6.0f * sm, ly + 2.0f * sm);
+            media_engine::Text::Colored(media_engine::Colors::Gray55,
+                L.Get("cache_agent_tip2").c_str());
         }
     }
 
-    // ── Right: Chat Panel ──
+    // ── Right: Chat Panel (agent integration) ──
     {
         auto& side = split.side;
-        d_->chat_panel->SetPixelRect(side.x, side.y, side.w, side.h - 50.0f * sm);
-        d_->input_panel->SetPixelRect(side.x, side.y + side.h - 50.0f * sm + 4.0f,
+        d_->chat_panel->SetPixelRect(side.x, side.y, side.w,
+                                     side.h - 50.0f * sm);
+        d_->input_panel->SetPixelRect(side.x,
+            side.y + side.h - 50.0f * sm + 4.0f,
             side.w - 6.0f, 40.0f * sm);
         RenderChatContent();
     }

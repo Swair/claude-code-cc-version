@@ -28,6 +28,10 @@ else()
 endif()
 list(APPEND CORE_SOURCES_ALL ${PLATFORM_SOURCES})
 
+if(NOT PROSOPHOR_BUILD_LLAMA)
+    list(FILTER CORE_SOURCES_ALL EXCLUDE REGEX "llamacpp_provider\\.cc$")
+endif()
+
 add_library(prosophor_core STATIC ${CORE_SOURCES_ALL})
 
 target_include_directories(prosophor_core
@@ -40,7 +44,6 @@ target_compile_definitions(prosophor_core PUBLIC
     NOMINMAX
     _CRT_SECURE_NO_WARNINGS
     PROSOPHOR_VERSION="${PROJECT_VERSION}"
-    PROSOPHOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
 )
 
 target_link_libraries(prosophor_core
@@ -98,6 +101,8 @@ endif()
 if(PROSOPHOR_SDL_UI)
     add_subdirectory(media_engine)
 
+    target_compile_definitions(media_engine PRIVATE PROSOPHOR_VERSION="${PROJECT_VERSION}")
+
     add_compile_definitions(PROSOPHOR_SDL_UI)
 
     file(GLOB_RECURSE GUI_SOURCES
@@ -122,7 +127,8 @@ if(PROSOPHOR_SDL_UI)
         PROPERTIES SOURCE_FILE_DEPENDENCIES ${CMAKE_CURRENT_LIST_DIR}/resources/app.ico
     )
 
-    if(CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo|MinSizeRel")
+    # if(CMAKE_BUILD_TYPE MATCHES "Release|RelWithDebInfo|MinSizeRel")
+    if(WIN32)
         set_target_properties(prosophor PROPERTIES WIN32_EXECUTABLE TRUE)
     endif()
 
@@ -131,11 +137,6 @@ if(PROSOPHOR_SDL_UI)
         ${CMAKE_CURRENT_SOURCE_DIR}/virtual_sprite
         ${CMAKE_CURRENT_SOURCE_DIR}/components
         ${CMAKE_CURRENT_SOURCE_DIR}/voice
-    )
-
-    target_compile_definitions(prosophor PRIVATE
-        PROSOPHOR_SOURCE_DIR="${CMAKE_SOURCE_DIR}"
-        IMGUI_USE_WCHAR32
     )
 
     target_link_libraries(prosophor PRIVATE

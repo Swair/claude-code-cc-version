@@ -67,11 +67,20 @@ void AiCoding::RegisterCallbacks() {
                 case AgentRuntimeState::STREAM_CONTENT_END:
                     std::cout << ColorCode::kGray << "\n●" << ColorCode::kReset << std::flush;
                     break;
+                case AgentRuntimeState::STREAM_TOOL_START:
+                    std::cout << ColorCode::kGreen << "." << ColorCode::kReset << std::flush;
+                    break;
+                case AgentRuntimeState::STREAM_TOOL:
+                    std::cout << ColorCode::kGray << "." << ColorCode::kReset << std::flush;
+                    break;
+                case AgentRuntimeState::STREAM_TOOL_END:
+                    std::cout << ColorCode::kRed << "." << ColorCode::kReset << std::flush;
+                    break;
                 case AgentRuntimeState::EXECUTING_TOOL:
                     std::cout << ColorCode::kCyan << "<executing tool> " << ColorCode::kReset << ColorCode::kGray << state_msg << ColorCode::kReset << std::endl;
                     break;
                 case AgentRuntimeState::STREAM_MODE_COMPLETE:
-                    std::cout << ColorCode::kRed << "\n> " << ColorCode::kReset << std::flush;
+                    std::cout << ColorCode::kGray << "\n●●> " << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::COMPLETE:
                     if (reply) std::cout << ColorCode::kGreen << "● " << ColorCode::kReset << reply->text() << std::endl;

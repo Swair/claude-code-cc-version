@@ -64,6 +64,7 @@ void LlmProviderRouter::Initialize(const ProsophorConfig& config) {
         LOG_DEBUG("Using first available provider as default: {}", default_provider_name_);
     }
 
+#ifdef PROSOPHOR_HAS_LOCAL_MODEL
     // Auto-start llamacpp (in-process) if configured
     auto llamacpp_it = providers_.find("llamacpp");
     if (llamacpp_it != providers_.end()) {
@@ -75,6 +76,7 @@ void LlmProviderRouter::Initialize(const ProsophorConfig& config) {
         // Also register as "local" alias for GetProviderByName lookups
         providers_["local"] = llamacpp_it->second;
     }
+#endif
 }
 
 std::shared_ptr<LLMProvider> LlmProviderRouter::GetProvider(const std::string& /*role_id*/) {
@@ -108,7 +110,7 @@ std::string LlmProviderRouter::GetProviderName(const std::string& /*role_id*/) {
 
 std::shared_ptr<LLMProvider> LlmProviderRouter::CreateProvider(
     const std::string& type,
-    const ProviderConfig& config) {
+    [[maybe_unused]] const ProviderConfig& config) {
 
     if (type == "anthropic") {
         return std::make_shared<AnthropicProvider>();
@@ -122,9 +124,11 @@ std::shared_ptr<LLMProvider> LlmProviderRouter::CreateProvider(
         return std::make_shared<OllamaProvider>();
     }
 
+#ifdef PROSOPHOR_HAS_LOCAL_MODEL
     if (type == "llamacpp") {
         return std::make_shared<LlamacppProvider>(config.llamacpp_cfg);
     }
+#endif
 
     // Unknown protocol - return nullptr
     LOG_WARN("Unknown provider type '{}', skipping", type);

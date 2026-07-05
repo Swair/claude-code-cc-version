@@ -109,6 +109,7 @@
           {
             "model": "google_gemma-4-E4B-it-Q4_K_M",
             "model_path": "/e/ai_ws/llama_cpp_model/google_gemma-4-E4B-it-Q4_K_M.gguf",
+            "mmproj_path": "",
             "n_gpu_layers": -1,
             "threads": 2,
             "context_window": 128000,
@@ -122,7 +123,13 @@
             "offload_kqv": true,
             "flash_attn": true,
             "min_p": 0.05,
-            "seed": -1
+            "seed": -1,
+            "thinking_start": "<|channel>",
+            "thinking_end": "<channel|>",
+            "end_of_turn": "<end_of_turn>",
+            "start_of_turn": "<start_of_turn>",
+            "tool_call_start": "<|tool_call>",
+            "tool_call_end": "<tool_call|>"
           }
         ]
       }

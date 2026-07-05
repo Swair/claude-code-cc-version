@@ -175,7 +175,6 @@ ChatResponse OllamaProvider::Deserialize(const std::string& json_str) const {
 
         // Parse thinking content
         if (msg.contains("thinking") && !msg["thinking"].is_null()) {
-            result.has_thinking = true;
             std::string thinking = msg.value("thinking", "");
             if (!thinking.empty()) {
                 result.AddThinking(thinking);
@@ -235,7 +234,15 @@ void OllamaProvider::PrintRequestLog(const ChatRequest& request) const {
     LOG_DEBUG("=== Sending request to Ollama API ===");
     LOG_DEBUG("URL: {}", request.base_url);
     LOG_DEBUG("Model: {}", request.model);
-    LOG_DEBUG("Content-Type: application/json");
+    LOG_DEBUG("Max tokens: {}", request.max_tokens);
+    LOG_DEBUG("Temperature: {}", request.temperature);
+    LOG_DEBUG("Messages count: {}", request.messages.size());
+    LOG_DEBUG("System blocks: {}", request.system.size());
+    LOG_DEBUG("Tools count: {}", request.tools.size());
+    LOG_DEBUG("Streaming: {}", request.stream);
+    LOG_DEBUG("Thinking: {}", request.thinking);
+    LOG_DEBUG("Headers:");
+    LOG_DEBUG("  Content-Type: application/json");
 }
 
 HeaderList OllamaProvider::CreateHeaders(const ChatRequest& /*request*/) const {
