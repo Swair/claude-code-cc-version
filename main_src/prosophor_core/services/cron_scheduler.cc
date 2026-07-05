@@ -248,8 +248,10 @@ void CronScheduler::SchedulerLoop() {
         for (auto& [id, task] : tasks_) {
             if (ShouldRunNow(task)) {
                 // Execute in a separate thread to not block the scheduler
-                GetGlobalThreadPool().Submit([this, id]() {
-                    ExecuteTask(tasks_[id]);
+                // Copy id since structured bindings can't be captured in C++17
+                std::string task_id = id;
+                GetGlobalThreadPool().Submit([this, task_id]() {
+                    ExecuteTask(tasks_[task_id]);
                 });
             }
         }

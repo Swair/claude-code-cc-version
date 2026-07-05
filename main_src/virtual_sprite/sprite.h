@@ -161,7 +161,6 @@ class Sprite : public Noncopyable {
 
     // ── Voice I/O (ASR) ──
     SteadyClock::TimePoint last_intermediate_time_;
-    bool is_recording_ = false;
 };
 
 }  // namespace prosophor

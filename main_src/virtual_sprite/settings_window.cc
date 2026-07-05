@@ -358,7 +358,8 @@ void SettingsWindow::RenderRolesTab() {
 void SettingsWindow::RenderProvidersTab() {
     auto& config = ProsophorConfig::GetInstance();
     for (auto& [pname, prov] : config.llm_providers) {
-        if (!media_engine::ImGuiWidget::TreeNode(pname.c_str())) continue;
+        const auto& provider_name = pname;
+        if (!media_engine::ImGuiWidget::TreeNode(provider_name.c_str())) continue;
         if (prov.entries.empty()) {
             media_engine::Text::Raw("(legacy format, no editable entries)");
         } else {
@@ -367,7 +368,7 @@ void SettingsWindow::RenderProvidersTab() {
                 std::string label = "Entry " + std::to_string(ei + 1);
                 if (!media_engine::ImGuiWidget::TreeNode(label.c_str())) continue;
                 auto id = [&](const char* suf) {
-                    return ("##" + pname + "_" + std::to_string(ei) + "_" + suf);
+                    return ("##" + provider_name + "_" + std::to_string(ei) + "_" + suf);
                 };
                 char buf[1024];
                 std::strncpy(buf, entry.api_key.c_str(), sizeof(buf) - 1); buf[sizeof(buf) - 1] = '\0';
@@ -392,7 +393,7 @@ void SettingsWindow::RenderProvidersTab() {
                         auto& agent = entry.models[model_keys[ai]];
                         if (!media_engine::ImGuiWidget::TreeNode(agent.model.c_str())) continue;
                         auto pid = [&](const char* suf) {
-                            return ("##" + pname + "_" + std::to_string(ei) + "_"
+                            return ("##" + provider_name + "_" + std::to_string(ei) + "_"
                                     + std::to_string(ai) + "_" + suf);
                         };
                         char mbuf[256];
