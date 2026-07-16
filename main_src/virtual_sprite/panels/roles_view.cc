@@ -48,8 +48,7 @@ void ScanRoles() {
     thinking_budgets.assign(all_ids.size(), 4096);
     re_idx.assign(all_ids.size(), 1); // default "medium"
     for (size_t i = 0; i < all_ids.size(); ++i) {
-        bool is_protected = (all_ids[i] == "disk_cleaner" || all_ids[i] == "skills_creator");
-        if (is_protected || std::find(config.default_role.begin(), config.default_role.end(), all_ids[i]) != config.default_role.end()) checked[i] = 1;
+        if (std::find(config.default_role.begin(), config.default_role.end(), all_ids[i]) != config.default_role.end()) checked[i] = 1;
         std::string fp = (ProsophorConfig::BaseDir() / "roles" / (all_ids[i] + ".json")).string();
         std::ifstream f(fp); if (f.is_open()) try { auto rj = nlohmann::json::parse(f);
             dnames[i] = rj.value("role_name", all_ids[i]);
@@ -125,12 +124,11 @@ void ChatWindow::RenderRolesView(int cont_x, int cont_y, int cont_w, int cont_h)
             ItemList list(sv.left_x, sv.left_y, sv.left_w, s);
             for (size_t i = 0; i < all_ids.size(); ++i) {
                 bool ck = (checked[i] != 0);
-                bool is_prot = (all_ids[i] == "disk_cleaner" || all_ids[i] == "skills_creator");
                 std::string label = all_ids[i];
                 if (list.Item(("rl_" + all_ids[i]).c_str(),
-                        label.c_str(), (int)i == s_sel, &ck, is_prot))
+                        label.c_str(), (int)i == s_sel, &ck))
                     s_sel = (int)i;
-                checked[i] = (is_prot || ck) ? 1 : 0;
+                checked[i] = ck ? 1 : 0;
             }
         }
     }
@@ -298,8 +296,7 @@ buttons:
     if (media_engine::ImGuiWidget::Button(L.Get("btn_save").c_str(), btn_w, 0)) try {
         std::vector<std::string> nr;
         for (size_t i = 0; i < all_ids.size(); ++i) {
-            bool is_prot = (all_ids[i] == "disk_cleaner" || all_ids[i] == "skills_creator");
-            if (is_prot || checked[i]) nr.push_back(all_ids[i]);
+            if (checked[i]) nr.push_back(all_ids[i]);
             // Save config for ALL roles, not just checked ones
             auto d = avail_models[model_idx[i]]; auto be = d.find("] ");
             if (be != std::string::npos) {
@@ -373,15 +370,7 @@ buttons:
     media_engine::Layout::SameLine(); media_engine::Layout::Dummy(btn_d, 0); media_engine::Layout::SameLine();
     if (!all_ids.empty()) {
         std::string sel_id = all_ids[s_sel];
-        bool is_protected = (sel_id == "disk_cleaner" || sel_id == "skills_creator");
-        if (is_protected) {
-            media_engine::DrawList::Text(bx, by - 20.0f * s, media_engine::Colors::Gray55,
-                L.Get("role_protected").c_str());
-        }
         if (media_engine::ImGuiWidget::Button(L.Get("btn_delete").c_str(), btn_w, 0)) {
-            if (is_protected) {
-                // Protected roles cannot be deleted
-            } else {
                 auto rd = ProsophorConfig::BaseDir() / "roles";
                 std::filesystem::remove(rd / (sel_id + ".json"));
                 if (checked[s_sel]) {
@@ -395,7 +384,6 @@ buttons:
                 }
                 s_sel = 0;
                 scan = true;
-            }
         }
         media_engine::Layout::SameLine(); media_engine::Layout::Dummy(btn_d, 0); media_engine::Layout::SameLine();
     }

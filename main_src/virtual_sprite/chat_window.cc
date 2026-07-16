@@ -62,15 +62,6 @@ bool ChatWindow::Create(int width, int height) {
 
     sidebar_.SetRenderWindow(win);
 
-    sidebar_.SetOnNav([](NavItem item) {
-        if (item == NavItem::ComputerOrganize) {
-            std::string sid = SpriteManager::GetInstance().GetFocusedSession();
-            if (!sid.empty()) {
-                AgentEngine::GetInstance().SwitchRole(sid, "disk_cleaner");
-            }
-        }
-    });
-
     media_engine::MediaCore::Instance().RegRenderHandler(win, [this]() {
         auto _app = media_engine::ScopedColors(
             media_engine::Color::Slot::WindowBg, media_engine::Colors::MilkyWhite)
@@ -175,7 +166,6 @@ void ChatWindow::RenderCurrentView(int cont_x, int cont_y, int cont_w, int cont_
         case NavItem::KnowledgeBase: RenderKnowledgeView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::Mcp:          RenderMcpView(cont_x, cont_y, cont_w, cont_h); break;
         case NavItem::PetStore:         RenderPetStoreView(cont_x, cont_y, cont_w, cont_h); break;
-        case NavItem::ComputerOrganize: RenderComputerOrganizeView(cont_x, cont_y, cont_w, cont_h); break;
         default:                        RenderChatView(cont_x, cont_y, cont_w, cont_h); break;
     }
 }

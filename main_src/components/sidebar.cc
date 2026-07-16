@@ -152,7 +152,6 @@ int Sidebar::GetWidth() const {
         if (IsGroupExpanded(SidebarGroup::Agents)) {
             nav_item(NavItem::PetStore, "\xf0\x9f\x90\xb1", L18n.Get("nav_petstore").c_str(), indent_s);
             nav_item(NavItem::KnowledgeBase, "\xf0\x9f\x93\x9a", L18n.Get("nav_knowledge").c_str(), indent_s);
-            nav_item(NavItem::ComputerOrganize, "\xf0\x9f\x92\xbe", L18n.Get("nav_computer_organize").c_str(), indent_s);
         }
 
         // ═══ 服务 ═══

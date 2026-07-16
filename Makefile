@@ -13,7 +13,7 @@ MAKE ?= make
 NUM_JOB ?= 8
 
 PACKAGE_NAME ?= Prosophor
-PACKAGE_VERSION ?= 0.7.10
+PACKAGE_VERSION ?= 0.8.1
 # BUILD_TYPE ?= RelWithDebInfo
 BUILD_TYPE ?= Debug
 

@@ -30,7 +30,6 @@ enum class NavItem {
     KnowledgeBase,
     Mcp,
     PetStore,
-    ComputerOrganize,
     About,
     ActiveTriggers
 };

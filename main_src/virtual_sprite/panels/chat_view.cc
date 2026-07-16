@@ -113,7 +113,7 @@ void ChatWindow::RenderRightPanel(int panel_x, int panel_w, int panel_y, int pan
     media_engine::DrawList::CircleFilled(cx, y + 12.0f, 5.0f, media_engine::Colors::OrangeLight);
     media_engine::DrawList::CircleFilled(cx, y + 12.0f, 3.0f, media_engine::Colors::OrangeWarm);
 
-    media_engine::Layout::SetCursorScreenPos(x + 8.0f, y + 22.0f);
+    media_engine::Layout::SetCursorScreenPos(x + 8.0f, y + 8.0f);
     auto _panel = media_engine::ScopedChild(
         "role_panel", static_cast<float>(panel_w) - 7.0f, h - 30.0f);
 
@@ -127,11 +127,13 @@ void ChatWindow::RenderRightPanel(int panel_x, int panel_w, int panel_y, int pan
     }
     media_engine::DrawList::RoundRect(x + 12.0f, 40.0f,
         static_cast<float>(panel_w) - 24.0f, 1.0f, 0, media_engine::Colors::CreamBorder);
-    media_engine::Layout::Dummy(0, 6.0f * sm);
+    media_engine::Layout::Dummy(0, 4.0f * sm);
 
     auto& sprites = SpriteManager::GetInstance().GetAll();
     std::string focused_sid = SpriteManager::GetInstance().GetFocusedSession();
     float card_w = static_cast<float>(panel_w) - 20.0f;
+
+    auto _spacing = media_engine::ScopedStyleVar::ItemSpacing(4.0f, 2.0f);
 
     for (auto& s : sprites) {
         bool focused = (s->GetSessionId() == focused_sid);
@@ -167,7 +169,7 @@ void ChatWindow::RenderRightPanel(int panel_x, int panel_w, int panel_y, int pan
                     : media_engine::Colors::Black,
             s->GetName().c_str());
 
-        media_engine::Layout::Dummy(0, 4.0f * sm);
+        media_engine::Layout::Dummy(0, 0);
     }
 }
 

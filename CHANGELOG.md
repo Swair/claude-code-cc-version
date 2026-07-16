@@ -1,5 +1,30 @@
 # Changelog
 
+## [Unreleased] — 2026-07-16 移除计算机整理面板 + 角色面板去保护 + 布局微调
+
+本期重点：彻底移除整个"计算机整理"（Disk Cleanup）功能模块——删除 503 行 `computer_organize_view.cc`、清理所有关联 i18n 翻译键、移除侧边栏导航项和路由代码；角色面板不再设"保护角色"（`disk_cleaner`、`skills_creator` 不再强制启用/不可删除），所有角色一视同仁；聊天侧边栏角色列表间距微调。净变化 +12 / -574 行。
+
+### 移除：计算机整理面板
+- **`computer_organize_view.cc`**（`-503` 行）：删除整个缓存扫描/清理面板，包含：缓存扫描引擎（`DoScan`/`ComputeDirSize`/`CheckCacheDir`）、缓存分类展示（系统/浏览器/聊天/IDE/开发工具 5 大类）、扫描进度 UI、单条/分类/全选删除、AI 扫描报告自动发送、`FmtSize`/`BuildScanReport` 等辅助函数
+- **侧边栏导航移除**（`sidebar.cc` / `sidebar.h`）：删除 `NavItem::ComputerOrganize` 枚举值和导航条目渲染
+- **ChatWindow 路由移除**（`chat_window.cc` / `chat_window.h`）：删除 `RenderComputerOrganizeView` 声明、`switch` 路由分支、以及点击导航自动切换 `disk_cleaner` 角色的 `SetOnNav` 回调
+- **国际化清理**（`en.json` / `zh-CN.json`）：各删除 18 条计算机整理相关翻译键（导航标签、视图标题、5 类缓存名、扫描/清理按钮、进度提示、Agent 提示等）
+
+### 角色面板精简
+- **去保护机制**（`roles_view.cc`）：移除 `disk_cleaner` 和 `skills_creator` 的"保护角色"逻辑——所有角色现在均可自由取消勾选和删除；移除"该角色受保护"（`role_protected`）的文字提示；`checked` 状态不再受 `is_protected` 强制覆盖
+- **disk_cleaner 角色配置更新**（`disk_cleaner.json`）：LLM 从 `ollama/qwen3:8b` 切换为 `openai/deepseek-v4-flash`；TTS 语音设为 `"none"`（关闭语音）
+
+### 布局微调
+- **Right Panel 间距优化**（`chat_view.cc`）：角色面板顶部 Y 偏移从 `22.0f` 收窄至 `8.0f`；标题与分割线间距从 `6.0f` 缩至 `4.0f`；新增 `ItemSpacing(4.0f, 2.0f)` 样式变量；移除角色卡片间的垂直间距（`4.0f * sm` → `0`），整体更紧凑
+
+### 文件统计
+- 变更文件：10 个
+- 新增：+12 行
+- 删除：-574 行
+- 净变化：-562 行
+
+---
+
 ## [Unreleased] — 2026-07-05 Platform API 扩展 + 计算机整理跨平台重构 + 构建修复
 
 本期重点：`Platform` 层新增 `ExpandEnv()` / `GetWellKnownCacheDirs()` API，将计算机整理面板的缓存目录定义和变量展开逻辑上提到平台层，移除 `#ifdef _WIN32` 条件编译实现跨平台支持；构建系统移除 `IMGUI_USE_WCHAR32` 编译定义并修复 `BUILD_SHARED_LIBS` 作用范围。净变化 +168 / -150 行。

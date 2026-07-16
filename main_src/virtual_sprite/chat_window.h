@@ -61,7 +61,6 @@ private:
     void RenderKnowledgeView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderMcpView(int cont_x, int cont_y, int cont_w, int cont_h);
     void RenderPetStoreView(int cont_x, int cont_y, int cont_w, int cont_h);
-    void RenderComputerOrganizeView(int cont_x, int cont_y, int cont_w, int cont_h);
 
     // Sub-components
     void UpdateLayout(int main_w, int main_h);

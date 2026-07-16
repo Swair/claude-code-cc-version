@@ -6,8 +6,8 @@
   "spritesheet": "skirk-2.webp",
 
   "llm": {
-    "protocal": "ollama",
-    "model": "qwen3:8b",
+    "protocal": "openai",
+    "model": "deepseek-v4-flash",
     "enable_streaming": false,
     "thinking": true,
     "thinking_budget_tokens": 4096,
@@ -19,6 +19,6 @@
     "enable_tools": true
   },
   "tts": {
-    "voice": "zh-CN-XiaoxiaoNeural"
+    "voice": "none"
   }
 }
