@@ -14,7 +14,6 @@
 #include "config/config.h"
 #include "core/messages_schema.h"
 #include "core/agent_types.h"
-#include "components/ui_types.h"
 
 namespace prosophor {
 
@@ -38,7 +37,8 @@ class AgentEngine : public Noncopyable {
         const std::string& role_id,
         AgentRuntimeState state,
         const std::string& state_msg,
-        const std::optional<MessageSchema>& reply)>;
+        const std::optional<MessageSchema>& reply,
+        const std::string& delta)>;
 
     using PermissionCallback = std::function<bool(
         const std::string& tool_name,
@@ -50,16 +50,27 @@ class AgentEngine : public Noncopyable {
 
     void SetOutputCallback(OutputCallback cb);
     void SetPermissionCallback(PermissionCallback cb);
+    /// Add an output callback without clearing existing ones (multi-frontend coexistence)
+    void AddOutputCallback(OutputCallback cb);
 
     // ── Session API (session_id owned by caller) ────────────────────────────
     /// Create a new session for the given role; returns its session_id.
-    std::string CreateSession(const std::string& role_id, const std::string& task_desc = "");
+    /// @param owner_id IM 归属主体(用户/群 ID),空表示本机单用户模式
+    std::string CreateSession(const std::string& role_id, const std::string& task_desc = "",
+                              const std::string& owner_id = "",
+                              SessionType session_type = SessionType::kDirect);
 
     /// Send a user message to a specific session (handles /slash commands internally).
-    void SendUserMessage(const std::string& session_id, const std::string& text);
+    /// @param sender_id IM 发送者 ID(群聊必填),空表示本机用户
+    void SendUserMessage(const std::string& session_id, const std::string& text,
+                         const std::string& sender_id = "",
+                         const std::string& sender_name = "");
 
     /// Stop a specific session.
     void StopSession(const std::string& session_id);
+
+    /// Flush unsaved messages to disk (keeps session alive; used by web after each turn).
+    void FlushSession(const std::string& session_id);
 
     /// Switch an existing session to a different role (preserves history).
     void SwitchRole(const std::string& session_id, const std::string& new_role_id);

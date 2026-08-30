@@ -64,6 +64,7 @@ class HttpClient {
 
     HttpResponse Get(const HttpRequest& request);
     HttpResponse Post(const HttpRequest& request);
+    HttpResponse Put(const HttpRequest& request);
     HttpResponse Post(const std::string& url,
                      const std::string& body,
                      struct curl_slist* headers,
@@ -77,6 +78,9 @@ class HttpClient {
 
     CURL* AcquireHandle(const std::string& url);
     void ReleaseHandle(const std::string& url, CURL* handle);
+
+    /// Shared POST/PUT implementation (is_put selects CUSTOMREQUEST "PUT")
+    HttpResponse PerformBodyRequest(const HttpRequest& request, bool is_put);
 
     static constexpr double kPooledHandleMaxIdleSec = 90.0;
     static constexpr size_t kPoolMaxHandlesPerHost = 4;

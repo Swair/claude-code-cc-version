@@ -297,13 +297,23 @@ bool PermissionManager::RequestUserConfirmation(
     const nlohmann::json& input,
     const std::string& reason) {
 
-    if (!confirm_callback_) {
+    // 锁内只拷贝单值,回调在锁外执行(回调内可能再进 PermissionManager,防死锁)
+    ConfirmCallback cb;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (confirm_callback_) cb = *confirm_callback_;
+    }
+    if (!cb) {
         // No callback set - default to deny in non-interactive mode
         LOG_WARN("No confirmation callback set, defaulting to DENY for tool={}", tool_name);
         return false;
     }
+    return cb(tool_name, input, reason);
+}
 
-    return confirm_callback_(tool_name, input, reason);
+void PermissionManager::SetConfirmCallback(ConfirmCallback cb) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    confirm_callback_ = std::move(cb);
 }
 
 void PermissionManager::SetMode(const std::string& mode) {

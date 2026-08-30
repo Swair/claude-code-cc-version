@@ -151,6 +151,35 @@ build_win_sdl_full:
 	$(call build_variant,$(BUILD_DIR_SDL_FULL),ON,ON,OFF,ON)
 .PHONY: build_win_sdl_full
 
+# ---- Web 服务端变体(多用户,无 SDL,含本地 llama.cpp;前端 npm 构建) ----
+# 服务端同样支持本地 GGUF 推理(llamacpp provider),与桌面端共享模型配置。
+
+BUILD_DIR_WEB ?= $(PROJECT_DIR)/build_win_web
+INSTALL_DIR_WEB ?= $(BUILD_DIR_WEB)/install
+
+build_web:
+	mkdir -p $(BUILD_DIR_WEB) && \
+	cd $(BUILD_DIR_WEB) && \
+	$(CMAKE) $(CMAKE_ARGS_WIN) \
+		-DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR_WEB) \
+		-DGGML_VULKAN=ON \
+		-DPROSOPHOR_BUILD_LLAMA_VULKAN=ON \
+		-DPROSOPHOR_BUILD_LLAMA=ON \
+		-DPROSOPHOR_BUILD_LLAMA_CUDA=OFF \
+		-DPROSOPHOR_SDL_UI=OFF \
+		-DPROSOPHOR_BUILD_WEB_FRONTEND=ON .. && \
+	ninja -j$(NUM_JOB); \
+	ninja install
+.PHONY: build_web
+
+run_web:
+	cd $(INSTALL_DIR_WEB)/bin && SSL_CERT_FILE=ca-bundle.crt ./prosophor_web.exe --host 0.0.0.0
+.PHONY: run_web
+
+clean_web:
+	rm -rf $(BUILD_DIR_WEB)
+.PHONY: clean_web
+
 # ---- 运行变体 ----
 
 run_win_tui_fast:

@@ -1,5 +1,74 @@
 # Changelog
 
+## [Unreleased] — 2026-08-30 IM 多用户 Web 服务端 + React 前端 + 核心多用户改造 + base 目录重组
+
+本期重点：新增独立多用户 Web 服务端 `prosophor_web`（HTTP + WebSocket，cpp-httplib），配套 Vite + React 聊天前端；核心层完成 IM 多用户改造——会话归属（owner/group/sender）、按用户/群分层记忆注入与提取、JSONL 按归属分目录；流式输出回调重构为增量 delta 传递 + 多前端广播；源码目录大重组——`common`/`media_engine`/`platform`/`voice` 归入 `base/`，`components/` 并入 `virtual_sprite/`。净变化 +5,349 行。
+
+### Web 服务端（新增 prosophor_web 可执行文件）
+- **web_server/ 模块**（~2,700 行）：独立于 SDL/UI 层、仅依赖 prosophor_core 的多用户服务端
+  - **REST API**（`rest_api.cc`）：认证（register/login/logout/device 免注册）、`/api/me`、`/api/roles`、`/api/groups`（创建/加入/退出/成员/删除）、`/api/sessions`、`/api/sessions/{id}/messages`（`before_ts` 分页）、`/api/sessions/{id}/stop`、`/api/health`
+  - **WebSocket**（`ws_handler.cc` + `web_channel.cc`）：帧协议双向收发（`web_protocol.cc`）
+  - **用户/群组存储**（`user_store.cc` / `group_store.cc`）：token 签发（`token_ttl_hours`，默认 168h）
+  - **会话历史读取**（`session_history.cc`）：JSONL 磁盘扫描，服务器重启后内存会话为空时兜底恢复会话列表/消息
+  - **静态文件服务**（`web_server_app.cc`）：`web_root`（默认 exe 相邻 web-dist 目录）
+- **设备免注册**：`/api/auth/device`（GET/POST）按 `device_id` 自动建号/复用并签发 token；认证同时支持 `Authorization: Bearer` 头与 `prosophor_token` cookie 双通道
+- **`main_web.cc`**：入口支持 `--host` / `--port` 命令行覆盖（局域网访问 `--host 0.0.0.0`）；改用 `Platform::SetConsoleSignalHandler()` 优雅停机
+- **配置**：settings.json 新增 `web` 段（enabled/host/port/web_root/role/data_dir/token_ttl_hours）；`WebConfig` 完整序列化往返；`host` 默认值改为 `0.0.0.0`
+
+### IM 渠道层（im_gateway → web_server）
+- **ImChannel 抽象**（`channel.h`）：`ImMessage` / `ImChatContext` 统一消息模型；新增渠道（微信/钉钉/Telegram…）= 实现 ImChannel 子类 + 注册，核心层不感知具体协议
+- **ImGateway → WebGateway**（`web_gateway.cc`）：维护 chat → AgentSession 映射，`EnsureSessionForChat` 找/建会话（同 role + 同 owner + 同类型复用）、输出回调路由回渠道
+- **会话/历史多用户化**：日志目录 `sessions/{role}/{owner}/{date}.jsonl` 按归属分目录（免行级过滤、免写锁竞争），JSONL 新增 `owner`/`group`/`session_type`/`sender` 字段
+
+### Web 前端（web/，Vite + React）
+- **`web/src`**（~1,600 行）：React 18 + TypeScript + Vite + zustand + react-router
+  - `pages/ChatPage.tsx`：聊天页（RoleSidebar 角色栏 + MessageList 消息列表 + ChatInput 输入框）
+  - `api/rest.ts` + `api/ws.ts`：REST 认证/会话 API + WebSocket 帧协议客户端
+  - `stores/`：auth（设备免注册登录流）/ chat（会话状态）zustand store
+- **构建集成**：CMake `PROSOPHOR_BUILD_WEB_FRONTEND=ON` 时自动 npm ci + build（默认 OFF，不阻塞无 Node 环境）；Makefile 新增 `build_web` / `run_web` / `clean_web`
+
+### 核心多用户改造
+- **会话归属**（`agent_session.cc/h`）：新增 `owner_id` / `group_id` / `SessionType`（direct/group）；消息携带 `sender_id`/`sender_name`（消费式 `SetCurrentSender`，读取后自动清空不泄漏到下一条）
+- **身份净化**（`session_key.h` 新增）：`SanitizeIdentity`（白名单 `[a-z0-9_-]`、长度 ≤64、大写转小写）防路径注入；`IsPathWithin` 防 `../` 逃逸
+- **记忆分层注入**（`agent_session_manager.cc` BuildSystemPrompt）：私聊注入 `memory/users/{owner}/rules → profile → preferences`（规则 > 事实 > 偏好）；群聊注入 `memory/groups/{gid}/rules → profile` + 活跃成员事实性 profile（截断 200 字符，不注入私人规则/偏好）
+- **记忆提取重构**（`memory_manager.cc`）：分类从 design_decision/code_change/lesson_learned/unresolved_issue 改为 fact/rule/preference/experience（旧类型自动归一化）；提取 prompt 新增 SENDER/SCOPE 归属字段；`AppendDecisionsToMemory` 按归属路由写入用户/群/角色记忆目录，无法归属时降级写角色 experiences（隐私下限）
+- **批量发送策略**（`StartChain`）：批内 sender 全相同 → 合并为一次 LLM 调用（原有行为）；群聊混合 sender → 逐条 Loop 保持每条消息的发言归属
+- **崩溃兜底**：StartChain 捕获 Loop 异常并重置 `task_active_` 标志、向前端广播错误——线程池吞异常导致会话"只进缓冲、永不回复"的死锁不再可能
+- **会话复用收紧**：`GetOrCreateSession` 必须同 role + 同 owner + 同会话类型且活跃才复用，多用户下不再跨用户复用
+
+### 输出回调 delta 重构
+- **流式增量**：`SessionOutputCallback` 新增 `delta` 参数——`STREAM_CONTENT_TYPING` / `STREAM_THINKING` 帧 reply 为空、delta 携带本帧增量，终结帧 reply 为全量消息（`agent_core.cc` 不再逐帧构造 MessageSchema，session 侧直接累积 delta）
+- **多前端广播**：`AgentEngine::AddOutputCallback()` 支持注册多个回调（桌面 + Web 并存）；`SetOutputCallback` 保持覆盖式；Session 持有 fan-out 闭包转发
+- **TUI 适配**（`ai_coding.cc`）：流式 thinking/正文输出改用 delta 参数，不再依赖 reply 回显
+
+### 其他核心修复
+- **PermissionManager 死锁修复**：确认回调拷贝后在锁外执行（回调内再进 PermissionManager 不再死锁）；`SetConfirmCallback` 加锁、`std::optional` 存储
+- **HttpClient**：新增 `Put()`（`PerformBodyRequest` 统一封装）
+- **WebSocketClient::Recv**：新增 `bytesleft` 出参（分片读取场景）
+- **Platform 扩展**：`SetConsoleSignalHandler()`（Windows Ctrl+C/Break/关窗、POSIX SIGINT/SIGTERM 统一回调）、`GetLanAddresses()`（Windows GetAdaptersAddresses / POSIX getaddrinfo 枚举局域网 IPv4，链接 iphlpapi）
+- **config.cc**：加载时统一走 `ExpandEnvInJson` 展开环境变量
+
+### 目录重组（base/）
+- **`main_src/common/` → `main_src/base/common/`**：工具库整体迁移
+- **`main_src/media_engine/` → `main_src/base/media_engine/`**：media 与 sdl_interface 分别按 audio/font/texture 子目录组织
+- **`main_src/platform/` → `main_src/base/platform/`**
+- **`main_src/voice/` 拆分**：VAD/噪声抑制/resampler → `base/rtc_wrapper/`；voice_engine → `virtual_sprite/voice_engine`
+- **`main_src/components/` → `main_src/virtual_sprite/components/`**：UI 组件层并入 SDL 前端（19 个文件 2,006 行纯移动）；`agent_engine.h` 移除对 `components/ui_types.h` 的依赖（核心层与 UI 层解耦）
+- **README.md**：目录结构章节同步更新
+
+### 配置与构建
+- **CMake**（`main_src/CMakeLists.txt`）：新增 `prosophor_web_server` 静态库 + `prosophor_web` 可执行文件；cpp-httplib 走 SYSTEM include 规避 -Werror；`--allow-multiple-definition` 解决 llama-common vendor httplib 符号冲突；新增 iphlpapi 链接
+- **角色配置**：sayu spritesheet `sayu.png` → `sayu.webp`；skills_creator spritesheet → `skirk-2.webp`
+- 移除 `config/.prosophor/workspace/AGENTS.md`
+
+### 文件统计
+- 变更文件：210 个（含目录重组移动）
+- 新增：+7,621 行（其中 ~1,600 行 Web 前端、~2,000 行 components 随迁）
+- 删除：-2,272 行（其中 ~2,000 行为 components 目录迁移）
+- 净变化：+5,349 行
+
+---
+
 ## [Unreleased] — 2026-07-16 移除计算机整理面板 + 角色面板去保护 + 布局微调
 
 本期重点：彻底移除整个"计算机整理"（Disk Cleanup）功能模块——删除 503 行 `computer_organize_view.cc`、清理所有关联 i18n 翻译键、移除侧边栏导航项和路由代码；角色面板不再设"保护角色"（`disk_cleaner`、`skills_creator` 不再强制启用/不可删除），所有角色一视同仁；聊天侧边栏角色列表间距微调。净变化 +12 / -574 行。

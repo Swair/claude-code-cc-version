@@ -30,6 +30,22 @@ enum class AgentRuntimeState {
     STREAM_TOOL_END,          // 流式工具调用结束
 };
 
+/// 会话类型：IM 场景下 direct(单聊)/group(群聊)决定记忆注入范围
+enum class SessionType {
+    kDirect,
+    kGroup,
+};
+
+/// 序列化为 JSONL "session_type" 字段值
+inline std::string SessionTypeToString(SessionType t) {
+    return t == SessionType::kGroup ? "group" : "direct";
+}
+
+/// 反序列化；未知值兜底为 kDirect
+inline SessionType SessionTypeFromString(const std::string& s) {
+    return s == "group" ? SessionType::kGroup : SessionType::kDirect;
+}
+
 /// 渲染快照：UI 每帧从 AgentEngine 取一次，不再持有副本
 struct RenderSnapshot {
     std::string session_id;

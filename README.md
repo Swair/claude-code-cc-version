@@ -448,8 +448,7 @@ VirtualSprite (Singleton)
 
 ```
 media_engine/       → 引擎原语：PanelContainer（页面壳）、DrawList（RoundRect/Text/Channels）、Child
-components/         → 可复用组件：Card（参数化背景+边框+标题+Field）、ItemList、BorderedContainer 等
-virtual_sprite/     → 应用视图：20+ 业务视图，仅编排组件，无手绘代码
+virtual_sprite/     → SDL 前端：20+ 业务视图 + components/ 可复用组件（Card（参数化背景+边框+标题+Field）、ItemList、BorderedContainer 等）
 ```
 
 ### Components
@@ -503,7 +502,7 @@ A core utility used extensively across the engine for fixed-capacity, lock-free 
 
 </div>
 
-The implementation from `main_src/common/list_buffer.h`:
+The implementation from `main_src/base/common/list_buffer.h`:
 
 ```cpp
 template<typename T, int kCapacity>
@@ -777,8 +776,7 @@ cd build && ctest --output-on-failure
 │   ├── platform/               # Cross-platform abstraction (Win32/POSIX)
 │   ├── media_engine/           # UI引擎层：PanelContainer（页面壳）、DrawList（2D绘图原语）、Child/ScopedChild（子窗口）
 │   ├── scene/                  # SDL scenes
-│   ├── virtual_sprite/         # 应用层：ChatWindow（主窗口+视图路由）、panels/（20+业务视图）
-│   └── components/             # 可复用 UI 组件层：Card, BorderedContainer, ItemList, SelectableItem, SplitPanel, ActionBar, FocusCard, FocusCard, ChatPanel, SpeechBubble, Spritesheet
+│   └── virtual_sprite/         # SDL 前端：ChatWindow（主窗口+视图路由）、panels/（20+业务视图）、components/（可复用控件：Card, ItemList, SpeechBubble 等）
 ├── tests/                      # GoogleTest-based tests
 │   ├── unittest/               # Stream handler tests, TTS, ASR tests
 │   └── benchmark/              # Performance benchmarks

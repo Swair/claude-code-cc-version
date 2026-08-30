@@ -755,8 +755,7 @@ cd build && ctest --output-on-failure
 │   ├── platform/               # 跨平台抽象层（Win32/POSIX）
 │   ├── media_engine/           # SDL/ImGui 渲染引擎
 │   ├── scene/                  # SDL 场景
-│   ├── virtual_sprite/         # 桌面精灵 SDL 前端（VirtualSprite、SpriteManager、Sprite）
-│   └── components/             # SDL UI 组件（ChatPanel、SpeechBubble、Spritesheet、VoiceManager）
+│   └── virtual_sprite/         # 桌面精灵 SDL 前端（VirtualSprite、SpriteManager、Sprite、components/ 控件层）
 ├── tests/                      # GoogleTest 测试
 │   ├── unittest/               # 流处理器测试、TTS、ASR 测试
 │   └── benchmark/              # 性能基准测试

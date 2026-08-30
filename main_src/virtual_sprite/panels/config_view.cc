@@ -1,6 +1,6 @@
 #include "virtual_sprite/chat_window.h"
 #include "virtual_sprite/panels/panel_helpers.h"
-#include "components/item_list.h"
+#include "virtual_sprite/components/item_list.h"
 #include "virtual_sprite/layout_config.h"
 #include "config/config.h"
 #include "media_engine/media_engine.h"

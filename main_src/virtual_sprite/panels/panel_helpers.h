@@ -3,5 +3,5 @@
 #pragma once
 
 // 从 components/ 统一引入所有通用面板工具
-#include "components/bordered_container.h"
-#include "components/panel_kit.h"
+#include "virtual_sprite/components/bordered_container.h"
+#include "virtual_sprite/components/panel_kit.h"

@@ -30,12 +30,16 @@ namespace prosophor {
 using ToolExecutorCallback = std::function<std::string(const std::string& tool_name, const nlohmann::json& args)>;
 
 /// Session output callback - notifies UI of state changes and message output
-/// Parameters: session_id, role_id, state, state_msg, reply
+/// Parameters: session_id, role_id, state, state_msg, reply, delta
+/// 流式帧:reply 为空,delta 携带本帧增量(类型由 state 决定:
+/// STREAM_CONTENT_TYPING=正文增量,STREAM_THINKING=思考增量);
+/// 终结:reply 为终态消息,delta 为空。
 using SessionOutputCallback = std::function<void(const std::string& session_id,
                                                   const std::string& role_id,
                                                   AgentRuntimeState state,
                                                   const std::string& state_msg,
-                                                  const std::optional<MessageSchema>& reply)>;
+                                                  const std::optional<MessageSchema>& reply,
+                                                  const std::string& delta)>;
 
 /// TTS speak callback - fires when the session has accumulated enough text to speak.
 /// Parameters: text, backend, voice
@@ -84,12 +88,19 @@ public:
     inline void SetApiKey(const std::string& v) { api_key_ = v; }
     inline int GetTimeout() const { return timeout_; }
     inline void SetTimeout(int v) { timeout_ = v; }
-    inline const std::string& GetSessionHistoryDir() const { return session_history_dir_; }
-    inline void SetSessionHistoryDir(const std::string& v) { session_history_dir_ = v; }
     inline const std::string& GetSessionLogDir() const { return session_log_dir_; }
     inline void SetSessionLogDir(const std::string& v) { session_log_dir_ = v; }
 
-    /// 把未持久化的消息追加到 sessions/{role_id}/{date}.jsonl
+    // ── IM 多用户归属 ─────────────────────────────────────
+    inline const std::string& GetOwnerId() const { return owner_id_; }
+    inline void SetOwnerId(const std::string& v) { owner_id_ = v; }
+    inline const std::string& GetGroupId() const { return group_id_; }
+    inline void SetGroupId(const std::string& v) { group_id_ = v; }
+    inline SessionType GetSessionType() const { return session_type_; }
+    inline void SetSessionType(SessionType t) { session_type_ = t; }
+    inline bool IsGroupSession() const { return session_type_ == SessionType::kGroup; }
+
+    /// 把未持久化的消息追加到 sessions/{role_id}[/{owner}]/{date}.jsonl
     /// 在 CompactIfNeeded 和 CloseSession 时调用
     void FlushToDisk();
     inline SteadyClock::TimePoint GetCreatedAt() const { return created_at_; }
@@ -112,8 +123,13 @@ public:
     // ── 线程安全接口（内部持渲染锁）────────────────────────
     void SetOutput(AgentRuntimeState new_state,
                    const std::string& state_msg,
-                   const std::optional<MessageSchema>& reply = std::nullopt);
+                   const std::optional<MessageSchema>& reply = std::nullopt,
+                   const std::string& delta = "");
     RenderSnapshot GetSnapshot() const;
+    /// 设置本条用户消息的发送者(消费式瞬时状态)
+    /// 由 StartChain 在持会话锁、Loop 之前调用;AddUserMessage 读取后自动清空
+    void SetCurrentSender(const std::string& sender_id,
+                          const std::string& sender_name = "");
     void AddUserMessage(const std::string& text);
     /// 准备开始新 Loop：如果上一个 Loop 被打断留下孤立的 user 消息，清理掉
     /// 在持 session_mutex 后、ClearStopRequested + Loop 之前调用
@@ -163,10 +179,18 @@ private:
     std::string base_url_;
     std::string api_key_;
     int timeout_ = 60;
-    std::string session_history_dir_;
     std::string session_log_dir_;
     int last_flushed_index_ = 0;
     bool is_active_ = true;
+
+    // ── IM 多用户归属(元数据,不进文件路径)──────────────
+    std::string owner_id_;
+    std::string group_id_;
+    SessionType session_type_ = SessionType::kDirect;
+
+    // ── 本条消息发送者(瞬时输入,AddUserMessage 消费后清空)──
+    std::string current_sender_id_;
+    std::string current_sender_name_;
 
     // ── 会话锁 ────────────────────────────────────────────
     std::mutex session_mutex_;

@@ -51,9 +51,13 @@ class WebSocketClient {
     /// @param out       Receives the frame payload.
     /// @param flags     Receives the frame type flags (CURLWS_BINARY, CURLWS_TEXT, etc.).
     /// @param timeout_ms  Max time to wait for data (0 = no wait, single attempt).
+    /// @param bytesleft  Optional: receives the number of payload bytes still
+    ///                   pending in the current frame; 0 means the chunk just
+    ///                   received is the end of the frame/message.
     /// @return CURLE_OK on success, CURLE_AGAIN if no data within timeout,
     ///         or another CURLcode on error.
-    CURLcode Recv(std::vector<uint8_t>& out, int* flags, int timeout_ms = 5000);
+    CURLcode Recv(std::vector<uint8_t>& out, int* flags, int timeout_ms = 5000,
+                  curl_off_t* bytesleft = nullptr);
 
     /// Disconnect and release the curl handle.
     void Close();

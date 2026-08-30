@@ -32,6 +32,8 @@ struct MessageSchema {
     std::string role;
     std::vector<ContentSchema> content;
     std::string summary;  // Running summary carried across requests (updated by LLM on each turn)
+    std::string sender_id;    // IM 发送者 ID(飞书 open_id);群聊必填,私聊可空(空按 owner 兜底)
+    std::string sender_name;  // 展示名,可空
 
     MessageSchema() = default;
     MessageSchema(std::string r, std::string text) : role(std::move(r)) {
@@ -39,11 +41,23 @@ struct MessageSchema {
             AddTextContent(text);
     }
 
+    /// 带 sender 构造(IM 场景):sender 右值传入,消费式携带发言者归属
+    MessageSchema(std::string r, std::string text, std::string sid, std::string sname)
+        : role(std::move(r)), sender_id(std::move(sid)), sender_name(std::move(sname)) {
+        if (!text.empty())
+            AddTextContent(text);
+    }
+
+    /// 文本视图:拼 text 与 thinking 块;块间用空行分隔
+    /// (thinking 段与正文段视觉分离,避免连成一片)。
+    /// 流式帧中只有单块 = 单帧增量;终结消息中 = thinking + 正文全量。
     std::string text() const {
         std::string r;
-        for (const auto& b : content)
-            if (b.type == "text" || b.type == "thinking")
-                r += b.text;
+        for (const auto& b : content) {
+            if (b.type != "text" && b.type != "thinking") continue;
+            if (!r.empty()) r += "\n\n";
+            r += b.text;
+        }
         return r;
     }
 

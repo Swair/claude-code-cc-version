@@ -6,7 +6,7 @@
 #include "virtual_sprite/ui_renderer.h"
 #include "virtual_sprite/layout_config.h"
 #include "virtual_sprite/asset_define.h"
-#include "components/speech_bubble.h"
+#include "virtual_sprite/components/speech_bubble.h"
 #include "media_engine/media_engine.h"
 #include "agent_engine.h"
 #include "common/log_wrapper.h"
@@ -14,7 +14,7 @@
 #include "managers/agent_role_loader.h"
 #include "managers/agent_session_manager.h"
 #include "common/time_wrapper.h"
-#include "voice/voice_engine.h"
+#include "virtual_sprite/voice_engine.h"
 #include <nlohmann/json.hpp>
 #include <cmath>
 #include <algorithm>

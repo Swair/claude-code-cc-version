@@ -129,7 +129,7 @@ void VirtualSprite::GlobalInit() {
     AgentEngine::GetInstance().SetOutputCallback(
         [](const std::string& session_id, const std::string& /*role_id*/,
                AgentRuntimeState state, const std::string& state_msg,
-               const std::optional<MessageSchema>& /*reply*/) {
+               const std::optional<MessageSchema>& /*reply*/, const std::string& /*delta*/) {
             if (auto* s = SpriteManager::GetInstance().FindBySessionId(session_id)) {
                 s->SetAgentState(state, state_msg);
             }

@@ -29,10 +29,13 @@ using MemoryLlmCallback = std::function<std::string(const std::string& prompt)>;
 
 /// Key decision extracted from conversation
 struct KeyDecision {
-    std::string type;       // "design_decision" | "code_change" | "unresolved_issue" | "lesson_learned"
+    std::string type;          // "fact" | "rule" | "preference" | "experience"
     std::string content;
     std::vector<std::string> related_files;
     std::string timestamp;
+    std::string sender_id;     // SENDER:消息级归属主体(发言者 ID)
+    std::string scope;         // "user" | "group" | "role" —— 记忆归属维度
+    std::string owner_id;      // 解析后的归属主体 ID(uid/gid/rid)
 };
 
 /// Memory consolidation result
@@ -98,10 +101,22 @@ ConsolidationResult ConsolidateSegment(const std::vector<MessageSchema>& message
                                         int start_index, int end_index,
                                         MemoryLlmCallback llm_callback);
 
-/// 追加结果到角色记忆文件
+/// 追加结果到角色记忆文件(experiences 专用)
 void AppendToRoleMemory(const AgentSession& session,
                         const ConsolidationResult& result,
                         const std::string& category = "decisions");
+
+/// 按归属路由写入记忆(IM 多用户入口):
+/// fact/rule/preference → memory/users/{uid}/ 或 memory/groups/{gid}/;
+/// experience → 角色 experiences。无法归属的内容降级写角色 experiences。
+void AppendDecisionsToMemory(const AgentSession& session,
+                             const ConsolidationResult& result);
+
+/// 用户记忆目录 memory/users/{uid}/(uid 未净化时返回空)
+std::filesystem::path UserMemoryDir(const std::string& raw_user_id);
+
+/// 群记忆目录 memory/groups/{gid}/(gid 未净化时返回空)
+std::filesystem::path GroupMemoryDir(const std::string& raw_group_id);
 
 /// 保存每日记忆
 void SaveDailyMemory(const std::string& role_memory_dir,

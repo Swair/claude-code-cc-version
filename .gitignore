@@ -10,6 +10,10 @@ dist/releases/
 .vscode
 .github
 
+# Web 前端构建产物与依赖
+web/node_modules/
+web/dist/
+
 # Editor / IDE
 .vscode/
 .clangd

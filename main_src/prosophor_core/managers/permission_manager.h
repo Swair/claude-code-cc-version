@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <nlohmann/json.hpp>
 
 namespace prosophor {
@@ -101,7 +102,8 @@ public:
     using ConfirmCallback = std::function<bool(const std::string& tool_name,
                                                 const nlohmann::json& input,
                                                 const std::string& reason)>;
-    void SetConfirmCallback(ConfirmCallback cb) { confirm_callback_ = std::move(cb); }
+    /// 设置进程内唯一的确认回调(覆盖式;确认交互是独占的,无多前端需求)
+    void SetConfirmCallback(ConfirmCallback cb);
 
     /// Execute confirmation callback if set
     bool RequestUserConfirmation(const std::string& tool_name,
@@ -122,7 +124,7 @@ private:
     std::unordered_map<std::string, int> denial_counts_;
     static constexpr int kFallbackThreshold = 3;  // Auto-allow after N denials
 
-    ConfirmCallback confirm_callback_;
+    std::optional<ConfirmCallback> confirm_callback_;  // 进程内唯一确认回调
 
     /// Find matching rule from a list
     const PermissionRule* FindMatchingRule(

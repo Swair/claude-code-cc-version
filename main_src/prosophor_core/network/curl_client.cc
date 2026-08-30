@@ -230,6 +230,14 @@ HttpResponse HttpClient::Get(const HttpRequest& request) {
 }
 
 HttpResponse HttpClient::Post(const HttpRequest& request) {
+    return PerformBodyRequest(request, false);
+}
+
+HttpResponse HttpClient::Put(const HttpRequest& request) {
+    return PerformBodyRequest(request, true);
+}
+
+HttpResponse HttpClient::PerformBodyRequest(const HttpRequest& request, bool is_put) {
     HttpResponse response;
 
     CURL* curl = AcquireHandle(request.url);
@@ -242,8 +250,12 @@ HttpResponse HttpClient::Post(const HttpRequest& request) {
     std::string res_body;
     const bool is_streaming = request.write_data != nullptr;
 
-    // Configure the request
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    // Configure the request (PUT overrides the method string, body via POSTFIELDS)
+    if (is_put) {
+        curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+    } else {
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    }
     curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, request.headers);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request.body.c_str());
@@ -298,7 +310,9 @@ HttpResponse HttpClient::Post(const HttpRequest& request) {
     response.status_code = static_cast<int>(code);
 
     if (res != CURLE_OK) {
-        response.error_msg = "HttpClient::Post failed: " + std::string(curl_easy_strerror(res));
+        response.error_msg = std::string(is_put ? "HttpClient::Put failed: "
+                                                : "HttpClient::Post failed: ")
+                             + std::string(curl_easy_strerror(res));
         return response;
     }
 

@@ -11,8 +11,8 @@
 
 #include "virtual_sprite/settings_window.h"
 #include "virtual_sprite/update_handler.h"
-#include "components/sidebar.h"
-#include "media_engine/media/colors.h"
+#include "virtual_sprite/components/sidebar.h"
+#include "media_engine/media/texture/colors.h"
 
 namespace media_engine { class Window; class InputPanel; class Texture; }
 namespace prosophor { class ChatPanel; }

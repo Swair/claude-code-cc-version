@@ -48,16 +48,24 @@ public:
     // =====================
 
     /// 创建新会话（同一角色可创建多个）
+    /// @param owner_id IM 归属主体(用户/群 ID),空表示本机单用户模式
+    /// @param session_type 会话类型:direct(单聊)/group(群聊),决定记忆注入范围
     std::string CreateSession(const std::string& role_id,
-                              const std::string& task_desc = "");
+                              const std::string& task_desc = "",
+                              const std::string& owner_id = "",
+                              SessionType session_type = SessionType::kDirect);
 
     /// 向指定会话发送消息（同步）
     std::string SendToSession(const std::string& session_id,
-                              const std::string& message);
+                              const std::string& message,
+                              const std::string& sender_id = "",
+                              const std::string& sender_name = "");
 
     /// 向指定会话发送消息（异步，不阻塞）
     void SendToSessionAsync(const std::string& session_id,
-                            const std::string& message);
+                            const std::string& message,
+                            const std::string& sender_id = "",
+                            const std::string& sender_name = "");
 
     /// 获取会话
     AgentSession* GetSession(const std::string& session_id);
@@ -79,6 +87,9 @@ public:
     /// 关闭会话
     void CloseSession(const std::string& session_id);
 
+    /// 将未落盘消息刷入持久化日志(不关闭会话;Web 端每轮回复后调用)
+    void FlushSession(const std::string& session_id);
+
     /// 列出所有会话
     std::vector<std::string> ListSessions() const;
 
@@ -93,10 +104,12 @@ public:
     // =====================
 
     /// 自动找到或创建会话
-    /// - 如果有相关活跃会话 → 复用
+    /// - 如果有相关活跃会话(同 role + 同 owner + 同类型)→ 复用
     /// - 否则 → 创建新会话
     std::string GetOrCreateSession(const std::string& role_id,
-                                   const std::string& message_hint);
+                                   const std::string& message_hint,
+                                   const std::string& owner_id = "",
+                                   SessionType session_type = SessionType::kDirect);
 
     // =====================
     // 群聊/广播
@@ -121,8 +134,12 @@ public:
     /// 设置工具执行器
     void SetToolExecutor(ToolExecutorCallback tool_executor);
 
-    /// 设置输出回调
+    /// 设置输出回调（清空已有回调后添加——兼容旧调用，单前端语义）
     void SetOutputCallback(SessionOutputCallback callback);
+    /// 追加输出回调（多前端共存：SDL Sprite + Web 网关可同时注册）
+    void AddOutputCallback(SessionOutputCallback callback);
+    /// 清空全部输出回调
+    void ClearOutputCallbacks();
 
 private:
     AgentSessionManager() = default;
@@ -131,12 +148,21 @@ private:
     std::unordered_map<std::string, std::unique_ptr<AgentSession>> sessions_;
 
     ToolExecutorCallback tool_executor_;
-    SessionOutputCallback output_callback_;
+
+    /// 多前端输出回调注册表（session 通过扇出 lambda 遍历）
+    std::vector<SessionOutputCallback> output_callbacks_;
+    mutable std::mutex output_mutex_;
 
     mutable std::mutex mutex_;
 
     // ── Pending buffer（连续输入合并）─────────────────────
-    std::unordered_map<std::string, std::vector<std::string>> pending_inputs_;
+    /// 一条待处理输入:text + 发送者(群聊多成员连发时逐条 Loop)
+    struct PendingInput {
+        std::string text;
+        std::string sender_id;
+        std::string sender_name;
+    };
+    std::unordered_map<std::string, std::vector<PendingInput>> pending_inputs_;
     std::unordered_map<std::string, bool> task_active_;
     std::mutex pending_mutex_;
 

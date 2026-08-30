@@ -1,7 +1,7 @@
 #include "virtual_sprite/chat_window.h"
 #include "virtual_sprite/panels/model_card.h"
 #include "virtual_sprite/panels/provider_entry_card.h"
-#include "components/item_list.h"
+#include "virtual_sprite/components/item_list.h"
 #include "virtual_sprite/panels/panel_helpers.h"
 #include "virtual_sprite/layout_config.h"
 #include "config/config.h"

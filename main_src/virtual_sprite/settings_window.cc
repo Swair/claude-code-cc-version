@@ -7,8 +7,8 @@
 #include "common/file_utils.h"
 #include "config/config.h"
 #include "config/role_config_manager.h"
-#include "voice/voice_engine.h"
-#include "media_engine/media/imgui_widget.h"
+#include "virtual_sprite/voice_engine.h"
+#include "media_engine/media/texture/imgui_widget.h"
 #include "platform/platform.h"
 
 #include <filesystem>

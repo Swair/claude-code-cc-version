@@ -3,8 +3,8 @@
 
 #include "virtual_sprite/chat_window.h"
 #include "virtual_sprite/panels/panel_helpers.h"
-#include "components/panel_kit.h"
-#include "components/item_list.h"
+#include "virtual_sprite/components/panel_kit.h"
+#include "virtual_sprite/components/item_list.h"
 #include "virtual_sprite/layout_config.h"
 #include "common/i18n.h"
 #include "common/file_utils.h"

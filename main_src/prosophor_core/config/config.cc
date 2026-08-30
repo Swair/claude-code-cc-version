@@ -444,6 +444,18 @@ AsrConfig AsrConfig::FromJson(const nlohmann::json& json) {
     return config;
 }
 
+WebConfig WebConfig::FromJson(const nlohmann::json& json) {
+    WebConfig config;
+    config.enabled        = json.value("enabled", false);
+    config.host           = json.value("host", "127.0.0.1");
+    config.port           = json.value("port", 8787);
+    config.web_root       = json.value("web_root", "");
+    config.role           = json.value("role", "default");
+    config.data_dir       = json.value("data_dir", "");
+    config.token_ttl_hours = json.value("token_ttl_hours", 168);
+    return config;
+}
+
 ToolConfig ToolConfig::FromJson(const nlohmann::json& json) {
     ToolConfig config;
     config.enabled = json.value("enabled", true);
@@ -493,21 +505,21 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
     ExpandEnvInJson(expanded);
 
     ProsophorConfig config;
-    config.log_level = json.value("log_level", json.value("logLevel", "info"));
+    config.log_level = expanded.value("log_level", expanded.value("logLevel", "info"));
     // default_role can be string (backwards compat) or array of strings
-    if (json.contains("default_role") && json["default_role"].is_array()) {
-        config.default_role = json["default_role"].get<std::vector<std::string>>();
+    if (expanded.contains("default_role") && expanded["default_role"].is_array()) {
+        config.default_role = expanded["default_role"].get<std::vector<std::string>>();
     } else {
-        std::string single = json.value("default_role", json.value("defaultRole", "default"));
+        std::string single = expanded.value("default_role", expanded.value("defaultRole", "default"));
         config.default_role = {single};
     }
-    config.enable_summary = json.value("enable_summary", false);
-    config.sprite_assets_dir = ExpandHome(json.value("sprite_assets_dir", "~/.prosophor/assets"));
-    config.workspace_path = ExpandHome(json.value("workspace_path", ""));
-    config.font_scale = json.value("font_scale", ProsophorConfig::kFontScaleLarge);
+    config.enable_summary = expanded.value("enable_summary", false);
+    config.sprite_assets_dir = ExpandHome(expanded.value("sprite_assets_dir", "~/.prosophor/assets"));
+    config.workspace_path = ExpandHome(expanded.value("workspace_path", ""));
+    config.font_scale = expanded.value("font_scale", ProsophorConfig::kFontScaleLarge);
 
-    if (json.contains("llm_providers") && json["llm_providers"].is_object()) {
-        for (const auto& [key, value] : json["llm_providers"].items()) {
+    if (expanded.contains("llm_providers") && expanded["llm_providers"].is_object()) {
+        for (const auto& [key, value] : expanded["llm_providers"].items()) {
             if (value.is_array()) {
                 // Array format: keep all entries, key models by provider_name/model_name
                 ProviderConfig merged_config;
@@ -560,20 +572,23 @@ ProsophorConfig ProsophorConfig::FromJson(const nlohmann::json& json) {
             }
         }
     }
-    if (json.contains("security") && json["security"].is_object()) {
-        config.security = SecurityConfig::FromJson(json["security"]);
+    if (expanded.contains("security") && expanded["security"].is_object()) {
+        config.security = SecurityConfig::FromJson(expanded["security"]);
     }
-    if (json.contains("tools") && json["tools"].is_object()) {
-        config.tools = ToolConfig::FromJson(json["tools"]);
+    if (expanded.contains("tools") && expanded["tools"].is_object()) {
+        config.tools = ToolConfig::FromJson(expanded["tools"]);
     }
-    if (json.contains("skills") && json["skills"].is_object()) {
-        config.skills = SkillsConfig::FromJson(json["skills"]);
+    if (expanded.contains("skills") && expanded["skills"].is_object()) {
+        config.skills = SkillsConfig::FromJson(expanded["skills"]);
     }
-    if (json.contains("tts") && json["tts"].is_object()) {
-        config.tts = TtsConfig::FromJson(json["tts"]);
+    if (expanded.contains("tts") && expanded["tts"].is_object()) {
+        config.tts = TtsConfig::FromJson(expanded["tts"]);
     }
-    if (json.contains("asr") && json["asr"].is_object()) {
-        config.asr = AsrConfig::FromJson(json["asr"]);
+    if (expanded.contains("asr") && expanded["asr"].is_object()) {
+        config.asr = AsrConfig::FromJson(expanded["asr"]);
+    }
+    if (expanded.contains("web") && expanded["web"].is_object()) {
+        config.web = WebConfig::FromJson(expanded["web"]);
     }
     return config;
 }
@@ -750,6 +765,17 @@ void ProsophorConfig::CreateDefaultConfig(const std::string& filepath) {
   "skills": {
     "path": "./skills",
     "auto_approve": ["read_file", "grep"]
+  },
+
+  // Web server (multi-user browser frontend, prosophor_web executable)
+  "web": {
+    "enabled": false,
+    "host": "127.0.0.1",
+    "port": 8787,
+    "web_root": "",
+    "role": "default",
+    "data_dir": "",
+    "token_ttl_hours": 168
   }
 }
 )";
@@ -890,6 +916,17 @@ nlohmann::ordered_json ProsophorConfig::ToJson() const {
     security_json["allow_local_execute"] = security.allow_local_execute;
     security_json["permission_level"] = security.permission_level;
     json["security"] = security_json;
+
+    // Serialize web (must round-trip, otherwise SaveToFile drops the section)
+    nlohmann::ordered_json web_json;
+    web_json["enabled"] = web.enabled;
+    web_json["host"] = web.host;
+    web_json["port"] = web.port;
+    web_json["web_root"] = web.web_root;
+    web_json["role"] = web.role;
+    web_json["data_dir"] = web.data_dir;
+    web_json["token_ttl_hours"] = web.token_ttl_hours;
+    json["web"] = web_json;
 
     // Note: tools and asr sections intentionally omitted from settings output
 

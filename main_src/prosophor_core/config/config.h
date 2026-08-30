@@ -243,6 +243,20 @@ struct AsrConfig {
     static AsrConfig FromJson(const nlohmann::json& json);
 };
 
+/// Configuration for the Web server (multi-user browser frontend)
+/// 独立可执行 prosophor_web 使用;桌面端默认关闭。
+struct WebConfig {
+    bool enabled = false;             // master switch: start HTTP + WebSocket server
+    std::string host = "0.0.0.0";     // 默认绑定所有网卡(局域网设备可访问;仅本机用 127.0.0.1)
+    int port = 8787;
+    std::string web_root;             // empty = exe 相邻 web-dist 目录
+    std::string role = "default";     // Web 渠道私聊绑定角色(群聊可在 groups.json 覆盖)
+    std::string data_dir;             // empty = ~/.prosophor/web(users/groups/tokens)
+    int token_ttl_hours = 168;        // 认证 token TTL(小时,默认 7 天)
+
+    static WebConfig FromJson(const nlohmann::json& json);
+};
+
 /// Top-level Prosophor configuration
 struct ProsophorConfig {
     std::string log_level = "info";
@@ -264,6 +278,7 @@ struct ProsophorConfig {
     SkillsConfig skills;
     TtsConfig tts;
     AsrConfig asr;
+    WebConfig web;
     std::vector<LlamacppModelConfig> llamacpp_models;
 
     /// Get singleton instance

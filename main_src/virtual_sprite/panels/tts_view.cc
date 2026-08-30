@@ -4,7 +4,7 @@
 #include "config/config.h"
 #include "media_engine/media_engine.h"
 #include "common/i18n.h"
-#include "voice/voice_engine.h"
+#include "virtual_sprite/voice_engine.h"
 
 namespace prosophor {
 

@@ -45,7 +45,7 @@ void AiCoding::RegisterCallbacks() {
     engine.SetOutputCallback(
         [](const std::string& /*session_id*/, const std::string& /*role_id*/,
            AgentRuntimeState state, const std::string& state_msg,
-           const std::optional<MessageSchema>& reply) {
+           const std::optional<MessageSchema>& reply, const std::string& delta) {
             switch (state) {
                 case AgentRuntimeState::BEGINNING:
                     break;
@@ -53,7 +53,8 @@ void AiCoding::RegisterCallbacks() {
                     std::cout << ColorCode::kCyan << "\n<thinking> " << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::STREAM_THINKING:
-                    std::cout << ColorCode::kGray << (reply ? reply->text() : "") << ColorCode::kReset << std::flush;
+                    // 流式帧增量在 delta 参数(思考增量)
+                    std::cout << ColorCode::kGray << delta << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::STREAM_THINKING_END:
                     std::cout << ColorCode::kCyan << " </thinking>\n" << ColorCode::kReset << std::flush;
@@ -62,7 +63,8 @@ void AiCoding::RegisterCallbacks() {
                     std::cout << ColorCode::kGreen << "● " << ColorCode::kReset << std::flush;
                     break;
                 case AgentRuntimeState::STREAM_CONTENT_TYPING:
-                    std::cout << (reply ? reply->text() : "") << std::flush;
+                    // 流式帧增量在 delta 参数(正文增量)
+                    std::cout << delta << std::flush;
                     break;
                 case AgentRuntimeState::STREAM_CONTENT_END:
                     std::cout << ColorCode::kGray << "\n●" << ColorCode::kReset << std::flush;

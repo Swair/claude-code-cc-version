@@ -3,7 +3,7 @@
 
 #include "virtual_sprite/update_handler.h"
 
-#include "components/panel_kit.h"
+#include "virtual_sprite/components/panel_kit.h"
 #include "media_engine/media_engine.h"
 #include "platform/platform.h"
 #include "updater/update_checker.h"

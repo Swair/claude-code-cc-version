@@ -3,11 +3,30 @@
 
 #include "core/agent_session.h"
 
+#include <unordered_map>
+#include <memory>
+
 #include "common/log_wrapper.h"
 #include "common/time_wrapper.h"
 #include "common/file_utils.h"
 
 namespace {
+
+/// 按路径互斥锁：按 owner 分目录后各会话独享文件(竞争归零),
+/// 仍保护共享的平面回退文件(空 owner TUI / 净化失败)与跨进程 append
+std::mutex g_flush_locks_mutex;
+std::unordered_map<std::string, std::unique_ptr<std::mutex>> g_flush_locks;
+
+std::unique_lock<std::mutex> GetFlushLock(const std::string& path) {
+    std::lock_guard<std::mutex> lock(g_flush_locks_mutex);
+    auto it = g_flush_locks.find(path);
+    if (it == g_flush_locks.end()) {
+        g_flush_locks.emplace(path, std::make_unique<std::mutex>());
+        it = g_flush_locks.find(path);
+    }
+    return std::unique_lock<std::mutex>(*it->second);
+}
+
 
 std::vector<std::string> TtsSplitSentences(const std::string& text, size_t min_chars) {
     std::vector<std::string> segments;
@@ -55,7 +74,6 @@ AgentSession::AgentSession(const std::string& sid,
         working_directory_.clear();
         messages_.clear();
         system_prompt_.clear();
-        session_history_dir_.clear();
     }
 }
 
@@ -68,14 +86,21 @@ AgentSession::AgentSession(AgentSession&& other) noexcept
       working_directory_(std::move(other.working_directory_)),
       related_files_(std::move(other.related_files_)),
       stop_requested_(other.stop_requested_.load()),
+      last_consolidated_count_(other.last_consolidated_count_),
       session_id_(std::move(other.session_id_)),
       task_description_(std::move(other.task_description_)),
       provider_(std::move(other.provider_)),
       base_url_(std::move(other.base_url_)),
       api_key_(std::move(other.api_key_)),
       timeout_(other.timeout_),
-      session_history_dir_(std::move(other.session_history_dir_)),
+      session_log_dir_(std::move(other.session_log_dir_)),
+      last_flushed_index_(other.last_flushed_index_),
       is_active_(other.is_active_),
+      owner_id_(std::move(other.owner_id_)),
+      group_id_(std::move(other.group_id_)),
+      session_type_(other.session_type_),
+      current_sender_id_(std::move(other.current_sender_id_)),
+      current_sender_name_(std::move(other.current_sender_name_)),
       created_at_(other.created_at_),
       last_active_(other.last_active_),
       messages_(std::move(other.messages_)),
@@ -106,8 +131,15 @@ AgentSession& AgentSession::operator=(AgentSession&& other) noexcept {
     base_url_ = std::move(other.base_url_);
     api_key_ = std::move(other.api_key_);
     timeout_ = other.timeout_;
-    session_history_dir_ = std::move(other.session_history_dir_);
+    session_log_dir_ = std::move(other.session_log_dir_);
+    last_flushed_index_ = other.last_flushed_index_;
+    last_consolidated_count_ = other.last_consolidated_count_;
     is_active_ = other.is_active_;
+    owner_id_ = std::move(other.owner_id_);
+    group_id_ = std::move(other.group_id_);
+    session_type_ = other.session_type_;
+    current_sender_id_ = std::move(other.current_sender_id_);
+    current_sender_name_ = std::move(other.current_sender_name_);
     created_at_ = other.created_at_;
     last_active_ = other.last_active_;
     messages_ = std::move(other.messages_);
@@ -124,7 +156,8 @@ AgentSession& AgentSession::operator=(AgentSession&& other) noexcept {
 
 void AgentSession::SetOutput(AgentRuntimeState new_state,
                               const std::string& state_msg,
-                              const std::optional<MessageSchema>& reply) {
+                              const std::optional<MessageSchema>& reply,
+                              const std::string& delta) {
 
     // 更新输出信号
     {
@@ -132,11 +165,12 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
         state_ = new_state;
         state_message_ = state_msg;
 
-        if (new_state == AgentRuntimeState::STREAM_CONTENT_TYPING && reply) {
-            streaming_text_ += reply->text();
-            tts_chunks_.Push(reply->text());
+        // 流式帧:增量从 delta 取(类型由 state 决定),不再借用 MessageSchema
+        if (new_state == AgentRuntimeState::STREAM_CONTENT_TYPING) {
+            streaming_text_ += delta;
+            tts_chunks_.Push(delta);
             // Token/s tracking: count chars, estimate ~4 chars per token
-            streaming_char_count_ += reply->text().size();
+            streaming_char_count_ += delta.size();
             auto elapsed = std::chrono::duration<float>(
                 SteadyClock::Now() - stream_start_time_).count();
             if (elapsed > 0.1f) {
@@ -150,8 +184,8 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
             streaming_text_.clear();
             tts_chunks_.Clear();
         }
-        if (new_state == AgentRuntimeState::STREAM_THINKING && reply) {
-            streaming_thinking_ += reply->text();
+        if (new_state == AgentRuntimeState::STREAM_THINKING) {
+            streaming_thinking_ += delta;
         }
         if (new_state == AgentRuntimeState::STREAM_THINKING_START) {
             stream_start_time_ = SteadyClock::Now();
@@ -173,7 +207,7 @@ void AgentSession::SetOutput(AgentRuntimeState new_state,
     // 输出信号驱动动作或渲染
     if (output_callback_) {
         output_callback_(session_id_, role_ ? role_->id : "",
-                        new_state, state_msg, reply);
+                        new_state, state_msg, reply, delta);
     }
 
     // ── TTS: pop chunks, join, split, send complete sentences ──
@@ -241,9 +275,19 @@ RenderSnapshot AgentSession::GetSnapshot() const {
     return snap;
 }
 
+void AgentSession::SetCurrentSender(const std::string& sender_id,
+                                    const std::string& sender_name) {
+    std::lock_guard<std::mutex> lock(render_mutex_);
+    current_sender_id_ = sender_id;
+    current_sender_name_ = sender_name;
+}
+
 void AgentSession::AddUserMessage(const std::string& text) {
     std::lock_guard<std::mutex> lock(render_mutex_);
-    messages_.emplace_back("user", text);
+    // 消费式读取瞬时 sender:右值构造取走并清空,不会泄漏到下一条消息
+    messages_.push_back(MessageSchema("user", text,
+                                      std::move(current_sender_id_),
+                                      std::move(current_sender_name_)));
 }
 
 void AgentSession::CleanupInterruptedLoop() {
@@ -281,6 +325,12 @@ void AgentSession::FlushToDisk() {
         nlohmann::json j;
         j["role"] = messages_[i].role;
         j["ts"] = SystemClock::GetCurrentTimestamp();
+        j["sender"] = messages_[i].sender_id;  // 恒定写(sender 空也写空串,兼容旧格式)
+
+        if (!owner_id_.empty()) j["owner"] = owner_id_;
+        if (session_type_ == SessionType::kGroup)
+            j["group"] = group_id_.empty() ? owner_id_ : group_id_;
+        j["session_type"] = SessionTypeToString(session_type_);
 
         for (const auto& block : messages_[i].content) {
             if (block.type == "text") {
@@ -295,6 +345,8 @@ void AgentSession::FlushToDisk() {
         batch += j.dump() + "\n";
     }
 
+    // 同 role 多会话(多用户)并发 append 同一日期文件,按路径互斥
+    auto flush_lock = GetFlushLock(filepath.string());
     if (!WriteFile(filepath.string(), batch, true)) {
         LOG_ERROR("Failed to flush session log: {}", filepath.string());
         return;

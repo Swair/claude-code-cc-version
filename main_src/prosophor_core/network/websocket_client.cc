@@ -119,7 +119,8 @@ bool WebSocketClient::SendText(const std::string& msg) {
     return Send(reinterpret_cast<const uint8_t*>(msg.data()), msg.size(), false);
 }
 
-CURLcode WebSocketClient::Recv(std::vector<uint8_t>& out, int* flags, int timeout_ms) {
+CURLcode WebSocketClient::Recv(std::vector<uint8_t>& out, int* flags,
+                               int timeout_ms, curl_off_t* bytesleft) {
     if (!curl_) return CURLE_UNSUPPORTED_PROTOCOL;
 
     constexpr size_t kBufSize = 16384;
@@ -147,6 +148,9 @@ CURLcode WebSocketClient::Recv(std::vector<uint8_t>& out, int* flags, int timeou
         out.assign(buf.data(), buf.data() + received);
         if (flags && meta) {
             *flags = meta->flags;
+        }
+        if (bytesleft && meta) {
+            *bytesleft = meta->bytesleft;
         }
         return CURLE_OK;
     }

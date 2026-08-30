@@ -236,26 +236,20 @@ void AgentCore::Loop(const std::string& message, AgentSession& session) {
                         case StreamEvent::kThinkingStart:
                             session.SetOutput(AgentRuntimeState::STREAM_THINKING_START, "", std::nullopt);
                             break;
-                        case StreamEvent::kThinkingDelta: {
-                            MessageSchema thinking_msg;
-                            thinking_msg.role = "assistant";
-                            thinking_msg.AddThinkingContent(content);
-                            session.SetOutput(AgentRuntimeState::STREAM_THINKING, "", thinking_msg);
+                        case StreamEvent::kThinkingDelta:
+                            session.SetOutput(AgentRuntimeState::STREAM_THINKING, "",
+                                              std::nullopt, content);
                             break;
-                        }
                         case StreamEvent::kThinkingEnd:
                             session.SetOutput(AgentRuntimeState::STREAM_THINKING_END, "", std::nullopt);
                             break;
                         case StreamEvent::kContentStart:
                             session.SetOutput(AgentRuntimeState::STREAM_CONTENT_START, "", std::nullopt);
                             break;
-                        case StreamEvent::kContentDelta: {
-                            MessageSchema chunk_msg;
-                            chunk_msg.role = "assistant";
-                            chunk_msg.AddTextContent(content);
-                            session.SetOutput(AgentRuntimeState::STREAM_CONTENT_TYPING, "", chunk_msg);
+                        case StreamEvent::kContentDelta:
+                            session.SetOutput(AgentRuntimeState::STREAM_CONTENT_TYPING, "",
+                                              std::nullopt, content);
                             break;
-                        }
                         case StreamEvent::kContentEnd:
                             session.SetOutput(AgentRuntimeState::STREAM_CONTENT_END, "", std::nullopt);
                             break;

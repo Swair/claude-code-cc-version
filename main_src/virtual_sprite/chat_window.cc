@@ -8,12 +8,12 @@
 
 #include "agent_engine.h"
 #include "config/config.h"
-#include "components/chat_panel.h"
+#include "virtual_sprite/components/chat_panel.h"
 #include "media_engine/ui_component/input_panel.h"
 #include "media_engine/media_engine.h"
 #include "common/log_wrapper.h"
 #include "common/i18n.h"
-#include "voice/voice_engine.h"
+#include "virtual_sprite/voice_engine.h"
 #include "managers/active_trigger_manager.h"
 #include "virtual_sprite/panels/panel_helpers.h"
 

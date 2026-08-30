@@ -129,13 +129,20 @@ void AgentEngine::SetPermissionCallback(PermissionCallback cb) {
     tool_registry_->SetPermissionConfirmCallback(std::move(cb));
 }
 
-void AgentEngine::SendUserMessage(const std::string& session_id, const std::string& text) {
+void AgentEngine::AddOutputCallback(OutputCallback cb) {
+    session_manager_->AddOutputCallback(std::move(cb));
+}
+
+void AgentEngine::SendUserMessage(const std::string& session_id, const std::string& text,
+                                  const std::string& sender_id,
+                                  const std::string& sender_name) {
     if (!text.empty() && text[0] == '/') {
+        // 命令是系统级操作,不携带 sender
         HandleCommand(text, session_id);
         return;
     }
     try {
-        session_manager_->SendToSessionAsync(session_id, text);
+        session_manager_->SendToSessionAsync(session_id, text, sender_id, sender_name);
     } catch (const std::exception& e) {
         LOG_ERROR("SendUserMessage error (session={}): {}", session_id, e.what());
     }
@@ -179,8 +186,10 @@ bool AgentEngine::HandleCommand(const std::string& line, const std::string& sess
 }
 
 std::string AgentEngine::CreateSession(const std::string& role_id,
-                                        const std::string& task_desc) {
-    return session_manager_->CreateSession(role_id, task_desc);
+                                        const std::string& task_desc,
+                                        const std::string& owner_id,
+                                        SessionType session_type) {
+    return session_manager_->CreateSession(role_id, task_desc, owner_id, session_type);
 }
 
 std::optional<RenderSnapshot> AgentEngine::GetFocusedSessionSnapshot() {
@@ -198,6 +207,10 @@ void AgentEngine::StopSession(const std::string& session_id) {
     if (session) {
         session->RequestStop();
     }
+}
+
+void AgentEngine::FlushSession(const std::string& session_id) {
+    session_manager_->FlushSession(session_id);
 }
 
 void AgentEngine::ChangeWorkspace(const std::string& new_path) {
